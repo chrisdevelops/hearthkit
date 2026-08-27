@@ -6,9 +6,9 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 1 (`config` merged, `db` in progress)
 - Package: `db`
-- Step: commit (PR #2 open, awaiting CI and merge)
+- Step: commit (PR #2 open, CI green, awaiting merge)
 - Branch: `pkg/db`
-- Last commit: 862aa72 `feat(db): implement @hearthkit/db contract`
+- Last commit: 4132c54 `ci: resolve pg_dump/pg_restore to the v17 client on the runner`
 
 ## Phase checklist
 
