@@ -1,0 +1,25 @@
+{
+  "name": "hearthkit",
+  "private": true,
+  "type": "module",
+  "description": "Opinionated stack for shipping many small TypeScript web projects",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit && pnpm --recursive --if-present run typecheck"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.1",
+    "@eslint/js": "10.0.1",
+    "eslint": "10.9.1",
+    "jiti": "2.7.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.68.0"
+  }
+}
