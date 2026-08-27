@@ -4,18 +4,18 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 1 (`config` merged, `db` in progress)
-- Package: `db`
-- Step: commit (PR #2 open, CI green, awaiting merge)
-- Branch: `pkg/db`
-- Last commit: 4132c54 `ci: resolve pg_dump/pg_restore to the v17 client on the runner`
+- Phase: 1 complete; phase 2 (`cli`) next, not started
+- Package: none (next: `cli`)
+- Step: not started
+- Branch: main
+- Last commit: 886785b squash-merge of PR #2 (`@hearthkit/db`)
 
 ## Phase checklist
 
 Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 - [x] Phase 0: foundation (done directly in the main session, no loop)
-- [ ] Phase 1: `config` (merged, PR #1), `db` (PR #2 open)
+- [x] Phase 1: `config` (merged, PR #1), `db` (merged, PR #2)
 - [ ] Phase 2: `cli` (db commands, dev, dev infra, doctor)
 - [ ] Phase 3: `ui`, `observability`
 - [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                                              |
-| ------- | ------ | ------------------ | ---------------------------------------------------------------------------------- |
-| db      | commit | 1                  | 24/24 gates green, typecheck and lint clean (verified by orchestrator); PR #2 open |
+| Package | Step | Implementor rounds | Notes                                  |
+| ------- | ---- | ------------------ | -------------------------------------- |
+| —       | —    | 0                  | `db` merged; see git history and PR #2 |
 
 ## Open issues
 
@@ -41,6 +41,12 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- Phase 1 definition of done verified 2026-08-27: on merged main (886785b), local gates pass
+  (config 12/12, db 24/24 against compose Postgres 17) and CI run 33121562483 on main is
+  green with a Postgres 17 service container, PGDG `postgresql-client-17` (PATH-prepended —
+  the runner's v16 client shadows v17 otherwise), and the workspace test step.
+- Root lint flag `--no-error-on-unmatched-pattern` removed after Phase 1 landed; `pnpm lint`
+  exits 0 without it.
 - `db` contract approved 2026-08-27 with these decisions: admin connection is always an
   explicit `adminDatabaseUrl` parameter, never env; `DATABASE_URL` is always project-scoped;
   `createDrizzleClient` returns `{ drizzleClient, closeDatabaseClient }`; restore requires an
@@ -69,8 +75,6 @@ Things checked against current docs that later steps can rely on. Clear when a p
   `"types": ["node"]`, so every package must add `@types/node` as a dev dependency. Emit
   requires an explicit `rootDir` in each package tsconfig (error TS5011 otherwise).
   Declaration emit verified working.
-- Root lint uses `--no-error-on-unmatched-pattern` because the workspace has no TS files yet;
-  consider removing the flag once Phase 1 lands.
 - Root `typecheck` is now only `pnpm -r --if-present run typecheck` (no root tsconfig; there
   are no root TS files).
 - Changesets is now 3.0.1 (config schema `@changesets/config@4.0.0`); `changeset init` is
