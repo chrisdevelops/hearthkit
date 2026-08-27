@@ -6,16 +6,16 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 1 (`config` merged, `db` in progress)
 - Package: `db`
-- Step: verify
+- Step: commit (PR #2 open, awaiting CI and merge)
 - Branch: `pkg/db`
-- Last commit: f44ed69 squash-merge of PR #1 (`@hearthkit/config`)
+- Last commit: 862aa72 `feat(db): implement @hearthkit/db contract`
 
 ## Phase checklist
 
 Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 - [x] Phase 0: foundation (done directly in the main session, no loop)
-- [ ] Phase 1: `config` (merged, PR #1), `db` (not started)
+- [ ] Phase 1: `config` (merged, PR #1), `db` (PR #2 open)
 - [ ] Phase 2: `cli` (db commands, dev, dev infra, doctor)
 - [ ] Phase 3: `ui`, `observability`
 - [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
@@ -31,7 +31,7 @@ Only the current package is tracked here. Steps: contract, contract-review, gate
 
 | Package | Step      | Implementor rounds | Notes                                                                               |
 | ------- | --------- | ------------------ | ----------------------------------------------------------------------------------- |
-| db      | implement | 1                  | gates approved: 24 gates, all failing pre-implementation (verified by orchestrator) |
+| db      | commit    | 1                  | 24/24 gates green, typecheck and lint clean (verified by orchestrator); PR #2 open  |
 
 ## Open issues
 
