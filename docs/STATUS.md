@@ -8,7 +8,7 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 - Package: `config`
 - Step: commit
 - Branch: pkg/config
-- Last commit: Phase 0 foundation (repo: https://github.com/chrisdevelops/hearthkit, private)
+- Last commit: 721d0db `feat(config)` on pkg/config; PR #1 open (https://github.com/chrisdevelops/hearthkit/pull/1). Tick the phase checklist when it merges.
 
 ## Phase checklist
 
