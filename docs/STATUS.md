@@ -4,10 +4,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 1 (`config`, then `db`), not started. Phase 0 is complete.
-- Package: none
-- Step: not started
-- Branch: main
+- Phase: 1 (`config`, then `db`). Phase 0 is complete.
+- Package: `config`
+- Step: commit
+- Branch: pkg/config
 - Last commit: Phase 0 foundation (repo: https://github.com/chrisdevelops/hearthkit, private)
 
 ## Phase checklist
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes |
-| ------- | ---- | ------------------ | ----- |
-| —       | —    | 0                  | —     |
+| Package | Step   | Implementor rounds | Notes                                                                                                                                                                                     |
+| ------- | ------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| config  | commit | 1                  | 12 gates pass; typecheck and lint clean (2 justified no-unsafe-type-assertion warnings). Contract defaults: config owns NODE_ENV; empty string = unset; config fragment passed explicitly |
 
 ## Open issues
 
