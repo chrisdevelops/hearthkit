@@ -4,7 +4,7 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 0 complete. Next: Phase 1 (`config`, then `db`)
+- Phase: 1 (`config`, then `db`), not started. Phase 0 is complete.
 - Package: none
 - Step: not started
 - Branch: main
