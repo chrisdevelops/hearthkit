@@ -4,18 +4,18 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 1 (`config`, then `db`). Phase 0 is complete.
-- Package: `config`
-- Step: commit
-- Branch: pkg/config
-- Last commit: 721d0db `feat(config)` on pkg/config; PR #1 open (https://github.com/chrisdevelops/hearthkit/pull/1). Tick the phase checklist when it merges.
+- Phase: 1 (`config` merged, `db` next)
+- Package: none (next: `db`)
+- Step: not started
+- Branch: main
+- Last commit: f44ed69 squash-merge of PR #1 (`@hearthkit/config`)
 
 ## Phase checklist
 
 Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 - [x] Phase 0: foundation (done directly in the main session, no loop)
-- [ ] Phase 1: `config`, `db`
+- [ ] Phase 1: `config` (merged, PR #1), `db` (not started)
 - [ ] Phase 2: `cli` (db commands, dev, dev infra, doctor)
 - [ ] Phase 3: `ui`, `observability`
 - [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                                                                                                                                                     |
-| ------- | ------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| config  | commit | 1                  | 12 gates pass; typecheck and lint clean (2 justified no-unsafe-type-assertion warnings). Contract defaults: config owns NODE_ENV; empty string = unset; config fragment passed explicitly |
+| Package | Step | Implementor rounds | Notes                                      |
+| ------- | ---- | ------------------ | ------------------------------------------ |
+| —       | —    | 0                  | `config` merged; see git history and PR #1 |
 
 ## Open issues
 
@@ -40,6 +40,13 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 - none
 
 ## Verified facts this session
+
+- User decision 2026-08-27: staying with Zod (Valibot/TypeBox considered and rejected —
+  server-side only, Better Auth brings Zod transitively anyway). Zod pinned exact 4.4.3
+  in `@hearthkit/config`.
+- `config` contract defaults accepted: config owns `NODE_ENV` (default `development`);
+  empty-string env values are unset; `configEnvSchemaFragment` is passed explicitly,
+  never auto-included. Downstream packages and the scaffolder must follow these.
 
 Things checked against current docs that later steps can rely on. Clear when a phase completes.
 
