@@ -4,10 +4,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 1 (`config` merged, `db` next)
-- Package: none (next: `db`)
-- Step: not started
-- Branch: main
+- Phase: 1 (`config` merged, `db` in progress)
+- Package: `db`
+- Step: verify
+- Branch: `pkg/db`
 - Last commit: f44ed69 squash-merge of PR #1 (`@hearthkit/config`)
 
 ## Phase checklist
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                      |
-| ------- | ---- | ------------------ | ------------------------------------------ |
-| —       | —    | 0                  | `config` merged; see git history and PR #1 |
+| Package | Step      | Implementor rounds | Notes                                                                               |
+| ------- | --------- | ------------------ | ----------------------------------------------------------------------------------- |
+| db      | implement | 1                  | gates approved: 24 gates, all failing pre-implementation (verified by orchestrator) |
 
 ## Open issues
 
@@ -41,6 +41,18 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- `db` contract approved 2026-08-27 with these decisions: admin connection is always an
+  explicit `adminDatabaseUrl` parameter, never env; `DATABASE_URL` is always project-scoped;
+  `createDrizzleClient` returns `{ drizzleClient, closeDatabaseClient }`; restore requires an
+  existing target database (create-then-restore after a drop); credentials are returned once
+  in the connection string and never persisted (persistence is future CLI scope).
+- User decision 2026-08-27: backup/restore shell out to host `pg_dump`/`pg_restore` in all
+  environments. Installed `postgresql@17` (17.11) via brew and force-linked it locally.
+  CI must install `postgresql-client-17` and add a Postgres 17 service container plus a test
+  step. Phase 7 `hearthkit vps bootstrap` must install `postgresql-client-17` on the VPS.
+- Repo-root `docker-compose.yml` created (orchestrator, plan section 6): Postgres 17,
+  admin URL `postgresql://hearthkit:hearthkit@localhost:5432/hearthkit`. Verified running
+  (17.11).
 - User decision 2026-08-27: staying with Zod (Valibot/TypeBox considered and rejected —
   server-side only, Better Auth brings Zod transitively anyway). Zod pinned exact 4.4.3
   in `@hearthkit/config`.
