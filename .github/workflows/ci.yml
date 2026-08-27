@@ -8,6 +8,20 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: hearthkit
+          POSTGRES_PASSWORD: hearthkit
+          POSTGRES_DB: hearthkit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hearthkit"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -15,7 +29,19 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # The db package shells out to pg_dump/pg_restore and needs the v17 client
+      # (the runner image ships v16, which refuses a v17 server).
+      - name: Install Postgres 17 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          # The image's v16 client shadows v17 through the pg_wrapper symlinks;
+          # putting the versioned bin dir first makes pg_dump/pg_restore resolve to 17.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm format:check
+      - run: pnpm --recursive --if-present run test

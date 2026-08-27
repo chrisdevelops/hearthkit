@@ -1,0 +1,23 @@
+# Local infrastructure for package gates (CLAUDE.md: gates run against real services).
+# Services appear here only when a package needs them: Postgres 17 (db); MinIO and
+# Mailpit arrive with storage and email in Phase 5.
+services:
+  postgres:
+    image: postgres:17
+    container_name: hearthkit-postgres
+    environment:
+      POSTGRES_USER: hearthkit
+      POSTGRES_PASSWORD: hearthkit
+      POSTGRES_DB: hearthkit
+    ports:
+      - '5432:5432'
+    volumes:
+      - hearthkit-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hearthkit']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  hearthkit-postgres-data:
