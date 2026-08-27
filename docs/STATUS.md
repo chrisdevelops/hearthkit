@@ -4,17 +4,17 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 0 (foundation)
+- Phase: 0 complete. Next: Phase 1 (`config`, then `db`)
 - Package: none
 - Step: not started
 - Branch: main
-- Last commit: none
+- Last commit: Phase 0 foundation (repo: https://github.com/chrisdevelops/hearthkit, private)
 
 ## Phase checklist
 
 Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
-- [ ] Phase 0: foundation (done directly in the main session, no loop)
+- [x] Phase 0: foundation (done directly in the main session, no loop)
 - [ ] Phase 1: `config`, `db`
 - [ ] Phase 2: `cli` (db commands, dev, dev infra, doctor)
 - [ ] Phase 3: `ui`, `observability`
@@ -43,4 +43,11 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 Things checked against current docs that later steps can rely on. Clear when a phase completes.
 
-- none
+- TypeScript latest is 7.0.2, but typescript-eslint 8.68.0 supports only `<6.1.0`. Pinned
+  TypeScript 6.0.3 (newest stable 6.x). Revisit when typescript-eslint supports TS 7.
+- Changesets is now 3.0.1 (config schema `@changesets/config@4.0.0`); `changeset init` is
+  interactive-only, so `.changeset/config.json` was written by hand from the package's defaults.
+- Root `package.json` is `"type": "module"` so `eslint.config.ts` typechecks under
+  `verbatimModuleSyntax` + NodeNext.
+- CI actions: `actions/checkout@v7`, `actions/setup-node@v7`, `pnpm/action-setup@v6` are current
+  majors (v4 triggers a Node 20 deprecation annotation).
