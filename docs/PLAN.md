@@ -311,7 +311,7 @@ Each phase ends with a verifiable definition of done. Do not start the next phas
 ### Phase 0: foundation
 
 - Register `@hearthkit` npm scope (done).
-- Create the repo, pnpm workspaces, TypeScript base config, ESLint, Prettier, Changesets, `.ai/CLAUDE.md` first draft.
+- Create the repo, pnpm workspaces, TypeScript base config, oxlint (chosen over ESLint 2026-08-27 to unblock TypeScript 7), Prettier, Changesets, `.ai/CLAUDE.md` first draft.
 - Done when: `pnpm install`, `pnpm lint`, `pnpm typecheck` succeed on an empty workspace and CI runs green.
 
 ### Phase 1: config and db

@@ -43,11 +43,18 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 Things checked against current docs that later steps can rely on. Clear when a phase completes.
 
-- TypeScript latest is 7.0.2, but typescript-eslint 8.68.0 supports only `<6.1.0`. Pinned
-  TypeScript 6.0.3 (newest stable 6.x). Revisit when typescript-eslint supports TS 7.
+- Switched to TypeScript 7.0.2 + oxlint 1.80.0 (user decision 2026-08-27), dropping
+  eslint/typescript-eslint/jiti. oxlint-tsgolint 7.0.2001 provides type-aware rules
+  (no-floating-promises verified working) and is versioned in lockstep with TS 7.
+- TS 7 migration facts: `@types/node` is not auto-included — `tsconfig.base.json` sets
+  `"types": ["node"]`, so every package must add `@types/node` as a dev dependency. Emit
+  requires an explicit `rootDir` in each package tsconfig (error TS5011 otherwise).
+  Declaration emit verified working.
+- Root lint uses `--no-error-on-unmatched-pattern` because the workspace has no TS files yet;
+  consider removing the flag once Phase 1 lands.
+- Root `typecheck` is now only `pnpm -r --if-present run typecheck` (no root tsconfig; there
+  are no root TS files).
 - Changesets is now 3.0.1 (config schema `@changesets/config@4.0.0`); `changeset init` is
   interactive-only, so `.changeset/config.json` was written by hand from the package's defaults.
-- Root `package.json` is `"type": "module"` so `eslint.config.ts` typechecks under
-  `verbatimModuleSyntax` + NodeNext.
 - CI actions: `actions/checkout@v7`, `actions/setup-node@v7`, `pnpm/action-setup@v6` are current
   majors (v4 triggers a Node 20 deprecation annotation).
