@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 3 complete; `ui` cleanup round done, Phase 4 (`templates/app`, Dockerfile, project CI) next
-- Package: `ui` (cleanup round)
-- Step: commit
-- Branch: pkg/ui-cleanup
-- Last commit: 7ca9829 (main)
+- Phase: 4 (`templates/app`, Dockerfile, project CI workflows) — next, not started
+- Package: none
+- Step: not started
+- Branch: main
+- Last commit: 1047c7d squash-merge of PR #7 (`ui` cleanup round)
 
 ## Phase checklist
 
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                                                 |
-| ------- | ------ | ------------------ | ------------------------------------------------------------------------------------- |
-| `ui`    | commit | 1                  | cleanup round, not a full loop: export-list gap, CLI config, theme specifier constant |
+| Package | Step | Implementor rounds | Notes                                              |
+| ------- | ---- | ------------------ | -------------------------------------------------- |
+| —       | —    | 0                  | `ui` cleanup merged (PR #7); Phase 4 not yet begun |
 
 ## Open issues
 
