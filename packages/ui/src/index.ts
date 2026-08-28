@@ -56,6 +56,7 @@ export {
   darkModeClassName,
   darkModeOverriddenTokenNames,
   hearthkitThemeCssFileName,
+  hearthkitThemeCssImportSpecifier,
   hearthkitThemeTokenNameSchema,
   hearthkitThemeTokenNames,
   hearthkitUiMinimumExportNames,

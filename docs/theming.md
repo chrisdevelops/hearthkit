@@ -246,8 +246,8 @@ with the package, and a package change that removes a variant becomes a type err
 than a silent visual regression. If the fork also needs different variant classes, copy the `cva`
 block out of `packages/ui/src/components/ui/button.tsx` into the app file and add
 `class-variance-authority` to the app's dependencies. At that point the app owns the recipe too, and
-the fork no longer depends on `buttonVariants`, which the package entry point exports but the
-contract's guaranteed export list does not name.
+the fork no longer depends on `buttonVariants`. Either way the import is safe: `buttonVariants` is a
+guaranteed export, named in the contract's `hearthkitUiMinimumExportNames`.
 
 ### Using it next to the package component
 
@@ -314,8 +314,8 @@ component belongs in the package instead, added the way the next section describ
 Rule 4. New components are generated into `packages/ui` with the shadcn CLI and published from there.
 No app ever installs shadcn for itself.
 
-One-time setup for the package, needed before the CLI can write to the right place. Neither piece is
-in `packages/ui` today, so whoever adds the next component adds these first:
+Two pieces of setup let the CLI write to the right place. Both are in `packages/ui` already; they are
+recorded here so a new package, or a repair, can reproduce them:
 
 1. `packages/ui/components.json`, which tells the CLI it is looking at a configured project:
 
@@ -349,11 +349,15 @@ in `packages/ui` today, so whoever adds the next component adds these first:
 2. A `@/*` path alias in `packages/ui/tsconfig.json` pointing at `src`:
 
    ```json
-   { "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["./src/*"] } } }
+   { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }
    ```
 
    The CLI resolves its aliases through the TypeScript config. Without the alias it does not fail: it
    creates a literal directory named `@` and writes the component into it.
+
+   Do not add `baseUrl`. TypeScript 7 removed it, and the workspace is pinned to 7.0.2, so a
+   `baseUrl` entry fails the build with `error TS5102: Option 'baseUrl' has been removed`. The alias
+   alone is what the CLI needs; both halves of that were verified against shadcn CLI 4.19.0.
 
 Then, per component:
 
@@ -400,3 +404,6 @@ Checked 2026-08-28 against a scratch Next 16.1.4 app on Node 24.20.0, `@hearthki
   `src/components/ui/switch.tsx` and changed nothing else. With the alias missing it created a
   literal `@/components/ui/switch.tsx` directory. With `components.json` missing it prompted to run
   `init`. The generated file imported `cn` from the `utils` alias, which is the rename step above.
+- The alias works without `baseUrl`, which TypeScript 7 has removed: `paths` alone still produced
+  `src/components/ui/badge.tsx`, removing `paths` still produced the literal `@` directory, and a
+  `baseUrl` entry fails the workspace typecheck with `error TS5102`.
