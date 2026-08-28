@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 2 (`cli`) in progress
-- Package: `cli`
-- Step: commit
-- Branch: pkg/cli
-- Last commit: c4d11cf on pkg/cli (PR #3 open, awaiting CI and merge)
+- Phase: 2 complete; phase 3 (`ui`, `observability`) next, not started
+- Package: none (next: `ui`)
+- Step: not started
+- Branch: main
+- Last commit: 7fd2b2d squash-merge of PR #3 (`@hearthkit/cli`)
 
 ## Phase checklist
 
@@ -16,7 +16,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 - [x] Phase 0: foundation (done directly in the main session, no loop)
 - [x] Phase 1: `config` (merged, PR #1), `db` (merged, PR #2)
-- [ ] Phase 2: `cli` (db commands, dev, dev infra, doctor)
+- [x] Phase 2: `cli` (merged, PR #3)
 - [ ] Phase 3: `ui`, `observability`
 - [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
 - [ ] Phase 5: `storage`, `email`, `auth`, `payments`
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                          |
-| ------- | ------ | ------------------ | -------------------------------------------------------------- |
-| `cli`   | commit | 1                  | 25/25 gates, typecheck, lint verified by orchestrator; PR open |
+| Package | Step | Implementor rounds | Notes                                   |
+| ------- | ---- | ------------------ | --------------------------------------- |
+| —       | —    | 0                  | `cli` merged; see git history and PR #3 |
 
 ## Open issues
 
@@ -41,7 +41,12 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
-- `cli` verified 2026-08-27: 23/23 gates pass against compose Postgres 17 + Docker
+- Phase 2 definition of done verified 2026-08-27 on merged main (7fd2b2d): in a scratch app
+  (deps `@hearthkit/db` + Next 16.1.4, no docker-compose.yml), `hearthkit dev` run as bare
+  `node .../hearthkit-bin.ts dev` generated the compose file, brought `postgres:17` up healthy,
+  and started Next (page served 200). `dev infra down` removed container and network cleanly;
+  repo compose restored after, db gates re-verified 24/24.
+- `cli` verified 2026-08-27: 25/25 gates pass against compose Postgres 17 + Docker
   (orchestrator-run), workspace typecheck and lint exit 0 (lint warnings only, all in test
   fixtures). Gate-runner reports in `.reports/cli-*.txt`.
 - User decision 2026-08-27 (hybrid TS execution): relative import specifiers are written
