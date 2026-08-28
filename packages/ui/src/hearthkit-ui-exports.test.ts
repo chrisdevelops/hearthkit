@@ -4,6 +4,7 @@ import {
   darkModeClassName,
   darkModeOverriddenTokenNames,
   hearthkitThemeCssFileName,
+  hearthkitThemeCssImportSpecifier,
   hearthkitThemeTokenNames,
   hearthkitUiMinimumExportNames,
   tailwindSourceDirectiveForUi,
@@ -33,6 +34,7 @@ describe('@hearthkit/ui export surface', () => {
 
     expect(entry.darkModeClassName).toBe(darkModeClassName)
     expect(entry.hearthkitThemeCssFileName).toBe(hearthkitThemeCssFileName)
+    expect(entry.hearthkitThemeCssImportSpecifier).toBe(hearthkitThemeCssImportSpecifier)
     expect(entry.themeProviderMissingErrorPrefix).toBe(themeProviderMissingErrorPrefix)
     expect(entry.tailwindSourceDirectiveForUi).toBe(tailwindSourceDirectiveForUi)
     expect(entry.hearthkitThemeTokenNames).toEqual(hearthkitThemeTokenNames)

@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 3 complete; Phase 4 (`templates/app`, Dockerfile, project CI) next, not started
-- Package: none
-- Step: not started
-- Branch: main
-- Last commit: see git log (`docs/theming.md` PR closed Phase 3)
+- Phase: 3 complete; `ui` cleanup round done, Phase 4 (`templates/app`, Dockerfile, project CI) next
+- Package: `ui` (cleanup round)
+- Step: commit
+- Branch: pkg/ui-cleanup
+- Last commit: 7ca9829 (main)
 
 ## Phase checklist
 
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                          |
-| ------- | ---- | ------------------ | ---------------------------------------------- |
-| —       | —    | 0                  | `observability` merged; see git history, PR #5 |
+| Package | Step   | Implementor rounds | Notes                                                                                 |
+| ------- | ------ | ------------------ | ------------------------------------------------------------------------------------- |
+| `ui`    | commit | 1                  | cleanup round, not a full loop: export-list gap, CLI config, theme specifier constant |
 
 ## Open issues
 
@@ -41,25 +41,38 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- `ui` cleanup round completed 2026-08-28 (23/23 gates, workspace typecheck and lint exit 0,
+  all orchestrator-run), closing the five gaps the theming-doc work recorded:
+  1. `buttonVariants` is now in `hearthkitUiMinimumExportNames` — the only `*Variants` recipe in
+     the package, so the rule is "any recipe the fork pattern makes public API is guaranteed".
+  2. `packages/ui/components.json` and a `@/*` → `./src/*` alias now ship in the package;
+     `shadcn add` writes to `src/components/ui/`. Documented contract surface.
+  3. Not fixed, by design: CLI output still needs its class-merge import and `cn` call sites
+     fixed by hand, and `--overwrite` still strips doc comments. Stated as accepted tension in
+     `packages/ui/CONTRACT.md`; `docs/theming.md` gives the procedure.
+  4. `hearthkitThemeCssImportSpecifier` (`'@hearthkit/ui/hearthkit-theme.css'`) is exported and
+     guaranteed, so scaffolder, template, and docs stop hardcoding the string.
+  5. Closed favourably — no change needed to `tailwindSourceDirectiveForUi`. Tailwind 4.3.3
+     `@source` follows pnpm symlinks in BOTH layouts Phase 4 can hit: a `workspace:*` direct
+     symlink to the source dir, and the registry-style `.pnpm` virtual-store chain. Verified
+     with negative controls in each (removing `@source` dropped the package's utilities while the
+     app's own control class still compiled) and through `@tailwindcss/postcss`, byte-identical
+     to the CLI, which is the path `templates/app` will actually use. The remaining Phase 4 risk
+     on that literal is path depth (`globals.css` one level below app root), not symlink
+     resolution.
+- Correction to `docs/theming.md` found during the `ui` cleanup round: the tsconfig snippet
+  prescribed `baseUrl`, which TypeScript 7 has REMOVED — `error TS5102` fails the workspace
+  typecheck (orchestrator-verified against tsc 7.0.2). `paths` alone is what shadcn CLI 4.19.0
+  needs; proven with a positive and a negative run. The doc and the package now both omit
+  `baseUrl`. Applies to every future tsconfig in this repo, not just `ui`.
+- Gate-writing note (2026-08-28): Tailwind escapes arbitrary-value class names in compiled CSS
+  (`.tracking-\[0\.31em\]`), so any future gate asserting on compiled CSS must match the escaped
+  form or assert on the declaration value instead.
 - Phase 3 DoD completed 2026-08-28: `docs/theming.md` written with every example verified live
   in the scratch app (shadowed `IconLeadingButton` rendered beside package `Button`, both bound
   to app token overrides; dropping `@source` shrank compiled CSS 37 KB → 11 KB with utilities
   gone but tokens present — components silently unstyled, not an error; shadcn CLI 4.19.0 run
-  against a scratch copy of `packages/ui`). Known `ui` gaps recorded from that work (claims, no
-  edits made; candidates for a small `ui` follow-up round):
-  1. `buttonVariants` is exported from `packages/ui/src/index.ts` but missing from
-     `hearthkitUiMinimumExportNames` — the documented fork imports it without a contract guarantee.
-  2. Rule-4 shadcn workflow is not runnable as-is: `packages/ui` has no `components.json` and no
-     `@/*` tsconfig path alias (CLI writes a literal `@/` directory without it). The doc gives
-     verified contents; the package is the right home.
-  3. CLI-generated files never compile untouched (`@/merge-tailwind-classes` import; the `cn`
-     rename; extension-bearing relative specifiers) — same tension STATUS already records for
-     `shadcn add --overwrite`.
-  4. No exported constant for the full stylesheet specifier `@hearthkit/ui/hearthkit-theme.css`
-     (`hearthkitThemeCssFileName` is only the bare filename); doc/scaffolder/template each
-     hardcode it.
-  5. Phase 4 must verify `tailwindSourceDirectiveForUi` (`../node_modules/@hearthkit/ui`) works
-     when that path is a pnpm workspace symlink — verified only with a `file:` dep so far.
+  against a scratch copy of `packages/ui`).
 - Phase 3 DoD scratch-app half verified 2026-08-28 on merged main (7a25800): a scratch Next
   16.1.4 app (file: deps on `ui` + `observability`, `transpilePackages`, ui-contract globals.css
   with `@source`) rendered themed shadcn markup (SSR HTML shows `data-slot="button"` with

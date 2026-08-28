@@ -9,6 +9,9 @@ export const darkModeClassName = 'dark'
 /** File name of the base theme stylesheet at src/hearthkit-theme.css, exported at the package subpath @hearthkit/ui/hearthkit-theme.css. */
 export const hearthkitThemeCssFileName = 'hearthkit-theme.css'
 
+/** Exact specifier an app's globals.css must @import for the theme stylesheet; kept in one place so the scaffolder, template, and docs never drift. */
+export const hearthkitThemeCssImportSpecifier = '@hearthkit/ui/hearthkit-theme.css'
+
 /** Literal @source line an app adds to its globals.css so Tailwind v4 scans this package's class strings. */
 export const tailwindSourceDirectiveForUi = '@source "../node_modules/@hearthkit/ui";'
 
@@ -103,6 +106,7 @@ export type UiComponentFamilyName = z.infer<typeof uiComponentFamilyNameSchema>
 /** Minimum export surface of the package entry point; the implementor may export more shadcn sub-parts, never fewer. */
 export const hearthkitUiMinimumExportNames = [
   'Button',
+  'buttonVariants',
   'Card',
   'CardHeader',
   'CardTitle',
@@ -130,6 +134,7 @@ export const hearthkitUiMinimumExportNames = [
   'ThemeModeToggle',
   'useThemeMode',
   'mergeTailwindClasses',
+  'hearthkitThemeCssImportSpecifier',
 ] as const
 
 /** Every way this package can fail at runtime; component misuse is otherwise a build-time type error. */

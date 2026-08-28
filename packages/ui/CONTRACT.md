@@ -10,7 +10,7 @@ None at runtime. No environment variables — this package exports **no** env sc
 
 What an app must do to consume the package (enforced by gates and documented in `docs/theming.md`, written by the implementor):
 
-1. Import the base stylesheet in `globals.css`, after Tailwind: `@import '@hearthkit/ui/hearthkit-theme.css';`
+1. Import the base stylesheet in `globals.css`, after Tailwind: `@import '@hearthkit/ui/hearthkit-theme.css';` — the exact specifier is exported as `hearthkitThemeCssImportSpecifier`.
 2. Add the `@source` line so Tailwind v4 scans the package's class strings (`node_modules` is ignored by default): the exact literal is exported as `tailwindSourceDirectiveForUi` — `@source "../node_modules/@hearthkit/ui";` (path relative to the app's `globals.css`).
 3. Wrap the app in `ThemeModeProvider` if it uses dark mode or `ThemeModeToggle`.
 
@@ -33,7 +33,7 @@ The initial set is the smallest one the app template and its later flows (sign-i
 
 | Family          | Guaranteed exports                                                                                                             | Why it ships now                           |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `button`        | `Button`                                                                                                                       | every page                                 |
+| `button`        | `Button`, `buttonVariants`                                                                                                     | every page; forks reuse the variant recipe |
 | `card`          | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`                                              | template home/dashboard                    |
 | `input`         | `Input`                                                                                                                        | forms (sign-in, Phase 5)                   |
 | `label`         | `Label`                                                                                                                        | forms                                      |
@@ -43,7 +43,9 @@ The initial set is the smallest one the app template and its later flows (sign-i
 | theme mode      | `ThemeModeProvider`, `ThemeModeToggle`, `useThemeMode`                                                                         | light/dark mode is in the package purpose  |
 | utility         | `mergeTailwindClasses`                                                                                                         | copied components need the class merger    |
 
-This is a **minimum** surface: shadcn generates extra sub-parts (for example `CardAction`, `DialogOverlay`, `DropdownMenuGroup`); the implementor exports those too, by name. The guaranteed names above are machine-checkable via `hearthkitUiMinimumExportNames` in `ui-contract.ts`.
+This is a **minimum** surface: shadcn generates extra sub-parts (for example `CardAction`, `DialogOverlay`, `DropdownMenuGroup`); the implementor exports those too, by name. The guaranteed names above are machine-checkable via `hearthkitUiMinimumExportNames` in `ui-contract.ts`, which also guarantees `hearthkitThemeCssImportSpecifier` (see Package entry point).
+
+**Variant recipes.** The shadowed-component workflow in `docs/theming.md` ("Shadowing a single component") imports a component's cva recipe so a structural fork keeps the package's variant classes. Any variant recipe that workflow makes public API is a guaranteed export. Today that is exactly `buttonVariants` — the only `*Variants` recipe in the package; card, input, label, dialog, and dropdown-menu ship no cva recipe. A future component whose recipe the fork pattern uses adds its `*Variants` name to the list (additive).
 
 Component families are enumerated in `uiComponentFamilyNames` so gates can assert each family renders.
 
@@ -59,7 +61,7 @@ The shape is exported as the type `UseThemeModeResult`; the resolved enum is `re
 
 ### `hearthkit-theme.css`
 
-On disk the stylesheet is `packages/ui/src/hearthkit-theme.css`; `package.json` `exports` maps it to the subpath `@hearthkit/ui/hearthkit-theme.css`, so apps never import a file path inside the package. It contains, in plain CSS that Tailwind v4 processes when the app imports it:
+On disk the stylesheet is `packages/ui/src/hearthkit-theme.css`; `package.json` `exports` maps it to the subpath `@hearthkit/ui/hearthkit-theme.css`, so apps never import a file path inside the package. Two constants in `ui-contract.ts` name it: `hearthkitThemeCssFileName` (`'hearthkit-theme.css'`, the bare file name — kept as-is for backward compatibility) and `hearthkitThemeCssImportSpecifier` (`'@hearthkit/ui/hearthkit-theme.css'`, the exact specifier an app's `globals.css` must `@import`, kept in one place so the scaffolder, template, and docs never drift). The stylesheet contains, in plain CSS that Tailwind v4 processes when the app imports it:
 
 1. `:root { … }` defining **every** token in `hearthkitThemeTokenNames` (32 tokens — the current shadcn vocabulary: `--background`/`--foreground`, `--card`(+`-foreground`), `--popover`(+`-foreground`), `--primary`(+`-foreground`), `--secondary`(+`-foreground`), `--muted`(+`-foreground`), `--accent`(+`-foreground`), `--destructive`, `--border`, `--input`, `--ring`, `--chart-1`…`--chart-5`, `--sidebar` family, `--radius`).
 2. `.dark { … }` redefining every token in `darkModeOverriddenTokenNames` (all of the above except `--radius`, which is mode-independent).
@@ -69,9 +71,20 @@ Sidebar and chart tokens ship even though no sidebar or chart component ships ye
 
 ### Package entry point
 
-The public entry is `src/index.ts`, a thin named re-export (no `export *`). It re-exports by name: every component listed above, and from `ui-contract.ts`: `hearthkitThemeTokenNames`, `hearthkitThemeTokenNameSchema`, `darkModeOverriddenTokenNames`, `darkModeClassName`, `hearthkitThemeCssFileName`, `tailwindSourceDirectiveForUi`, `themeModeSchema`, `resolvedThemeModeSchema`, `themeModeToggleOptionLabels`, `uiComponentFamilyNames`, `uiComponentFamilyNameSchema`, `hearthkitUiMinimumExportNames`, `themeProviderMissingErrorPrefix`, `uiFailureSchema`, and types `HearthkitThemeTokenName`, `ThemeMode`, `ResolvedThemeMode`, `UseThemeModeResult`, `UiComponentFamilyName`, `UiFailure`. `package.json` `exports` maps `.` to the entry and `./hearthkit-theme.css` to the stylesheet; no other subpaths in this phase.
+The public entry is `src/index.ts`, a thin named re-export (no `export *`). It re-exports by name: every component listed above (including `buttonVariants`), and from `ui-contract.ts`: `hearthkitThemeTokenNames`, `hearthkitThemeTokenNameSchema`, `darkModeOverriddenTokenNames`, `darkModeClassName`, `hearthkitThemeCssFileName`, `hearthkitThemeCssImportSpecifier`, `tailwindSourceDirectiveForUi`, `themeModeSchema`, `resolvedThemeModeSchema`, `themeModeToggleOptionLabels`, `uiComponentFamilyNames`, `uiComponentFamilyNameSchema`, `hearthkitUiMinimumExportNames`, `themeProviderMissingErrorPrefix`, `uiFailureSchema`, and types `HearthkitThemeTokenName`, `ThemeMode`, `ResolvedThemeMode`, `UseThemeModeResult`, `UiComponentFamilyName`, `UiFailure`. `hearthkitThemeCssImportSpecifier` is defined in `ui-contract.ts` and reaches the entry the same way `hearthkitThemeCssFileName` does: the implementor adds it to the named re-export block from `./ui-contract.ts` in `src/index.ts`. `package.json` `exports` maps `.` to the entry and `./hearthkit-theme.css` to the stylesheet; no other subpaths in this phase.
 
 Distribution must keep Tailwind class strings visible to `@source` scanning: whatever the implementor publishes (source or transpiled), the files under the package root that `@source "../node_modules/@hearthkit/ui"` scans must contain the literal class strings.
+
+### shadcn CLI configuration
+
+Theming rule 4 says new components are generated into this package with the shadcn CLI. For that command to work, two implementor-owned files are part of the package's contract surface (contents and procedure verified in `docs/theming.md`, "Adding a component to the package"):
+
+1. `packages/ui/components.json` — the CLI's project configuration (Tailwind v4: empty `tailwind.config`, `css` pointing at `src/hearthkit-theme.css`, `utils` alias `@/merge-tailwind-classes`). Without it the CLI stops and offers interactive `init`.
+2. A `@/*` → `./src/*` path alias in `packages/ui/tsconfig.json`. The CLI resolves its aliases through the TypeScript config; without the alias it does not fail — it silently writes the component into a literal directory named `@`.
+
+With both in place, `pnpm dlx shadcn@latest add <component> --yes` run from `packages/ui` writes `src/components/ui/<component>.tsx`.
+
+Known, accepted tension: generated files never compile untouched. Each new file needs its class-merge import fixed (`@/merge-tailwind-classes` → the relative extension-bearing specifier `../../merge-tailwind-classes.ts`) and the `cn` call sites renamed to `mergeTailwindClasses`; and regenerating with `shadcn add --overwrite` strips any doc comments added to generated exports. This is the standing trade-off for keeping generated components close to registry output, and it is not a contract violation.
 
 ## Failure modes
 
@@ -126,3 +139,5 @@ Round-2 review outcomes (orchestrator, 2026-08-27). The four round-1 defaults we
 4. `--destructive-foreground` stays omitted, matching the current shadcn vocabulary; if a generated component ever references it, the token list gains one entry (additive; gates and theme update together).
 
 The same round pinned four gate-writer ambiguities, now in the body above: the `useThemeMode` return shape (Theme mode API), the on-disk stylesheet path (`packages/ui/src/hearthkit-theme.css`), the `ThemeModeToggle` structure and its accessible item names, and `PageHeader`'s `pageTitle` rendering as a heading element.
+
+Cleanup round (2026-08-28), closing the gaps recorded in `docs/STATUS.md` under "Phase 3 DoD completed": `buttonVariants` and `hearthkitThemeCssImportSpecifier` joined `hearthkitUiMinimumExportNames` (both additive); the shadcn CLI configuration (`components.json`, `@/*` alias) became documented contract surface with its manual-fix tension stated. No renames, no schema changes.
