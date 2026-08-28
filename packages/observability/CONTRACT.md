@@ -8,9 +8,9 @@ Error reporting to GlitchTip (which speaks the Sentry protocol), structured logg
 
 ### Environment variables
 
-| Name            | Type                                                     | Required                   | Example                                  |
-| --------------- | -------------------------------------------------------- | -------------------------- | ---------------------------------------- |
-| `GLITCHTIP_DSN` | http(s) URL in Sentry DSN form                           | optional                   | `https://abc123@glitchtip.example.com/1` |
+| Name            | Type                                                              | Required                  | Example                                  |
+| --------------- | ----------------------------------------------------------------- | ------------------------- | ---------------------------------------- |
+| `GLITCHTIP_DSN` | http(s) URL in Sentry DSN form                                    | optional                  | `https://abc123@glitchtip.example.com/1` |
 | `LOG_LEVEL`     | enum `trace` \| `debug` \| `info` \| `warn` \| `error` \| `fatal` | optional, defaults `info` | `debug`                                  |
 
 Declared in `observabilityEnvSchemaFragment`, composed by `@hearthkit/config` (empty string counts as unset, per config's contract). This package never reads `process.env` itself: the app composes config and passes values into the functions below, the same pattern `db` uses for `DATABASE_URL`. `NODE_ENV` stays owned by config; its value is passed here as the `reportingEnvironment` parameter.
@@ -56,18 +56,18 @@ This is how database reachability is reported without depending on `@hearthkit/d
 
 None fatal at runtime, per the plan. All failures are one discriminated union, `ObservabilityFailure`, on `kind`. Every variant carries a `message` starting with its unique literal prefix.
 
-| `kind`                          | When                                                                                                    | Message prefix                            | Surface                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------- |
-| `error-reporting-invalid-dsn`   | DSN passed but missing a public key before `@` or a project id path segment; reporting stays disabled   | `hearthkit observability invalid dsn:`    | returned by `initializeErrorReporting`                     |
-| `error-reports-flush-timed-out` | Pending events not delivered within `flushTimeoutMs`                                                    | `hearthkit observability flush timed out:` | returned by `flushErrorReporting`                          |
-| `health-check-name-conflict`    | Two health checks share a `healthCheckName`; carries the name                                            | `hearthkit health check name conflict:`   | **thrown** as an `Error` by `createHealthRouteHandler`     |
+| `kind`                          | When                                                                                                  | Message prefix                             | Surface                                                |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `error-reporting-invalid-dsn`   | DSN passed but missing a public key before `@` or a project id path segment; reporting stays disabled | `hearthkit observability invalid dsn:`     | returned by `initializeErrorReporting`                 |
+| `error-reports-flush-timed-out` | Pending events not delivered within `flushTimeoutMs`                                                  | `hearthkit observability flush timed out:` | returned by `flushErrorReporting`                      |
+| `health-check-name-conflict`    | Two health checks share a `healthCheckName`; carries the name                                         | `hearthkit health check name conflict:`    | **thrown** as an `Error` by `createHealthRouteHandler` |
 
 Per-check runtime failures are not `ObservabilityFailure` — they are reported inside the HTTP body as `HealthCheckResult` variants and gate on the discriminant plus the status code:
 
-| `kind`                   | When                                                | Effect                          |
-| ------------------------ | --------------------------------------------------- | ------------------------------- |
-| `health-check-failed`    | `runHealthCheck` threw or rejected                  | overall `unhealthy`, HTTP 503   |
-| `health-check-timed-out` | `runHealthCheck` did not settle in `healthCheckTimeoutMs` | overall `unhealthy`, HTTP 503   |
+| `kind`                   | When                                                      | Effect                        |
+| ------------------------ | --------------------------------------------------------- | ----------------------------- |
+| `health-check-failed`    | `runHealthCheck` threw or rejected                        | overall `unhealthy`, HTTP 503 |
+| `health-check-timed-out` | `runHealthCheck` did not settle in `healthCheckTimeoutMs` | overall `unhealthy`, HTTP 503 |
 
 Explicit non-failures the gates also cover: `captureError` with no DSN (and before any init) returns `error-capture-skipped` and never throws; `flushErrorReporting` in disabled mode resolves flushed; the health handler with zero checks returns 200.
 
