@@ -1,0 +1,9 @@
+/*
+ * Stands in for a consuming app's globals.css: it is loaded after hearthkit-theme.css and
+ * redefines three tokens. The values are deliberately synthetic so no theme could ship them.
+ */
+:root {
+  --primary: rgb(12, 34, 56);
+  --primary-foreground: rgb(210, 211, 212);
+  --radius: 1.234rem;
+}
