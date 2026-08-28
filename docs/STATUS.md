@@ -6,9 +6,9 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 3 (`ui`, `observability`) in progress
 - Package: `ui`
-- Step: contract
+- Step: commit (PR #4 open, awaiting CI/merge)
 - Branch: pkg/ui
-- Last commit: 7fd2b2d squash-merge of PR #3 (`@hearthkit/cli`)
+- Last commit: 562649d feat(ui) on pkg/ui (PR #4)
 
 ## Phase checklist
 
