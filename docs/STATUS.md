@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 2 complete; phase 3 (`ui`, `observability`) next, not started
-- Package: none (next: `ui`)
-- Step: not started
-- Branch: main
-- Last commit: 7fd2b2d squash-merge of PR #3 (`@hearthkit/cli`)
+- Phase: 3 (`ui`, `observability`) in progress
+- Package: `ui`
+- Step: commit (PR #4 open, awaiting CI/merge)
+- Branch: pkg/ui
+- Last commit: 562649d feat(ui) on pkg/ui (PR #4)
 
 ## Phase checklist
 
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                   |
-| ------- | ---- | ------------------ | --------------------------------------- |
-| —       | —    | 0                  | `cli` merged; see git history and PR #3 |
+| Package | Step   | Implementor rounds | Notes                                                                                             |
+| ------- | ------ | ------------------ | ------------------------------------------------------------------------------------------------- |
+| `ui`    | commit | 1                  | 23/23 gates, typecheck 0, lint 0 (orchestrator-run + gate-runner `.reports/ui-*.txt`); PR pending |
 
 ## Open issues
 
@@ -41,6 +41,13 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- `ui` contract approved 2026-08-27 (orchestrator decisions, user may veto): shadcn-generated
+  components keep canonical single-word names (`Button`, `Card` …) — renaming would break the
+  plan-mandated shadcn-CLI workflow; hearthkit-authored exports follow the 2–4-word rule.
+  Component set: button, card, input, label, dialog, dropdown-menu families + `PageContainer`,
+  `PageHeader`, theme-mode trio, `mergeTailwindClasses`. `--destructive-foreground` omitted per
+  current shadcn vocabulary (additive if needed). `tailwindSourceDirectiveForUi` literal assumes
+  `app/globals.css` one level below app root; Phase 4 template must match.
 - Phase 2 definition of done verified 2026-08-27 on merged main (7fd2b2d): in a scratch app
   (deps `@hearthkit/db` + Next 16.1.4, no docker-compose.yml), `hearthkit dev` run as bare
   `node .../hearthkit-bin.ts dev` generated the compose file, brought `postgres:17` up healthy,
