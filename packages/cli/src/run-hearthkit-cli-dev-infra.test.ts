@@ -10,6 +10,7 @@ import {
 import {
   gateContainerExists,
   gateContainerIsRunning,
+  removeGateComposeNetworks,
   removeGateContainer,
 } from '../test-fixtures/docker-gate-containers.ts'
 import {
@@ -39,6 +40,7 @@ import {
 
 const directoriesToRemove: string[] = []
 const containersToRemove: string[] = []
+const composeProjectNamesToClean: string[] = []
 
 /** A throwaway project directory this file will remove, whatever the gate managed to write into it. */
 async function gateProjectDirectory(purpose: string): Promise<string> {
@@ -53,10 +55,25 @@ function gateContainerName(containerName: string): string {
   return containerName
 }
 
+/**
+ * A unique compose project name that is also registered for network cleanup. Compose names its
+ * network after the project, which is the generated name when the CLI wrote the compose file and the
+ * working directory name when it used one already there, so both candidates get registered.
+ */
+function gateComposeProjectName(purpose: string): string {
+  const hearthkitProjectName = uniqueGateProjectName(purpose)
+  composeProjectNamesToClean.push(hearthkitProjectName)
+  return hearthkitProjectName
+}
+
 afterAll(async () => {
   for (const containerName of containersToRemove) {
     await removeGateContainer(containerName)
   }
+  await removeGateComposeNetworks([
+    ...composeProjectNamesToClean,
+    ...directoriesToRemove.map((directoryPath) => basename(directoryPath)),
+  ])
   for (const directoryPath of directoriesToRemove) {
     await removeGateDirectory(directoryPath)
   }
@@ -67,7 +84,7 @@ afterAll(async () => {
 describe('hearthkit dev and dev infra', () => {
   it('generates docker-compose.yml from the manifest and starts the services it names', async () => {
     const directoryPath = await gateProjectDirectory('infra-up')
-    const hearthkitProjectName = uniqueGateProjectName('up')
+    const hearthkitProjectName = gateComposeProjectName('up')
     await writeGateProjectManifest({
       directoryPath,
       manifestName: `@gate/${hearthkitProjectName}`,
@@ -98,7 +115,7 @@ describe('hearthkit dev and dev infra', () => {
 
   it('never overwrites a docker-compose.yml that is already in the working directory', async () => {
     const directoryPath = await gateProjectDirectory('infra-existing')
-    const hearthkitProjectName = uniqueGateProjectName('existing')
+    const hearthkitProjectName = gateComposeProjectName('existing')
     await writeGateProjectManifest({
       directoryPath,
       manifestName: hearthkitProjectName,
@@ -128,7 +145,7 @@ describe('hearthkit dev and dev infra', () => {
 
   it('stops and removes the services dev infra up started', async () => {
     const directoryPath = await gateProjectDirectory('infra-down')
-    const hearthkitProjectName = uniqueGateProjectName('down')
+    const hearthkitProjectName = gateComposeProjectName('down')
     await writeGateProjectManifest({
       directoryPath,
       manifestName: hearthkitProjectName,
@@ -177,7 +194,7 @@ describe('hearthkit dev and dev infra', () => {
 
   it('brings infra up, runs the project next binary and exits with the code that binary exited with', async () => {
     const directoryPath = await gateProjectDirectory('dev-command')
-    const hearthkitProjectName = uniqueGateProjectName('dev')
+    const hearthkitProjectName = gateComposeProjectName('dev')
     await writeGateProjectManifest({
       directoryPath,
       manifestName: hearthkitProjectName,
