@@ -6,9 +6,9 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 2 (`cli`) in progress
 - Package: `cli`
-- Step: contract
+- Step: commit
 - Branch: pkg/cli
-- Last commit: f9dbe83 (main at branch point)
+- Last commit: c4d11cf on pkg/cli (PR #3 open, awaiting CI and merge)
 
 ## Phase checklist
 
