@@ -11,7 +11,7 @@ import {
   dbUnreachableErrorPrefix,
   type DbFailure,
   type ProjectDatabaseName,
-} from './db-contract.js'
+} from './db-contract.ts'
 
 /** Every failure this package returns is built here, so each message keeps its unique literal prefix in one place. */
 type DbFailureOf<TKind extends DbFailure['kind']> = Extract<DbFailure, { kind: TKind }>

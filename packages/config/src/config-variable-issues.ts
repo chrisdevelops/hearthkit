@@ -1,6 +1,6 @@
 import type { z } from 'zod'
-import type { ConfigVariableIssue } from './config-contract.js'
-import { asEnvVariableName } from './env-variable-names.js'
+import type { ConfigVariableIssue } from './config-contract.ts'
+import { asEnvVariableName } from './env-variable-names.ts'
 
 /** Human-readable phrase for what the variable should have been; every branch returns a non-empty phrase that reads after "must be". */
 function describeExpectedEnvValue(zodIssue: z.core.$ZodIssue): string {

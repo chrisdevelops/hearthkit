@@ -1,4 +1,4 @@
-import { dbFailureSchema, type DbFailure } from '../src/db-contract.js'
+import { dbFailureSchema, type DbFailure } from '../src/db-contract.ts'
 
 /** Narrows any contract result to one variant, failing the gate with the whole result when it took another branch. */
 export function expectResultKind<TResult extends { kind: string }, TKind extends TResult['kind']>(

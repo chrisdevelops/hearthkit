@@ -1,8 +1,8 @@
 import { Buffer } from 'node:buffer'
 import { open, stat } from 'node:fs/promises'
-import type { DbFailure } from './db-contract.js'
-import { backupFileInvalidFailure, backupFileNotFoundFailure } from './db-failure-results.js'
-import { describeCaughtError } from './postgres-error-classification.js'
+import type { DbFailure } from './db-contract.ts'
+import { backupFileInvalidFailure, backupFileNotFoundFailure } from './db-failure-results.ts'
+import { describeCaughtError } from './postgres-error-classification.ts'
 
 /** First five bytes of every pg_dump custom-format archive, checked before pg_restore is spawned. */
 const customFormatArchiveMagic = 'PGDMP'

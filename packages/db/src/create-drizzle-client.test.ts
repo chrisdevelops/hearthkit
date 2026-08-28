@@ -3,16 +3,16 @@ import {
   gateWidgetsCreateTableSql,
   gateWidgetsSeedSql,
   gateWidgetsTable,
-} from '../test-fixtures/gate-widgets-table.js'
-import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.js'
+} from '../test-fixtures/gate-widgets-table.ts'
+import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.ts'
 import {
   createAdminOwnedGateDatabase,
   removeGateDatabase,
   uniqueGateDatabaseName,
   unreachableDatabaseUrl,
   withPostgresClient,
-} from '../test-fixtures/postgres-gate-server.js'
-import { drizzleClientHandleSchema, type PostgresConnectionString } from './db-contract.js'
+} from '../test-fixtures/postgres-gate-server.ts'
+import { drizzleClientHandleSchema, type PostgresConnectionString } from './db-contract.ts'
 
 const gateDatabaseName = uniqueGateDatabaseName('client')
 let gateDatabaseUrl: PostgresConnectionString

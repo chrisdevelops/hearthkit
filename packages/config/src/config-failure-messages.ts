@@ -3,7 +3,7 @@ import {
   configInvalidErrorPrefix,
   type ConfigVariableIssue,
   type EnvVariableName,
-} from './config-contract.js'
+} from './config-contract.ts'
 
 /** One line of an aggregate message, naming the variable once so a gate can count lines per variable. */
 function describeConfigVariableIssue(issue: ConfigVariableIssue): string {

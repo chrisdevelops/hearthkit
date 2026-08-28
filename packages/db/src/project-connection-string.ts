@@ -2,7 +2,7 @@ import {
   postgresConnectionStringSchema,
   type PostgresConnectionString,
   type ProjectDatabaseName,
-} from './db-contract.js'
+} from './db-contract.ts'
 
 /** Same server, same credentials, different database; used to point a tool at one project database. */
 export function connectionStringForProjectDatabase(

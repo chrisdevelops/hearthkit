@@ -10,7 +10,7 @@ import {
   gateConflictingStorageEnvSchemaFragment,
   gateDatabaseEnvSchemaFragment,
   gateStorageEnvSchemaFragment,
-} from '../test-fixtures/config-gate-fragments.js'
+} from '../test-fixtures/config-gate-fragments.ts'
 
 describe('requireHearthkitConfig', () => {
   it('returns the frozen config when every variable is valid', () => {

@@ -1,13 +1,13 @@
-import type { DbFailure } from './db-contract.js'
+import type { DbFailure } from './db-contract.ts'
 import {
   databasePrivilegeDeniedFailure,
   databaseServerUnreachableFailure,
-} from './db-failure-results.js'
+} from './db-failure-results.ts'
 import {
   describeCaughtError,
   isPostgresConnectionFailure,
   isPostgresPrivilegeFailure,
-} from './postgres-error-classification.js'
+} from './postgres-error-classification.ts'
 
 /**
  * Maps the two driver errors every lifecycle function shares onto their contract failures. Returns

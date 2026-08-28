@@ -1,18 +1,18 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { expectDbFailure, expectResultKind } from '../test-fixtures/db-result-expectations.js'
+import { expectDbFailure, expectResultKind } from '../test-fixtures/db-result-expectations.ts'
 import {
   absentMigrationsFolderPath,
   gateBaselineMigrationCount,
   gateMigrationsFolderPath,
-} from '../test-fixtures/gate-migrations-folders.js'
-import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.js'
+} from '../test-fixtures/gate-migrations-folders.ts'
+import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.ts'
 import {
   createAdminOwnedGateDatabase,
   queryRowsAs,
   removeGateDatabase,
   uniqueGateDatabaseName,
   unreachableDatabaseUrl,
-} from '../test-fixtures/postgres-gate-server.js'
+} from '../test-fixtures/postgres-gate-server.ts'
 import {
   dbMigrationConflictErrorPrefix,
   dbMigrationsFolderErrorPrefix,
@@ -20,7 +20,7 @@ import {
   runDatabaseMigrationsResultSchema,
   type PostgresConnectionString,
   type ProjectDatabaseName,
-} from './db-contract.js'
+} from './db-contract.ts'
 
 const namesToRemove: ProjectDatabaseName[] = []
 

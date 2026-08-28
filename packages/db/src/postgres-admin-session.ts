@@ -1,5 +1,5 @@
 import { Client } from 'pg'
-import type { PostgresConnectionString } from './db-contract.js'
+import type { PostgresConnectionString } from './db-contract.ts'
 
 /** How long to wait for the admin connection before treating the server as unreachable. */
 const adminConnectionTimeoutMilliseconds = 10_000

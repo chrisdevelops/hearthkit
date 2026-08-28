@@ -1,16 +1,16 @@
 import { mkdir, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { BackupProjectDatabase, BackupProjectDatabaseResult } from './db-contract.js'
+import type { BackupProjectDatabase, BackupProjectDatabaseResult } from './db-contract.ts'
 import {
   backupFileUnwritableFailure,
   databasePrivilegeDeniedFailure,
   databaseServerUnreachableFailure,
   postgresToolMissingFailure,
-} from './db-failure-results.js'
-import { describeCaughtError } from './postgres-error-classification.js'
-import { runPostgresToolCommand } from './postgres-tool-process.js'
-import { connectionStringForProjectDatabase } from './project-connection-string.js'
-import { findMissingProjectDatabaseFailure } from './project-database-presence.js'
+} from './db-failure-results.ts'
+import { describeCaughtError } from './postgres-error-classification.ts'
+import { runPostgresToolCommand } from './postgres-tool-process.ts'
+import { connectionStringForProjectDatabase } from './project-connection-string.ts'
+import { findMissingProjectDatabaseFailure } from './project-database-presence.ts'
 
 /**
  * Writes a pg_dump custom-format archive of one project database, creating the parent directories

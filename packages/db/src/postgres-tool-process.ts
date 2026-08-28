@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { readPostgresErrorCode } from './postgres-error-classification.js'
+import { readPostgresErrorCode } from './postgres-error-classification.ts'
 
 /** The two Postgres client binaries this package shells out to; both are resolved from PATH at call time. */
 export type PostgresToolName = 'pg_dump' | 'pg_restore'

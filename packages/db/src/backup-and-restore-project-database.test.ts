@@ -10,9 +10,9 @@ import {
   unwrittenArchivePath,
   withoutPostgresToolsOnPath,
   writeGateArchiveWithPgDump,
-} from '../test-fixtures/backup-archive-gate-files.js'
-import { expectDbFailure, expectResultKind } from '../test-fixtures/db-result-expectations.js'
-import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.js'
+} from '../test-fixtures/backup-archive-gate-files.ts'
+import { expectDbFailure, expectResultKind } from '../test-fixtures/db-result-expectations.ts'
+import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.ts'
 import {
   createAdminOwnedGateDatabase,
   gateAdminDatabaseUrl,
@@ -21,7 +21,7 @@ import {
   removeGateDatabase,
   uniqueGateDatabaseName,
   withPostgresClient,
-} from '../test-fixtures/postgres-gate-server.js'
+} from '../test-fixtures/postgres-gate-server.ts'
 import {
   backupProjectDatabaseResultSchema,
   dbBackupInvalidErrorPrefix,
@@ -31,7 +31,7 @@ import {
   restoreProjectDatabaseResultSchema,
   type PostgresConnectionString,
   type ProjectDatabaseName,
-} from './db-contract.js'
+} from './db-contract.ts'
 
 const namesToRemove: ProjectDatabaseName[] = []
 

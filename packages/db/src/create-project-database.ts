@@ -4,21 +4,21 @@ import type {
   CreateProjectDatabaseResult,
   DbFailure,
   ProjectDatabaseName,
-} from './db-contract.js'
-import { projectDatabaseAlreadyExistsFailure } from './db-failure-results.js'
-import { generateProjectRolePassword } from './generate-project-role-password.js'
+} from './db-contract.ts'
+import { projectDatabaseAlreadyExistsFailure } from './db-failure-results.ts'
+import { generateProjectRolePassword } from './generate-project-role-password.ts'
 import {
   runAdminStatementIgnoringErrors,
   withPostgresAdminSession,
-} from './postgres-admin-session.js'
-import { isPostgresDuplicateNameFailure } from './postgres-error-classification.js'
-import { postgresErrorToDbFailureOrThrow } from './postgres-error-to-db-failure.js'
+} from './postgres-admin-session.ts'
+import { isPostgresDuplicateNameFailure } from './postgres-error-classification.ts'
+import { postgresErrorToDbFailureOrThrow } from './postgres-error-to-db-failure.ts'
 import {
   quotePostgresIdentifier,
   quotePostgresStringLiteral,
-} from './postgres-identifier-quoting.js'
-import { buildProjectRoleConnectionString } from './project-connection-string.js'
-import { readProjectDatabasePresence } from './project-database-presence.js'
+} from './postgres-identifier-quoting.ts'
+import { buildProjectRoleConnectionString } from './project-connection-string.ts'
+import { readProjectDatabasePresence } from './project-database-presence.ts'
 
 /**
  * Creates a project database plus its same-named login role and returns the only copy of the

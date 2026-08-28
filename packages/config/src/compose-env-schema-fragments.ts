@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import type { ConfigFailure, EnvSchemaFragment } from './config-contract.js'
-import { formatConfigFragmentConflictMessage } from './config-failure-messages.js'
-import { asEnvVariableName } from './env-variable-names.js'
+import type { ConfigFailure, EnvSchemaFragment } from './config-contract.ts'
+import { formatConfigFragmentConflictMessage } from './config-failure-messages.ts'
+import { asEnvVariableName } from './env-variable-names.ts'
 
 /** Result of composing fragments: one merged object schema, or the conflict failure that stops loading before any parsing happens. */
 export type ComposeEnvSchemaFragmentsResult =

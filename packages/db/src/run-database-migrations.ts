@@ -1,16 +1,16 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
-import type { RunDatabaseMigrations, RunDatabaseMigrationsResult } from './db-contract.js'
-import { databaseMigrationConflictFailure } from './db-failure-results.js'
+import type { RunDatabaseMigrations, RunDatabaseMigrationsResult } from './db-contract.ts'
+import { databaseMigrationConflictFailure } from './db-failure-results.ts'
 import {
   countPendingMigrations,
   findMigrationHistoryDivergence,
   readAppliedMigrationRecords,
-} from './drizzle-migration-history.js'
-import { readDrizzleMigrationsFolder } from './drizzle-migrations-folder.js'
-import { describeCaughtError } from './postgres-error-classification.js'
-import { mapPostgresErrorToDbFailure } from './postgres-error-to-db-failure.js'
+} from './drizzle-migration-history.ts'
+import { readDrizzleMigrationsFolder } from './drizzle-migrations-folder.ts'
+import { describeCaughtError } from './postgres-error-classification.ts'
+import { mapPostgresErrorToDbFailure } from './postgres-error-to-db-failure.ts'
 
 /** How long to wait for the project connection before treating the server as unreachable. */
 const migrationConnectionTimeoutMilliseconds = 10_000

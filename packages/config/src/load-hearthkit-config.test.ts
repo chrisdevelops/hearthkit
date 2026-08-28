@@ -19,7 +19,7 @@ import {
   gateDatabaseEnvSchemaFragment,
   gateEmailEnvSchemaFragment,
   gateStorageEnvSchemaFragment,
-} from '../test-fixtures/config-gate-fragments.js'
+} from '../test-fixtures/config-gate-fragments.ts'
 
 describe('loadHearthkitConfig', () => {
   it('resolves a frozen typed config from valid env across several fragments', () => {
