@@ -14,7 +14,8 @@ export const gateAdminDatabaseUrl =
   'postgresql://hearthkit:hearthkit@localhost:5432/hearthkit'
 
 /** A closed localhost port, so a reachability check fails immediately without stopping the compose service. */
-export const unreachableAdminDatabaseUrl = 'postgresql://hearthkit:hearthkit@127.0.0.1:59999/hearthkit'
+export const unreachableAdminDatabaseUrl =
+  'postgresql://hearthkit:hearthkit@127.0.0.1:59999/hearthkit'
 
 /** Database name unique to this process and call, so parallel gate files and repeated runs never collide. */
 export function uniqueGateDatabaseName(purpose: string): ProjectDatabaseName {
@@ -104,6 +105,9 @@ export async function createAdminOwnedGateDatabase(databaseName: string): Promis
 
 /** Removes a gate database and its same-named role if they are still there; safe to call when neither exists. */
 export async function removeGateDatabase(databaseName: string): Promise<void> {
-  await runPsqlStatement(gateAdminDatabaseUrl, `DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`)
+  await runPsqlStatement(
+    gateAdminDatabaseUrl,
+    `DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`,
+  )
   await runPsqlStatement(gateAdminDatabaseUrl, `DROP ROLE IF EXISTS "${databaseName}"`)
 }

@@ -8,10 +8,10 @@ The `hearthkit` binary: one entry point for project operations. Commands are thi
 
 ### Environment variables
 
-| Name                           | Type                        | Required | Example                                               | Owner                                          |
-| ------------------------------ | --------------------------- | -------- | ----------------------------------------------------- | ---------------------------------------------- |
-| `HEARTHKIT_ADMIN_DATABASE_URL` | Postgres connection URL     | optional | `postgresql://hearthkit:hearthkit@localhost:5432/hearthkit` | this package (`cliEnvSchemaFragment`)    |
-| `DATABASE_URL`                 | Postgres connection URL     | optional (required by `db migrate` when `--database-url` is absent) | `postgresql://myapp:s3cret@localhost:5432/myapp` | `@hearthkit/db` (`dbEnvSchemaFragment`) |
+| Name                           | Type                    | Required                                                            | Example                                                     | Owner                                   |
+| ------------------------------ | ----------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------- |
+| `HEARTHKIT_ADMIN_DATABASE_URL` | Postgres connection URL | optional                                                            | `postgresql://hearthkit:hearthkit@localhost:5432/hearthkit` | this package (`cliEnvSchemaFragment`)   |
+| `DATABASE_URL`                 | Postgres connection URL | optional (required by `db migrate` when `--database-url` is absent) | `postgresql://myapp:s3cret@localhost:5432/myapp`            | `@hearthkit/db` (`dbEnvSchemaFragment`) |
 
 `HEARTHKIT_ADMIN_DATABASE_URL` is an operator variable read by the CLI itself at command time; apps never pass `cliEnvSchemaFragment` to `@hearthkit/config` at boot. Empty string counts as unset, matching config's rule.
 
@@ -25,17 +25,17 @@ Per the db contract, the admin URL is always an explicit `adminDatabaseUrl` para
 
 ### Commands (Phase 2 registry)
 
-| Command | Arguments and flags |
-| ------- | ------------------- |
-| `hearthkit db create <name>` | `<name>`: `ProjectDatabaseName` (db contract's branded name). `--admin-database-url <url>` optional. |
-| `hearthkit db drop <name>` | Same as create. No confirmation prompt — scripts and the scaffolder call this non-interactively. |
-| `hearthkit db migrate` | `--database-url <url>` (falls back to `DATABASE_URL` env; project-scoped, never admin). `--migrations-folder <path>` default `./drizzle`. |
-| `hearthkit db backup <name>` | `--admin-database-url` as above. `--backup-file <path>` default `./backups/<name>-<YYYYMMDDTHHMMSSZ>.dump` (UTC). The `backupFilePath` in the result (and stdout line) is the flag value verbatim when given; the default path is returned as an absolute path resolved from cwd. |
-| `hearthkit db restore <name> <file>` | `<file>`: path to a pg_dump custom-format archive. `--admin-database-url` as above. Target database must already exist (db contract: create-then-restore after a drop). |
-| `hearthkit dev` | No arguments. Runs the `dev infra up` behavior, then the project's own `next dev` (from `node_modules/.bin`), streaming its stdio. |
-| `hearthkit dev infra up` | No arguments. See compose resolution below. |
-| `hearthkit dev infra down` | No arguments. `docker compose down`, volumes kept. No compose file in cwd is a no-op success. |
-| `hearthkit doctor` | `--json` optional: print the report as JSON instead of the human table. |
+| Command                              | Arguments and flags                                                                                                                                                                                                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hearthkit db create <name>`         | `<name>`: `ProjectDatabaseName` (db contract's branded name). `--admin-database-url <url>` optional.                                                                                                                                                                              |
+| `hearthkit db drop <name>`           | Same as create. No confirmation prompt — scripts and the scaffolder call this non-interactively.                                                                                                                                                                                  |
+| `hearthkit db migrate`               | `--database-url <url>` (falls back to `DATABASE_URL` env; project-scoped, never admin). `--migrations-folder <path>` default `./drizzle`.                                                                                                                                         |
+| `hearthkit db backup <name>`         | `--admin-database-url` as above. `--backup-file <path>` default `./backups/<name>-<YYYYMMDDTHHMMSSZ>.dump` (UTC). The `backupFilePath` in the result (and stdout line) is the flag value verbatim when given; the default path is returned as an absolute path resolved from cwd. |
+| `hearthkit db restore <name> <file>` | `<file>`: path to a pg_dump custom-format archive. `--admin-database-url` as above. Target database must already exist (db contract: create-then-restore after a drop).                                                                                                           |
+| `hearthkit dev`                      | No arguments. Runs the `dev infra up` behavior, then the project's own `next dev` (from `node_modules/.bin`), streaming its stdio.                                                                                                                                                |
+| `hearthkit dev infra up`             | No arguments. See compose resolution below.                                                                                                                                                                                                                                       |
+| `hearthkit dev infra down`           | No arguments. `docker compose down`, volumes kept. No compose file in cwd is a no-op success.                                                                                                                                                                                     |
+| `hearthkit doctor`                   | `--json` optional: print the report as JSON instead of the human table.                                                                                                                                                                                                           |
 
 An unknown command path, unknown flag, missing argument, or an argument that fails its schema (for example an uppercase database name) is a usage failure, exit 2.
 
@@ -55,11 +55,11 @@ Docker availability is checked first (`docker` on PATH and `docker info` exits 0
 
 `generateLocalInfraCompose({ hearthkitProjectName, infraServices })` is pure and deterministic. Images come from the exported constant `localInfraServiceImageByName` (single place to bump):
 
-| Service | Image | Host ports | Notes |
-| ------- | ----- | ---------- | ----- |
-| `postgres` | `postgres:17` | 5432 | `POSTGRES_USER/PASSWORD/DB` = `hearthkit`/`hearthkit`/`hearthkit`, matching `defaultLocalAdminDatabaseUrl`; named volume `<project>-postgres-data`; `pg_isready` healthcheck. |
-| `minio` | `minio/minio:RELEASE.2025-09-07T16-13-09Z` | 9000 (S3), 9001 (console) | `MINIO_ROOT_USER/PASSWORD` = `hearthkit`/`hearthkit`; `server /data --console-address :9001`; named volume `<project>-minio-data`. |
-| `mailpit` | `axllent/mailpit:v1.31` | 1025 (SMTP), 8025 (UI and API) | No volume. |
+| Service    | Image                                      | Host ports                     | Notes                                                                                                                                                                         |
+| ---------- | ------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `postgres` | `postgres:17`                              | 5432                           | `POSTGRES_USER/PASSWORD/DB` = `hearthkit`/`hearthkit`/`hearthkit`, matching `defaultLocalAdminDatabaseUrl`; named volume `<project>-postgres-data`; `pg_isready` healthcheck. |
+| `minio`    | `minio/minio:RELEASE.2025-09-07T16-13-09Z` | 9000 (S3), 9001 (console)      | `MINIO_ROOT_USER/PASSWORD` = `hearthkit`/`hearthkit`; `server /data --console-address :9001`; named volume `<project>-minio-data`.                                            |
+| `mailpit`  | `axllent/mailpit:v1.31`                    | 1025 (SMTP), 8025 (UI and API) | No volume.                                                                                                                                                                    |
 
 Container names are `<project>-postgres`, `<project>-minio`, `<project>-mailpit`. Host ports are fixed; two projects running infra simultaneously clash (see Out of scope).
 
@@ -67,16 +67,16 @@ Container names are `<project>-postgres`, `<project>-minio`, `<project>-mailpit`
 
 Each check reports `pass`, `fail`, or `skip` (skipped when a prerequisite check failed) plus a one-line detail:
 
-| Check name | What it verifies |
-| ---------- | ---------------- |
-| `node-version-supported` | Running Node major >= 24. |
-| `pnpm-command-available` | `pnpm` on PATH. |
-| `docker-cli-available` | `docker` on PATH. |
-| `docker-daemon-running` | `docker info` exits 0 (skip if CLI missing). |
-| `docker-compose-plugin-available` | `docker compose version` exits 0 (skip if CLI missing). |
-| `postgres-client-tools-version` | `pg_dump` and `pg_restore` on PATH with major version 17 (a v16 client shadowing v17 fails this check by design). |
-| `admin-database-reachable` | A connection with the resolved admin URL answers `SELECT 1`. |
-| `cli-env-variables-valid` | `HEARTHKIT_ADMIN_DATABASE_URL` and `DATABASE_URL`, when set, parse as Postgres URLs. Unset passes. |
+| Check name                        | What it verifies                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `node-version-supported`          | Running Node major >= 24.                                                                                         |
+| `pnpm-command-available`          | `pnpm` on PATH.                                                                                                   |
+| `docker-cli-available`            | `docker` on PATH.                                                                                                 |
+| `docker-daemon-running`           | `docker info` exits 0 (skip if CLI missing).                                                                      |
+| `docker-compose-plugin-available` | `docker compose version` exits 0 (skip if CLI missing).                                                           |
+| `postgres-client-tools-version`   | `pg_dump` and `pg_restore` on PATH with major version 17 (a v16 client shadowing v17 fails this check by design). |
+| `admin-database-reachable`        | A connection with the resolved admin URL answers `SELECT 1`.                                                      |
+| `cli-env-variables-valid`         | `HEARTHKIT_ADMIN_DATABASE_URL` and `DATABASE_URL`, when set, parse as Postgres URLs. Unset passes.                |
 
 With `--json`, doctor prints exactly the `doctorJsonReportSchema` object — `{ checks: DoctorCheckResult[], allDoctorChecksPassed: boolean }` — as JSON on stdout, both on success and on `doctor-checks-failed` (where `allDoctorChecksPassed` is `false`).
 
@@ -89,17 +89,17 @@ With `--json`, doctor prints exactly the `doctorJsonReportSchema` object — `{ 
 
 Exit codes: `0` success, `1` operational failure, `2` usage failure. Exception: once `next dev` is running, `hearthkit dev` streams its stdio and exits with the child's exit code (0–255). Failure messages go to stderr; the machine-readable success line goes to stdout.
 
-| Command | Success result `kind` | stdout on success |
-| ------- | --------------------- | ----------------- |
-| `db create` | `db-create-command-succeeded` | Exactly the project-scoped connection string, one line, nothing else. Pipeable. stderr carries the one-time warning, a line starting with `cliDbCreateCredentialsWarningPrefix` (`hearthkit db create warning:`): shown only once and never persisted — copy it into `.env.local` yourself. |
-| `db drop` | `db-drop-command-succeeded` | One line starting `hearthkit db drop complete:` naming the database. |
-| `db migrate` | `db-migrate-command-succeeded` | One line starting `hearthkit db migrate complete:` with `appliedMigrationCount`. |
-| `db backup` | `db-backup-command-succeeded` | One line starting `hearthkit db backup complete:` with the backup file path and byte count. |
-| `db restore` | `db-restore-command-succeeded` | One line starting `hearthkit db restore complete:` with the database name and file path. |
-| `dev infra up` | `dev-infra-up-succeeded` | One line starting `hearthkit dev infra up complete:` listing started services (possibly none). |
-| `dev infra down` | `dev-infra-down-succeeded` | One line starting `hearthkit dev infra down complete:`. |
-| `dev` | `dev-command-exited` | Child `next dev` output, streamed. |
-| `doctor` | `doctor-report` (all checks passed) | Human table of checks, or the JSON report with `--json`. |
+| Command          | Success result `kind`               | stdout on success                                                                                                                                                                                                                                                                           |
+| ---------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db create`      | `db-create-command-succeeded`       | Exactly the project-scoped connection string, one line, nothing else. Pipeable. stderr carries the one-time warning, a line starting with `cliDbCreateCredentialsWarningPrefix` (`hearthkit db create warning:`): shown only once and never persisted — copy it into `.env.local` yourself. |
+| `db drop`        | `db-drop-command-succeeded`         | One line starting `hearthkit db drop complete:` naming the database.                                                                                                                                                                                                                        |
+| `db migrate`     | `db-migrate-command-succeeded`      | One line starting `hearthkit db migrate complete:` with `appliedMigrationCount`.                                                                                                                                                                                                            |
+| `db backup`      | `db-backup-command-succeeded`       | One line starting `hearthkit db backup complete:` with the backup file path and byte count.                                                                                                                                                                                                 |
+| `db restore`     | `db-restore-command-succeeded`      | One line starting `hearthkit db restore complete:` with the database name and file path.                                                                                                                                                                                                    |
+| `dev infra up`   | `dev-infra-up-succeeded`            | One line starting `hearthkit dev infra up complete:` listing started services (possibly none).                                                                                                                                                                                              |
+| `dev infra down` | `dev-infra-down-succeeded`          | One line starting `hearthkit dev infra down complete:`.                                                                                                                                                                                                                                     |
+| `dev`            | `dev-command-exited`                | Child `next dev` output, streamed.                                                                                                                                                                                                                                                          |
+| `doctor`         | `doctor-report` (all checks passed) | Human table of checks, or the JSON report with `--json`.                                                                                                                                                                                                                                    |
 
 All result shapes are Zod schemas in `src/cli-contract.ts`; `runHearthkitCli` returns them so gates can validate without scraping text.
 
@@ -107,19 +107,19 @@ All result shapes are Zod schemas in `src/cli-contract.ts`; `runHearthkitCli` re
 
 One discriminated union, `CliFailure`, on `kind`. Every variant carries a `message` starting with its unique literal prefix; the message is the last stderr line before a nonzero exit.
 
-| `kind` | When | Message prefix | Exit | Commands |
-| ------ | ---- | -------------- | ---- | -------- |
-| `cli-usage-invalid` | Unknown command, unknown flag, missing or schema-invalid argument | `hearthkit cli usage:` | 2 | all |
-| `admin-database-url-invalid` | Resolved admin URL (flag or env) is not a `postgres(ql)://` URL | `hearthkit cli admin url invalid:` | 1 | db create, drop, backup, restore |
-| `database-url-missing` | `db migrate` with neither `--database-url` nor `DATABASE_URL`; the message names the literal `DATABASE_URL` immediately after the prefix | `hearthkit cli database url missing:` | 1 | db migrate |
-| `database-url-invalid` | Provided database URL is not a `postgres(ql)://` URL | `hearthkit cli database url invalid:` | 1 | db migrate |
-| `db-command-failed` | `@hearthkit/db` returned any `DbFailure`; carried verbatim as `dbFailure`, `message` equals the db failure's message (already prefixed `hearthkit db …`) | the underlying db prefix | 1 | db create, drop, migrate, backup, restore |
-| `docker-unavailable` | `docker` not on PATH or daemon not running | `hearthkit cli docker unavailable:` | 1 | dev, dev infra up, dev infra down |
-| `infra-compose-failed` | `docker compose` exited nonzero; carries `composeExitCode` and `composeStderrExcerpt` | `hearthkit cli infra compose failed:` | 1 | dev, dev infra up, dev infra down |
-| `project-manifest-missing` | Compose generation needed but no `./package.json`; carries `manifestPath` | `hearthkit cli project manifest missing:` | 1 | dev, dev infra up |
-| `compose-file-unwritable` | Generated `docker-compose.yml` cannot be written; carries `composeFilePath` | `hearthkit cli compose file unwritable:` | 1 | dev, dev infra up |
-| `next-dev-unavailable` | No runnable `next` binary in the project's `node_modules/.bin` | `hearthkit cli next dev unavailable:` | 1 | dev |
-| `doctor-checks-failed` | At least one doctor check did not pass; carries the full `checks` array and `failedCheckNames`; the report still prints to stdout | `hearthkit doctor failed:` | 1 | doctor |
+| `kind`                       | When                                                                                                                                                     | Message prefix                            | Exit | Commands                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---- | ----------------------------------------- |
+| `cli-usage-invalid`          | Unknown command, unknown flag, missing or schema-invalid argument                                                                                        | `hearthkit cli usage:`                    | 2    | all                                       |
+| `admin-database-url-invalid` | Resolved admin URL (flag or env) is not a `postgres(ql)://` URL                                                                                          | `hearthkit cli admin url invalid:`        | 1    | db create, drop, backup, restore          |
+| `database-url-missing`       | `db migrate` with neither `--database-url` nor `DATABASE_URL`; the message names the literal `DATABASE_URL` immediately after the prefix                 | `hearthkit cli database url missing:`     | 1    | db migrate                                |
+| `database-url-invalid`       | Provided database URL is not a `postgres(ql)://` URL                                                                                                     | `hearthkit cli database url invalid:`     | 1    | db migrate                                |
+| `db-command-failed`          | `@hearthkit/db` returned any `DbFailure`; carried verbatim as `dbFailure`, `message` equals the db failure's message (already prefixed `hearthkit db …`) | the underlying db prefix                  | 1    | db create, drop, migrate, backup, restore |
+| `docker-unavailable`         | `docker` not on PATH or daemon not running                                                                                                               | `hearthkit cli docker unavailable:`       | 1    | dev, dev infra up, dev infra down         |
+| `infra-compose-failed`       | `docker compose` exited nonzero; carries `composeExitCode` and `composeStderrExcerpt`                                                                    | `hearthkit cli infra compose failed:`     | 1    | dev, dev infra up, dev infra down         |
+| `project-manifest-missing`   | Compose generation needed but no `./package.json`; carries `manifestPath`                                                                                | `hearthkit cli project manifest missing:` | 1    | dev, dev infra up                         |
+| `compose-file-unwritable`    | Generated `docker-compose.yml` cannot be written; carries `composeFilePath`                                                                              | `hearthkit cli compose file unwritable:`  | 1    | dev, dev infra up                         |
+| `next-dev-unavailable`       | No runnable `next` binary in the project's `node_modules/.bin`                                                                                           | `hearthkit cli next dev unavailable:`     | 1    | dev                                       |
+| `doctor-checks-failed`       | At least one doctor check did not pass; carries the full `checks` array and `failedCheckNames`; the report still prints to stdout                        | `hearthkit doctor failed:`                | 1    | doctor                                    |
 
 The CLI never re-words a db failure: the db message is printed as-is so its prefix stays greppable and db failure modes are not re-specified here.
 
@@ -154,7 +154,7 @@ Not yet verifiable: `packages/cli` has no `package.json`; the imports from `@hea
 
 Defaults were chosen so downstream work is not blocked; veto any of these and the contract will be revised.
 
-1. `db create` prints the connection string to stdout once and never writes an env file. STATUS calls persistence "future CLI scope" — confirmed as *later than* Phase 2?
+1. `db create` prints the connection string to stdout once and never writes an env file. STATUS calls persistence "future CLI scope" — confirmed as _later than_ Phase 2?
 2. `dev infra up` writes a generated `docker-compose.yml` into the project root when one is missing (never overwriting). Alternative was a hearthkit-owned path like `.hearthkit/docker-compose.yml`; root was chosen to match what the Phase 6 scaffolder generates.
 3. `db drop` runs without confirmation. Acceptable for a dev tool driven by scripts?
 4. Admin URL precedence flag > `HEARTHKIT_ADMIN_DATABASE_URL` > compose default. The env var makes VPS use (Phase 7) ergonomic without new code — confirm the variable name.

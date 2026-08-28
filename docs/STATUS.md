@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step     | Implementor rounds | Notes                                                          |
-| ------- | -------- | ------------------ | -------------------------------------------------------------- |
-| `cli`   | commit    | 1                  | 23/23 gates, typecheck, lint verified by orchestrator; PR open |
+| Package | Step   | Implementor rounds | Notes                                                          |
+| ------- | ------ | ------------------ | -------------------------------------------------------------- |
+| `cli`   | commit | 1                  | 23/23 gates, typecheck, lint verified by orchestrator; PR open |
 
 ## Open issues
 
