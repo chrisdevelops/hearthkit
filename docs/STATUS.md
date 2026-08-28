@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 3 (`ui` merged; `observability` in progress)
-- Package: `observability`
-- Step: commit (PR open, awaiting merge)
-- Branch: pkg/observability
-- Last commit: d3e4743 (`@hearthkit/observability` implementation on pkg/observability)
+- Phase: 3 (`ui` and `observability` merged; phase DoD partially outstanding, see Open issues)
+- Package: none
+- Step: not started
+- Branch: main
+- Last commit: 7a25800 squash-merge of PR #5 (`@hearthkit/observability`)
 
 ## Phase checklist
 
@@ -17,7 +17,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 0: foundation (done directly in the main session, no loop)
 - [x] Phase 1: `config` (merged, PR #1), `db` (merged, PR #2)
 - [x] Phase 2: `cli` (merged, PR #3)
-- [ ] Phase 3: `ui` (merged, PR #4), `observability`
+- [ ] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5) — DoD blocked on owed `ui` items
 - [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
 - [ ] Phase 5: `storage`, `email`, `auth`, `payments`
 - [ ] Phase 6: `create`
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package         | Step   | Implementor rounds | Notes                                         |
-| --------------- | ------ | ------------------ | --------------------------------------------- |
-| `observability` | commit | 1                  | 14/14 gates pass after two gate-fixture fixes |
+| Package | Step | Implementor rounds | Notes                                          |
+| ------- | ---- | ------------------ | ---------------------------------------------- |
+| —       | —    | 0                  | `observability` merged; see git history, PR #5 |
 
 ## Open issues
 
@@ -41,6 +41,17 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- Phase 3 DoD scratch-app half verified 2026-08-28 on merged main (7a25800): a scratch Next
+  16.1.4 app (file: deps on `ui` + `observability`, `transpilePackages`, ui-contract globals.css
+  with `@source`) rendered themed shadcn markup (SSR HTML shows `data-slot="button"` with
+  `bg-primary` etc.; compiled CSS defines the hearthkit tokens in `:root` + `.dark` and generates
+  the bound utilities) and `/health` returned 200 `{"status":"ok"}` with a REAL `pg` check
+  against compose Postgres 17 (85 ms). Phase 3 stays unticked: `docs/theming.md` and the
+  shadowed-component example are still owed from the `ui` loop.
+  **Phase 4 constraint found:** Next 16.1.4's `next.config.ts` loader needs the installed
+  TypeScript's JS API, which `typescript@7.0.2` (tsgo native preview) does not provide
+  (`Cannot read properties of undefined (reading 'fileExists')`); `typescript@5.9.3` in the app
+  fixed it. `templates/app` must ship TS 5.x (or `next.config.mjs`), not the workspace's TS 7 pin.
 - `observability` verified 2026-08-28 on pkg/observability: 14/14 gates (real compose
   Postgres for the db-reachability check; in-process node:http Sentry ingest mock), workspace
   typecheck and lint exit 0 (orchestrator-run; gate-runner reports in `.reports/observability-*.txt`).
