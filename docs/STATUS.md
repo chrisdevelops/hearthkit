@@ -31,7 +31,7 @@ Only the current package is tracked here. Steps: contract, contract-review, gate
 
 | Package | Step   | Implementor rounds | Notes                                                          |
 | ------- | ------ | ------------------ | -------------------------------------------------------------- |
-| `cli`   | commit | 1                  | 23/23 gates, typecheck, lint verified by orchestrator; PR open |
+| `cli`   | commit | 1                  | 25/25 gates, typecheck, lint verified by orchestrator; PR open |
 
 ## Open issues
 
