@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 3 (`ui` and `observability` merged; phase DoD partially outstanding, see Open issues)
+- Phase: 3 complete; Phase 4 (`templates/app`, Dockerfile, project CI) next, not started
 - Package: none
 - Step: not started
 - Branch: main
-- Last commit: 7a25800 squash-merge of PR #5 (`@hearthkit/observability`)
+- Last commit: see git log (`docs/theming.md` PR closed Phase 3)
 
 ## Phase checklist
 
@@ -17,7 +17,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 0: foundation (done directly in the main session, no loop)
 - [x] Phase 1: `config` (merged, PR #1), `db` (merged, PR #2)
 - [x] Phase 2: `cli` (merged, PR #3)
-- [ ] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5) — DoD blocked on owed `ui` items
+- [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
 - [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
 - [ ] Phase 5: `storage`, `email`, `auth`, `payments`
 - [ ] Phase 6: `create`
@@ -41,6 +41,25 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- Phase 3 DoD completed 2026-08-28: `docs/theming.md` written with every example verified live
+  in the scratch app (shadowed `IconLeadingButton` rendered beside package `Button`, both bound
+  to app token overrides; dropping `@source` shrank compiled CSS 37 KB → 11 KB with utilities
+  gone but tokens present — components silently unstyled, not an error; shadcn CLI 4.19.0 run
+  against a scratch copy of `packages/ui`). Known `ui` gaps recorded from that work (claims, no
+  edits made; candidates for a small `ui` follow-up round):
+  1. `buttonVariants` is exported from `packages/ui/src/index.ts` but missing from
+     `hearthkitUiMinimumExportNames` — the documented fork imports it without a contract guarantee.
+  2. Rule-4 shadcn workflow is not runnable as-is: `packages/ui` has no `components.json` and no
+     `@/*` tsconfig path alias (CLI writes a literal `@/` directory without it). The doc gives
+     verified contents; the package is the right home.
+  3. CLI-generated files never compile untouched (`@/merge-tailwind-classes` import; the `cn`
+     rename; extension-bearing relative specifiers) — same tension STATUS already records for
+     `shadcn add --overwrite`.
+  4. No exported constant for the full stylesheet specifier `@hearthkit/ui/hearthkit-theme.css`
+     (`hearthkitThemeCssFileName` is only the bare filename); doc/scaffolder/template each
+     hardcode it.
+  5. Phase 4 must verify `tailwindSourceDirectiveForUi` (`../node_modules/@hearthkit/ui`) works
+     when that path is a pnpm workspace symlink — verified only with a `file:` dep so far.
 - Phase 3 DoD scratch-app half verified 2026-08-28 on merged main (7a25800): a scratch Next
   16.1.4 app (file: deps on `ui` + `observability`, `transpilePackages`, ui-contract globals.css
   with `@source`) rendered themed shadcn markup (SSR HTML shows `data-slot="button"` with
