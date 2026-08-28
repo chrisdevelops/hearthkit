@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 1 complete; phase 2 (`cli`) next, not started
-- Package: none (next: `cli`)
-- Step: not started
-- Branch: main
-- Last commit: 886785b squash-merge of PR #2 (`@hearthkit/db`)
+- Phase: 2 (`cli`) in progress
+- Package: `cli`
+- Step: contract
+- Branch: pkg/cli
+- Last commit: f9dbe83 (main at branch point)
 
 ## Phase checklist
 
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                  |
-| ------- | ---- | ------------------ | -------------------------------------- |
-| —       | —    | 0                  | `db` merged; see git history and PR #2 |
+| Package | Step     | Implementor rounds | Notes                                                          |
+| ------- | -------- | ------------------ | -------------------------------------------------------------- |
+| `cli`   | commit    | 1                  | 23/23 gates, typecheck, lint verified by orchestrator; PR open |
 
 ## Open issues
 
@@ -41,6 +41,21 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- `cli` verified 2026-08-27: 23/23 gates pass against compose Postgres 17 + Docker
+  (orchestrator-run), workspace typecheck and lint exit 0 (lint warnings only, all in test
+  fixtures). Gate-runner reports in `.reports/cli-*.txt`.
+- Node 24 runs `.ts` files directly (type stripping) but resolves `.js` specifiers literally,
+  so no package in this repo is runnable by bare `node` without help. The `hearthkit` bin is a
+  `.mjs` wrapper registering a resolver hook (`hearthkit-typescript-source-resolver.mjs`) that
+  retries failed relative `.js` specifiers as `.ts`. Phase 6 (`create`) must reuse this
+  convention or the repo needs a build step — open repo-level decision, does not block Phases 3-5.
+- `cli` contract approved 2026-08-27 with these defaults: admin URL precedence is
+  `--admin-database-url` flag > `HEARTHKIT_ADMIN_DATABASE_URL` env > compose default
+  `postgresql://hearthkit:hearthkit@localhost:5432/hearthkit`; `db create` prints the
+  connection string once, writes nothing; `db drop` has no confirmation prompt (scriptable;
+  `--confirm` layer is additive later); generated compose goes to project-root
+  `docker-compose.yml`, never overwriting an existing file; MinIO image pinned to the last
+  Docker Hub community tag, final choice deferred to Phase 5.
 - Phase 1 definition of done verified 2026-08-27: on merged main (886785b), local gates pass
   (config 12/12, db 24/24 against compose Postgres 17) and CI run 33121562483 on main is
   green with a Postgres 17 service container, PGDG `postgresql-client-17` (PATH-prepended —
