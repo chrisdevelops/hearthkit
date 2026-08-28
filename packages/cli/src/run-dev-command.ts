@@ -3,11 +3,11 @@ import { access } from 'node:fs/promises'
 import { constants as fileSystemConstants } from 'node:fs'
 import { constants as osConstants } from 'node:os'
 import { join } from 'node:path'
-import { cliDevInfraUpCompleteLinePrefix, type CliCommandResult } from './cli-contract.js'
-import { nextDevUnavailableFailure } from './cli-failure-results.js'
-import { writeStandardErrorLine } from './cli-output-streams.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
-import { runDevInfraUpCommand } from './run-dev-infra-command.js'
+import { cliDevInfraUpCompleteLinePrefix, type CliCommandResult } from './cli-contract.ts'
+import { nextDevUnavailableFailure } from './cli-failure-results.ts'
+import { writeStandardErrorLine } from './cli-output-streams.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
+import { runDevInfraUpCommand } from './run-dev-infra-command.ts'
 
 /** The project's own Next.js binary; hearthkit never installs or bundles one of its own. */
 const projectNextBinaryRelativePath = join('node_modules', '.bin', 'next')

@@ -10,7 +10,7 @@
     }
   },
   "bin": {
-    "hearthkit": "./src/hearthkit-bin.mjs"
+    "hearthkit": "./src/hearthkit-bin.ts"
   },
   "files": [
     "src"

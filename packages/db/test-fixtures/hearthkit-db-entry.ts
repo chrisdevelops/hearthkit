@@ -6,7 +6,7 @@ import type {
   DropProjectDatabase,
   RestoreProjectDatabase,
   RunDatabaseMigrations,
-} from '../src/db-contract.js'
+} from '../src/db-contract.ts'
 
 /** The whole public surface a gate is allowed to touch; nothing here may be imported from an internal module. */
 export type HearthkitDbEntry = {

@@ -5,7 +5,7 @@ import {
   projectDatabaseNameSchema,
   type PostgresConnectionString,
   type ProjectDatabaseName,
-} from '../src/db-contract.js'
+} from '../src/db-contract.ts'
 
 /**
  * Admin connection to the Postgres 17 service in the repo-root docker-compose.yml. Gates need a

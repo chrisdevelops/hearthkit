@@ -44,11 +44,17 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 - `cli` verified 2026-08-27: 23/23 gates pass against compose Postgres 17 + Docker
   (orchestrator-run), workspace typecheck and lint exit 0 (lint warnings only, all in test
   fixtures). Gate-runner reports in `.reports/cli-*.txt`.
-- Node 24 runs `.ts` files directly (type stripping) but resolves `.js` specifiers literally,
-  so no package in this repo is runnable by bare `node` without help. The `hearthkit` bin is a
-  `.mjs` wrapper registering a resolver hook (`hearthkit-typescript-source-resolver.mjs`) that
-  retries failed relative `.js` specifiers as `.ts`. Phase 6 (`create`) must reuse this
-  convention or the repo needs a build step — open repo-level decision, does not block Phases 3-5.
+- User decision 2026-08-27 (hybrid TS execution): relative import specifiers are written
+  `.ts`, not `.js`, in every package; `tsconfig.base.json` adds `allowImportingTsExtensions`,
+  `rewriteRelativeImportExtensions`, `erasableSyntaxOnly`. Bare `node` runs any source file
+  directly (the `hearthkit` bin is `src/hearthkit-bin.ts`, shebang + executable bit, no
+  resolver hook). Verified on Node 24.20.0 + TS 7.0.2, including symlinked workspace packages.
+  Constraint (Node policy, all versions through 26): TS in a REAL `node_modules` dir is refused
+  (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so registry installs of Node-executed
+  packages (`cli`, later `create`) need a publish-time build (`rewriteRelativeImportExtensions`
+  emits clean `.js`) — deferred until publishing starts. Next-consumed packages need no build
+  (`transpilePackages`). New relative imports must use `.ts`; typecheck will NOT catch a stray
+  `.js` specifier (NodeNext maps it silently) — only bare-node execution or `rg` does.
 - `cli` contract approved 2026-08-27 with these defaults: admin URL precedence is
   `--admin-database-url` flag > `HEARTHKIT_ADMIN_DATABASE_URL` env > compose default
   `postgresql://hearthkit:hearthkit@localhost:5432/hearthkit`; `db create` prints the

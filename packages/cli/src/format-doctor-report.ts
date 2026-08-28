@@ -3,7 +3,7 @@ import {
   doctorJsonReportSchema,
   type DoctorCheckResult,
   type DoctorJsonReport,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Width of the name column in the human table; the longest check name plus breathing room. */
 const doctorCheckNameColumnWidth =

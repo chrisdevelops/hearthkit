@@ -7,16 +7,16 @@ import {
   expectCliSuccess,
   runHearthkitCliGate,
   singleStandardOutputLine,
-} from '../test-fixtures/cli-run-expectations.js'
+} from '../test-fixtures/cli-run-expectations.ts'
 import {
   createGateDirectory,
   gateEnvironment,
   removeGateDirectory,
-} from '../test-fixtures/gate-project-directories.js'
+} from '../test-fixtures/gate-project-directories.ts'
 import {
   gateCliBaselineMigrationCount,
   gateCliMigrationsFolderPath,
-} from '../test-fixtures/gate-migrations-folder.js'
+} from '../test-fixtures/gate-migrations-folder.ts'
 import {
   createAdminOwnedGateDatabase,
   gateAdminDatabaseUrl,
@@ -25,7 +25,7 @@ import {
   removeGateDatabase,
   runPsqlStatement,
   uniqueGateDatabaseName,
-} from '../test-fixtures/postgres-gate-psql.js'
+} from '../test-fixtures/postgres-gate-psql.ts'
 import {
   adminDatabaseUrlEnvVariableName,
   cliAdminUrlInvalidErrorPrefix,
@@ -38,7 +38,7 @@ import {
   cliDbRestoreCompleteLinePrefix,
   cliUsageErrorPrefix,
   defaultLocalAdminDatabaseUrl,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 const namesToRemove: ProjectDatabaseName[] = []
 let workingDirectoryPath: string

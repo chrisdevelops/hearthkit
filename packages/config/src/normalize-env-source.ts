@@ -1,4 +1,4 @@
-import type { EnvSource } from './config-contract.js'
+import type { EnvSource } from './config-contract.ts'
 
 /** Keeps only declared variables that carry a real value; an unset variable and an empty string are both dropped so defaults apply and required variables report as missing. */
 export function normalizeEnvSource(

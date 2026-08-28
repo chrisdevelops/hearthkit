@@ -6,9 +6,9 @@ import {
   restoreProjectDatabase,
   runDatabaseMigrations,
 } from '@hearthkit/db'
-import type { CliCommandInvocation, CliCommandResult } from './cli-contract.js'
-import { dbCommandFailedFailure } from './cli-failure-results.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
+import type { CliCommandInvocation, CliCommandResult } from './cli-contract.ts'
+import { dbCommandFailedFailure } from './cli-failure-results.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
 
 /** The five invocations that are only a thin call into @hearthkit/db; no database logic lives in this package. */
 export type DbLifecycleInvocation = Extract<

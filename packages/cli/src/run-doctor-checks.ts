@@ -4,12 +4,12 @@ import {
   type CliCommandResult,
   type DoctorCheckName,
   type DoctorCheckResult,
-} from './cli-contract.js'
-import { doctorChecksFailedFailure } from './cli-failure-results.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
-import { readEnvironmentVariableValue } from './read-environment-variable-value.js'
-import { resolveAdminDatabaseUrl } from './resolve-admin-database-url.js'
-import { runChildProcessCommand } from './run-child-process-command.js'
+} from './cli-contract.ts'
+import { doctorChecksFailedFailure } from './cli-failure-results.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
+import { readEnvironmentVariableValue } from './read-environment-variable-value.ts'
+import { resolveAdminDatabaseUrl } from './resolve-admin-database-url.ts'
+import { runChildProcessCommand } from './run-child-process-command.ts'
 
 /** The Node major this stack is built and gated on; older majors are a fail, not a warning. */
 const minimumNodeMajorVersion = 24

@@ -3,19 +3,19 @@ import {
   expectCliFailure,
   expectCliSuccess,
   runHearthkitCliGate,
-} from '../test-fixtures/cli-run-expectations.js'
+} from '../test-fixtures/cli-run-expectations.ts'
 import {
   createGateDirectory,
   gateEnvironment,
   removeGateDirectory,
-} from '../test-fixtures/gate-project-directories.js'
-import { unreachableAdminDatabaseUrl } from '../test-fixtures/postgres-gate-psql.js'
+} from '../test-fixtures/gate-project-directories.ts'
+import { unreachableAdminDatabaseUrl } from '../test-fixtures/postgres-gate-psql.ts'
 import {
   adminDatabaseUrlEnvVariableName,
   cliDoctorFailedErrorPrefix,
   doctorCheckNameSchema,
   doctorJsonReportSchema,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 let workingDirectoryPath: string
 

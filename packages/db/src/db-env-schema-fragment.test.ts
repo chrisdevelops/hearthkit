@@ -1,7 +1,7 @@
 import { loadHearthkitConfig } from '@hearthkit/config'
 import { describe, expect, it } from 'vitest'
-import { expectResultKind } from '../test-fixtures/db-result-expectations.js'
-import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.js'
+import { expectResultKind } from '../test-fixtures/db-result-expectations.ts'
+import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.ts'
 
 const projectConnectionString = 'postgresql://myapp:s3cret@localhost:5432/myapp'
 

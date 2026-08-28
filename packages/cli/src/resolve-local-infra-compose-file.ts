@@ -1,14 +1,14 @@
 import { access, writeFile } from 'node:fs/promises'
 import { constants as fileSystemConstants } from 'node:fs'
 import { join } from 'node:path'
-import type { CliFailure } from './cli-contract.js'
+import type { CliFailure } from './cli-contract.ts'
 import {
   composeFileUnwritableFailure,
   projectManifestMissingFailure,
-} from './cli-failure-results.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
-import { generateLocalInfraCompose } from './generate-local-infra-compose.js'
-import { readProjectInfraManifest } from './read-project-infra-manifest.js'
+} from './cli-failure-results.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
+import { generateLocalInfraCompose } from './generate-local-infra-compose.ts'
+import { readProjectInfraManifest } from './read-project-infra-manifest.ts'
 
 /** The one compose file name this package reads and, when it is absent, writes. */
 const localInfraComposeFileName = 'docker-compose.yml'

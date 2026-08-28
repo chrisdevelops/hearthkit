@@ -13,7 +13,7 @@ import {
   type CliFailure,
   type DoctorCheckName,
   type DoctorCheckResult,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Every failure this package returns is built here, so each message keeps its unique literal prefix in one place. */
 type CliFailureOf<TKind extends CliFailure['kind']> = Extract<CliFailure, { kind: TKind }>

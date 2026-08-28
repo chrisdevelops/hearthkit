@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { loadHearthkitCliEntry } from '../test-fixtures/hearthkit-cli-entry.js'
+import { loadHearthkitCliEntry } from '../test-fixtures/hearthkit-cli-entry.ts'
 import {
   generateLocalInfraComposeOptionsSchema,
   localInfraServiceImageByName,
   localInfraServiceNameSchema,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 // The function is pure, so a fixed project name is safe: nothing it writes touches the filesystem
 // or the docker daemon, and two gate runs cannot collide.

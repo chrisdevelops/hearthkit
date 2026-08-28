@@ -5,7 +5,7 @@ import {
   type GenerateLocalInfraCompose,
   type HearthkitProjectName,
   type LocalInfraServiceName,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Credentials baked into the generated Postgres and MinIO services; they match defaultLocalAdminDatabaseUrl. */
 const localInfraCredential = 'hearthkit'

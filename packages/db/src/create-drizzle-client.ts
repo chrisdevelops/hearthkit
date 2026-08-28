@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
-import type { DrizzleClientHandle, PostgresConnectionString } from './db-contract.js'
+import type { DrizzleClientHandle, PostgresConnectionString } from './db-contract.ts'
 
 /**
  * Builds a lazy typed Drizzle client over a node-postgres pool. Nothing connects here, so an

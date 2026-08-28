@@ -1,8 +1,8 @@
 import type { Client } from 'pg'
-import type { DbFailure, PostgresConnectionString, ProjectDatabaseName } from './db-contract.js'
-import { projectDatabaseNotFoundFailure } from './db-failure-results.js'
-import { withPostgresAdminSession } from './postgres-admin-session.js'
-import { postgresErrorToDbFailureOrThrow } from './postgres-error-to-db-failure.js'
+import type { DbFailure, PostgresConnectionString, ProjectDatabaseName } from './db-contract.ts'
+import { projectDatabaseNotFoundFailure } from './db-failure-results.ts'
+import { withPostgresAdminSession } from './postgres-admin-session.ts'
+import { postgresErrorToDbFailureOrThrow } from './postgres-error-to-db-failure.ts'
 
 /** Whether the name is taken on the server, read as one query because one name spells both the database and its role. */
 export type ProjectDatabasePresence = {

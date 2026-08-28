@@ -1,4 +1,4 @@
-import type { GenerateLocalInfraCompose, RunHearthkitCli } from '../src/cli-contract.js'
+import type { GenerateLocalInfraCompose, RunHearthkitCli } from '../src/cli-contract.ts'
 
 /** The whole public surface a gate is allowed to touch; nothing here may be imported from an internal module. */
 export type HearthkitCliEntry = {

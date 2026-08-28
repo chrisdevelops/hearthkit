@@ -1,11 +1,11 @@
-import type { CliCommandInvocation, CliCommandResult, RunHearthkitCli } from './cli-contract.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
-import { parseCliInvocation } from './parse-cli-invocation.js'
-import { reportCliOutcome } from './report-cli-outcome.js'
-import { runDbLifecycleCommand } from './run-db-lifecycle-command.js'
-import { runDevCommand } from './run-dev-command.js'
-import { runDevInfraDownCommand, runDevInfraUpCommand } from './run-dev-infra-command.js'
-import { runDoctorCommand } from './run-doctor-checks.js'
+import type { CliCommandInvocation, CliCommandResult, RunHearthkitCli } from './cli-contract.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
+import { parseCliInvocation } from './parse-cli-invocation.ts'
+import { reportCliOutcome } from './report-cli-outcome.ts'
+import { runDbLifecycleCommand } from './run-db-lifecycle-command.ts'
+import { runDevCommand } from './run-dev-command.ts'
+import { runDevInfraDownCommand, runDevInfraUpCommand } from './run-dev-infra-command.ts'
+import { runDoctorCommand } from './run-doctor-checks.ts'
 
 /**
  * Runs one hearthkit command end to end: resolve the working directory and environment, parse argv,

@@ -1,10 +1,10 @@
 /** Public entry point of @hearthkit/cli: a named re-export of exactly the surface the contract lists, so no internal module is importable by consumers. */
 
 /** Runs one hearthkit command and returns its exit code and structured result; the bin is a wrapper around this. */
-export { runHearthkitCli } from './run-hearthkit-cli.js'
+export { runHearthkitCli } from './run-hearthkit-cli.ts'
 
 /** Builds the local infra compose file; pure, so the scaffolder can reuse it instead of copying a template. */
-export { generateLocalInfraCompose } from './generate-local-infra-compose.js'
+export { generateLocalInfraCompose } from './generate-local-infra-compose.ts'
 
 /** Contract values: the unique literal prefix every failure message starts with. */
 export {
@@ -18,7 +18,7 @@ export {
   cliNextDevUnavailableErrorPrefix,
   cliProjectManifestMissingErrorPrefix,
   cliUsageErrorPrefix,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Contract values: the unique literal prefix of each command's single stdout line and of the db create warning. */
 export {
@@ -29,7 +29,7 @@ export {
   cliDbRestoreCompleteLinePrefix,
   cliDevInfraDownCompleteLinePrefix,
   cliDevInfraUpCompleteLinePrefix,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Contract values: this package's env fragment and the defaults its resolution rules fall back to. */
 export {
@@ -38,7 +38,7 @@ export {
   defaultBackupDirectoryPath,
   defaultLocalAdminDatabaseUrl,
   defaultMigrationsFolderPath,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Contract values: the local infra vocabulary, including the single place each service image is pinned. */
 export {
@@ -47,7 +47,7 @@ export {
   localInfraServiceByHearthkitPackage,
   localInfraServiceImageByName,
   localInfraServiceNameSchema,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Contract values: the command registry, result, failure, and doctor schemas gates and consumers parse with. */
 export {
@@ -62,7 +62,7 @@ export {
   doctorCheckResultSchema,
   doctorJsonReportSchema,
   runHearthkitCliOptionsSchema,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 /** Contract types: the vocabulary a consumer needs to hold a run's outcome without re-deriving it. */
 export type {
@@ -82,4 +82,4 @@ export type {
   LocalInfraServiceName,
   RunHearthkitCli,
   RunHearthkitCliOptions,
-} from './cli-contract.js'
+} from './cli-contract.ts'

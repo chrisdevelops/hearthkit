@@ -1,4 +1,4 @@
-import { hearthkitProjectNameSchema, type HearthkitProjectName } from './cli-contract.js'
+import { hearthkitProjectNameSchema, type HearthkitProjectName } from './cli-contract.ts'
 
 /** What a manifest name becomes when nothing usable survives sanitising, so compose always has a project name. */
 const fallbackHearthkitProjectName = hearthkitProjectNameSchema.parse('hearthkit-app')

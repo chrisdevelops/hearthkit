@@ -1,9 +1,9 @@
-import type { DropProjectDatabase, DropProjectDatabaseResult } from './db-contract.js'
-import { projectDatabaseNotFoundFailure } from './db-failure-results.js'
-import { withPostgresAdminSession } from './postgres-admin-session.js'
-import { postgresErrorToDbFailureOrThrow } from './postgres-error-to-db-failure.js'
-import { quotePostgresIdentifier } from './postgres-identifier-quoting.js'
-import { readProjectDatabasePresence } from './project-database-presence.js'
+import type { DropProjectDatabase, DropProjectDatabaseResult } from './db-contract.ts'
+import { projectDatabaseNotFoundFailure } from './db-failure-results.ts'
+import { withPostgresAdminSession } from './postgres-admin-session.ts'
+import { postgresErrorToDbFailureOrThrow } from './postgres-error-to-db-failure.ts'
+import { quotePostgresIdentifier } from './postgres-identifier-quoting.ts'
+import { readProjectDatabasePresence } from './project-database-presence.ts'
 
 /**
  * Drops the project database and its same-named role. Irreversible, and forced: live sessions on

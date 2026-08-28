@@ -10,9 +10,9 @@ import {
   type CliCommandResult,
   type CliExitCode,
   type DoctorCheckResult,
-} from './cli-contract.js'
-import { writeStandardErrorLine, writeStandardOutputLine } from './cli-output-streams.js'
-import { formatDoctorCheckTable, formatDoctorJsonReport } from './format-doctor-report.js'
+} from './cli-contract.ts'
+import { writeStandardErrorLine, writeStandardOutputLine } from './cli-output-streams.ts'
+import { formatDoctorCheckTable, formatDoctorJsonReport } from './format-doctor-report.ts'
 
 /** Exit code for a command that did what it was asked. */
 const successExitCode = 0

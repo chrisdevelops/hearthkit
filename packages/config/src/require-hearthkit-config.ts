@@ -2,8 +2,8 @@ import type {
   EnvSchemaFragment,
   HearthkitConfigOf,
   LoadHearthkitConfigOptions,
-} from './config-contract.js'
-import { loadHearthkitConfig } from './load-hearthkit-config.js'
+} from './config-contract.ts'
+import { loadHearthkitConfig } from './load-hearthkit-config.ts'
 
 /** Boot path: returns the frozen config or throws an Error whose message is the failure message, naming every failing variable rather than only the first. */
 export function requireHearthkitConfig<const TFragments extends readonly EnvSchemaFragment[]>(

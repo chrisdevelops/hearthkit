@@ -5,8 +5,8 @@ import {
   type CliFailure,
   type CliRunOutcome,
   type RunHearthkitCliOptions,
-} from '../src/cli-contract.js'
-import { loadHearthkitCliEntry } from './hearthkit-cli-entry.js'
+} from '../src/cli-contract.ts'
+import { loadHearthkitCliEntry } from './hearthkit-cli-entry.ts'
 
 /** One CLI run: the contract-validated outcome plus everything the command wrote to the two process streams. */
 export type GateCliRun = {

@@ -5,16 +5,16 @@ import {
   type CliCommandInvocation,
   type CliCommandPath,
   type CliFailure,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 import {
   cliUsageInvalidFailure,
   databaseUrlInvalidFailure,
   databaseUrlMissingFailure,
-} from './cli-failure-results.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
-import { buildDefaultBackupFilePath } from './default-backup-file-path.js'
-import { readEnvironmentVariableValue } from './read-environment-variable-value.js'
-import { resolveAdminDatabaseUrl } from './resolve-admin-database-url.js'
+} from './cli-failure-results.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
+import { buildDefaultBackupFilePath } from './default-backup-file-path.ts'
+import { readEnvironmentVariableValue } from './read-environment-variable-value.ts'
+import { resolveAdminDatabaseUrl } from './resolve-admin-database-url.ts'
 
 /** The project-scoped connection db migrate falls back to; never the admin connection, per the db contract. */
 const projectDatabaseUrlEnvVariableName = 'DATABASE_URL'

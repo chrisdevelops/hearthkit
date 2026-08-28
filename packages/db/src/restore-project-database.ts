@@ -1,14 +1,14 @@
-import type { RestoreProjectDatabase, RestoreProjectDatabaseResult } from './db-contract.js'
+import type { RestoreProjectDatabase, RestoreProjectDatabaseResult } from './db-contract.ts'
 import {
   backupFileInvalidFailure,
   databasePrivilegeDeniedFailure,
   databaseServerUnreachableFailure,
   postgresToolMissingFailure,
-} from './db-failure-results.js'
-import { findUnusableArchiveFailure } from './pg-dump-archive-file.js'
-import { runPostgresToolCommand } from './postgres-tool-process.js'
-import { connectionStringForProjectDatabase } from './project-connection-string.js'
-import { findMissingProjectDatabaseFailure } from './project-database-presence.js'
+} from './db-failure-results.ts'
+import { findUnusableArchiveFailure } from './pg-dump-archive-file.ts'
+import { runPostgresToolCommand } from './postgres-tool-process.ts'
+import { connectionStringForProjectDatabase } from './project-connection-string.ts'
+import { findMissingProjectDatabaseFailure } from './project-database-presence.ts'
 
 /**
  * Restores a pg_dump custom-format archive into an already existing project database, replacing

@@ -3,9 +3,9 @@ import {
   adminDatabaseUrlEnvVariableName,
   defaultLocalAdminDatabaseUrl,
   type CliFailure,
-} from './cli-contract.js'
-import { adminDatabaseUrlInvalidFailure } from './cli-failure-results.js'
-import { readEnvironmentVariableValue } from './read-environment-variable-value.js'
+} from './cli-contract.ts'
+import { adminDatabaseUrlInvalidFailure } from './cli-failure-results.ts'
+import { readEnvironmentVariableValue } from './read-environment-variable-value.ts'
 
 /** Where the admin connection came from, kept on the resolution so a failure can name the source the operator must fix. */
 export type AdminDatabaseUrlSource = 'flag' | 'environment' | 'default'

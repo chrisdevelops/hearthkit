@@ -3,11 +3,11 @@ import type {
   EnvSchemaFragment,
   HearthkitConfigOf,
   LoadHearthkitConfigOptions,
-} from './config-contract.js'
-import { composeEnvSchemaFragments } from './compose-env-schema-fragments.js'
-import { collectConfigVariableIssues } from './config-variable-issues.js'
-import { formatConfigInvalidMessage } from './config-failure-messages.js'
-import { normalizeEnvSource } from './normalize-env-source.js'
+} from './config-contract.ts'
+import { composeEnvSchemaFragments } from './compose-env-schema-fragments.ts'
+import { collectConfigVariableIssues } from './config-variable-issues.ts'
+import { formatConfigInvalidMessage } from './config-failure-messages.ts'
+import { normalizeEnvSource } from './normalize-env-source.ts'
 
 /** Validates the environment against the composed fragments in one pass and never throws; every failure comes back as a value, and success carries a frozen config with defaults applied. */
 export function loadHearthkitConfig<const TFragments extends readonly EnvSchemaFragment[]>(

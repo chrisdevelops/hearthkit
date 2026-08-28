@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
-import { writeStandardErrorChunk } from './cli-output-streams.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
+import { writeStandardErrorChunk } from './cli-output-streams.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
 
 /**
  * What spawning one external command produced. A binary that is not on PATH is an outcome rather

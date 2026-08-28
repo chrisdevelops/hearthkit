@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { expectDbFailure, expectResultKind } from '../test-fixtures/db-result-expectations.js'
-import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.js'
+import { expectDbFailure, expectResultKind } from '../test-fixtures/db-result-expectations.ts'
+import { loadHearthkitDbEntry } from '../test-fixtures/hearthkit-db-entry.ts'
 import {
   expectConnectionRefused,
   gateAdminDatabaseUrl,
@@ -10,13 +10,13 @@ import {
   removeGateDatabase,
   uniqueGateDatabaseName,
   unreachableDatabaseUrl,
-} from '../test-fixtures/postgres-gate-server.js'
+} from '../test-fixtures/postgres-gate-server.ts'
 import {
   dbNotFoundErrorPrefix,
   dbUnreachableErrorPrefix,
   dropProjectDatabaseResultSchema,
   type ProjectDatabaseName,
-} from './db-contract.js'
+} from './db-contract.ts'
 
 const namesToRemove: ProjectDatabaseName[] = []
 

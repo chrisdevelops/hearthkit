@@ -1,6 +1,6 @@
-import { localInfraServiceNameSchema, type LocalInfraServiceName } from './cli-contract.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
-import { runChildProcessCommand, type ChildProcessOutcome } from './run-child-process-command.js'
+import { localInfraServiceNameSchema, type LocalInfraServiceName } from './cli-contract.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
+import { runChildProcessCommand, type ChildProcessOutcome } from './run-child-process-command.ts'
 
 /** Whether docker can be used at all right now: on PATH and with a daemon that answers. */
 export type DockerAvailability =

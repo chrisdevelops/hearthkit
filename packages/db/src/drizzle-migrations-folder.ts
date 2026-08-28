@@ -1,9 +1,9 @@
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { readMigrationFiles, type MigrationMeta } from 'drizzle-orm/migrator'
-import type { DbFailure } from './db-contract.js'
-import { migrationsFolderNotFoundFailure } from './db-failure-results.js'
-import { describeCaughtError } from './postgres-error-classification.js'
+import type { DbFailure } from './db-contract.ts'
+import { migrationsFolderNotFoundFailure } from './db-failure-results.ts'
+import { describeCaughtError } from './postgres-error-classification.ts'
 
 /** The file drizzle-kit writes beside the .sql files; without it a directory of SQL is not a migrations folder. */
 const drizzleJournalRelativePath = join('meta', '_journal.json')

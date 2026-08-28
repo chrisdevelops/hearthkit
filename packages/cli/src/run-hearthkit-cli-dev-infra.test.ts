@@ -6,12 +6,12 @@ import {
   expectCliSuccess,
   runHearthkitCliGate,
   singleStandardOutputLine,
-} from '../test-fixtures/cli-run-expectations.js'
+} from '../test-fixtures/cli-run-expectations.ts'
 import {
   gateContainerExists,
   gateContainerIsRunning,
   removeGateContainer,
-} from '../test-fixtures/docker-gate-containers.js'
+} from '../test-fixtures/docker-gate-containers.ts'
 import {
   createEmptyPathDirectory,
   createGateDirectory,
@@ -25,7 +25,7 @@ import {
   writeFakeNextBinary,
   writeGateComposeFile,
   writeGateProjectManifest,
-} from '../test-fixtures/gate-project-directories.js'
+} from '../test-fixtures/gate-project-directories.ts'
 import {
   cliComposeFileUnwritableErrorPrefix,
   cliDevInfraDownCompleteLinePrefix,
@@ -35,7 +35,7 @@ import {
   cliNextDevUnavailableErrorPrefix,
   cliProjectManifestMissingErrorPrefix,
   localInfraServiceImageByName,
-} from './cli-contract.js'
+} from './cli-contract.ts'
 
 const directoriesToRemove: string[] = []
 const containersToRemove: string[] = []

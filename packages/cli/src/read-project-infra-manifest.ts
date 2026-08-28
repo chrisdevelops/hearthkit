@@ -6,9 +6,9 @@ import {
   localInfraServiceNameSchema,
   type HearthkitProjectName,
   type LocalInfraServiceName,
-} from './cli-contract.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
-import { deriveHearthkitProjectName } from './derive-hearthkit-project-name.js'
+} from './cli-contract.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
+import { deriveHearthkitProjectName } from './derive-hearthkit-project-name.ts'
 
 /** The only fields of a project's package.json this package looks at; anything else is ignored, not rejected. */
 const projectManifestSchema = z.object({

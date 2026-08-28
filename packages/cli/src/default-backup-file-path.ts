@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 import type { ProjectDatabaseName } from '@hearthkit/db'
-import { defaultBackupDirectoryPath } from './cli-contract.js'
+import { defaultBackupDirectoryPath } from './cli-contract.ts'
 
 /**
  * Where db backup writes when --backup-file is absent: ./backups/<name>-<YYYYMMDDTHHMMSSZ>.dump,

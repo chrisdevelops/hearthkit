@@ -1,6 +1,6 @@
-import type { CliCommandResult, CliFailure } from './cli-contract.js'
-import { dockerUnavailableFailure, infraComposeFailedFailure } from './cli-failure-results.js'
-import type { CliRuntimeContext } from './cli-runtime-context.js'
+import type { CliCommandResult, CliFailure } from './cli-contract.ts'
+import { dockerUnavailableFailure, infraComposeFailedFailure } from './cli-failure-results.ts'
+import type { CliRuntimeContext } from './cli-runtime-context.ts'
 import {
   checkDockerAvailability,
   composeDownArguments,
@@ -8,13 +8,13 @@ import {
   composeUpArguments,
   readKnownInfraServiceNames,
   runDockerComposeCommand,
-} from './docker-compose-commands.js'
-import type { ChildProcessOutcome } from './run-child-process-command.js'
+} from './docker-compose-commands.ts'
+import type { ChildProcessOutcome } from './run-child-process-command.ts'
 import {
   hasLocalInfraComposeFile,
   localInfraComposeFilePath,
   resolveLocalInfraComposeFile,
-} from './resolve-local-infra-compose-file.js'
+} from './resolve-local-infra-compose-file.ts'
 
 /**
  * Starts the project's local infra. Docker is checked before anything is read or written, then the
