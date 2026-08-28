@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 3 (`ui` merged; `observability` next, not started)
-- Package: none (next: `observability`)
-- Step: not started
-- Branch: main
-- Last commit: 108367b squash-merge of PR #4 (`@hearthkit/ui`)
+- Phase: 3 (`ui` merged; `observability` in progress)
+- Package: `observability`
+- Step: commit (PR open, awaiting merge)
+- Branch: pkg/observability
+- Last commit: d3e4743 (`@hearthkit/observability` implementation on pkg/observability)
 
 ## Phase checklist
 
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                  |
-| ------- | ---- | ------------------ | -------------------------------------- |
-| —       | —    | 0                  | `ui` merged; see git history and PR #4 |
+| Package         | Step   | Implementor rounds | Notes                                         |
+| --------------- | ------ | ------------------ | --------------------------------------------- |
+| `observability` | commit | 1                  | 14/14 gates pass after two gate-fixture fixes |
 
 ## Open issues
 
@@ -41,6 +41,24 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- `observability` verified 2026-08-28 on pkg/observability: 14/14 gates (real compose
+  Postgres for the db-reachability check; in-process node:http Sentry ingest mock), workspace
+  typecheck and lint exit 0 (orchestrator-run; gate-runner reports in `.reports/observability-*.txt`).
+  Implementor round 1 surfaced two gate-fixture defects (envelope path compared with the
+  protocol's auth query string attached; an `import()` type annotation violating
+  `consistent-type-imports`) — fixed by gate-writer, no assertion weakened, implementation
+  untouched. Known accepted warnings: one `no-unsafe-type-assertion` in
+  `create-health-route-handler.ts` caused by `z.input` stripping the `HealthCheckName` brand
+  from option types (contract property, unreachable branch for type-correct callers).
+- `observability` contract approved 2026-08-28 (orchestrator decisions, user may veto):
+  `errorSampleRate` defaults 1, `tracesSampleRate` defaults 0 (conservative = no tracing volume;
+  never silently sample out errors); `/health` failed checks expose the first line (max 200
+  chars) of the thrown error in all environments (single-maintainer stack; production stripping
+  is additive later); error reporting uses module-level singleton state matching the Sentry SDK
+  global model, last `initializeErrorReporting` call wins. Health checks are app-wired named
+  functions so observability never imports `@hearthkit/db`; the Phase 4 template owns the db
+  ping wiring. `flushErrorReporting` added beyond the plan entry (capture is async under the
+  hood; gates and graceful shutdown need it).
 - `ui` verified 2026-08-28 on merged main (108367b): 23/23 gates (jsdom, no services),
   workspace typecheck and lint exit 0 (orchestrator-run; gate-runner reports in
   `.reports/ui-*.txt`), CI green after a STATUS.md-only prettier fix. Notable implementation
