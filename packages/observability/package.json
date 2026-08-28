@@ -1,0 +1,38 @@
+{
+  "name": "@hearthkit/observability",
+  "version": "0.0.0",
+  "description": "GlitchTip error reporting, pino structured logging, and a Next.js /health route handler",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sentry/node": "10.71.0",
+    "pino": "10.3.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@hearthkit/config": "workspace:*",
+    "@types/node": "24.13.3",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.0",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}
