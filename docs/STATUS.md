@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 3 (`ui`, `observability`) in progress
-- Package: `ui`
-- Step: commit (PR #4 open, awaiting CI/merge)
-- Branch: pkg/ui
-- Last commit: 562649d feat(ui) on pkg/ui (PR #4)
+- Phase: 3 (`ui` merged; `observability` next, not started)
+- Package: none (next: `observability`)
+- Step: not started
+- Branch: main
+- Last commit: 108367b squash-merge of PR #4 (`@hearthkit/ui`)
 
 ## Phase checklist
 
@@ -17,7 +17,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 0: foundation (done directly in the main session, no loop)
 - [x] Phase 1: `config` (merged, PR #1), `db` (merged, PR #2)
 - [x] Phase 2: `cli` (merged, PR #3)
-- [ ] Phase 3: `ui`, `observability`
+- [ ] Phase 3: `ui` (merged, PR #4), `observability`
 - [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
 - [ ] Phase 5: `storage`, `email`, `auth`, `payments`
 - [ ] Phase 6: `create`
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                                                             |
-| ------- | ------ | ------------------ | ------------------------------------------------------------------------------------------------- |
-| `ui`    | commit | 1                  | 23/23 gates, typecheck 0, lint 0 (orchestrator-run + gate-runner `.reports/ui-*.txt`); PR pending |
+| Package | Step | Implementor rounds | Notes                                  |
+| ------- | ---- | ------------------ | -------------------------------------- |
+| —       | —    | 0                  | `ui` merged; see git history and PR #4 |
 
 ## Open issues
 
@@ -41,6 +41,15 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- `ui` verified 2026-08-28 on merged main (108367b): 23/23 gates (jsdom, no services),
+  workspace typecheck and lint exit 0 (orchestrator-run; gate-runner reports in
+  `.reports/ui-*.txt`), CI green after a STATUS.md-only prettier fix. Notable implementation
+  facts: unified `radix-ui` package (current shadcn registry output) instead of per-primitive
+  `@radix-ui/react-*`; `packages/ui/tsconfig.json` deviates from base NodeNext with
+  `module: preserve` + `moduleResolution: bundler` (bundler-consumed package; NodeNext
+  mis-models `@testing-library/user-event` types); doc comments on shadcn-generated exports
+  would be stripped by a future `shadcn add --overwrite` (standing tension, unresolved).
+  `docs/theming.md` + shadowed-component example still owed for the Phase 3 DoD.
 - `ui` contract approved 2026-08-27 (orchestrator decisions, user may veto): shadcn-generated
   components keep canonical single-word names (`Button`, `Card` …) — renaming would break the
   plan-mandated shadcn-CLI workflow; hearthkit-authored exports follow the 2–4-word rule.
