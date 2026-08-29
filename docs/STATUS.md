@@ -4,10 +4,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 5 (`storage`, `email`, `auth`, `payments`) — next, not started. Phase 4 complete.
-- Package: none
-- Step: not started
-- Branch: main
+- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. Phase 4 complete.
+- Package: `storage`
+- Step: implement
+- Branch: pkg/storage
 - Last commit: cf0e84d squash-merge of PR #9 (`ui` subpath export, template contract mirror deleted)
 
 ## Phase checklist
@@ -29,17 +29,176 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                           |
-| ------- | ---- | ------------------ | ----------------------------------------------- |
-| —       | —    | 0                  | subpath round merged (PR #9); Phase 5 not begun |
+| Package   | Step      | Implementor rounds | Notes                                            |
+| --------- | --------- | ------------------ | ------------------------------------------------ |
+| `storage` | implement | 1                  | 21 gates approved, orchestrator-verified failing |
 
 ## Open issues
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- None.
+- **Nothing creates a local storage bucket. Non-blocking for `storage`, owed before Phase 6 ships a
+  storage-enabled scaffold.** `hearthkit dev infra up` starts MinIO empty, so a generated app with
+  `storage` installed fails its first upload until someone creates a bucket by hand. The `storage`
+  package deliberately does not fix this — it requires a bucket to exist, because production buckets
+  come from the OpenTofu module — and its gates create and destroy their own. The decision owed is
+  where the fix lives: an `mc mb` init container in the `cli` compose generator, a
+  `hearthkit storage init` command, or scaffold-time creation in `create`. Raised by contract-author,
+  confirmed by the orchestrator as a real gap rather than smuggled into this package.
 
 ## Verified facts this session
+
+- **`storage` contract correction round 2026-08-29, documentation only — `storage-contract.ts` was
+  not touched, so no verified gate work was invalidated.** Two inaccuracies the gate-writer found
+  while building against the contract, both confirmed by the orchestrator before being sent back.
+  1. **A wrong status code, and it corrects the orchestrator's own earlier spike reading.**
+     `CONTRACT.md` claimed a `PUT` that "omits it or sends a different value" is rejected with 403.
+     Sending a different value is 403; **omitting the header entirely is 400**. The orchestrator's
+     original spike recorded 403 for the omitted case because it used a _string_ body, and `fetch`
+     silently adds `content-type: text/plain;charset=UTF-8` — so that check was measuring the
+     wrong-value case a second time. Only a **binary** body tests true omission, which is what the
+     gate does. The gate asserts `[400, 403]` and never encoded the error.
+  2. **An ambiguity that would have let the entry point drift.** "each function's options and result
+     schemas" did not say whether the four success-only schemas must be re-exported. Resolved as
+     **required**, with a mechanical rule: every value `storage-contract.ts` exports is re-exported
+     from `src/index.ts`, no exceptions. That created a contract requirement no gate enforced, so the
+     entry-point gate is being widened in the same breath — additive only, and it cannot make a
+     failing empty implementation pass.
+  - `pnpm format:check` exit 0 after both edits, orchestrator-run. The contract-author had no shell
+    tool in either of its sessions and correctly declined to claim the check passed.
+
+- **Entry-point gate widened 2026-08-29 to enforce the contract's new mechanical rule, and it is now
+  derived rather than hand-maintained.** `contractValuesTheEntryMustReExport`, 36 hand-typed string
+  literals, is replaced by `Object.keys(contractModule).toSorted()` — 40 names, the delta being
+  exactly the four success-only schemas, measured with a throwaway probe rather than reasoned about.
+  The gate asserts three whole-array comparisons so a failure names every wrong export at once:
+  missing from the entry point, rebuilt instead of re-exported (identity, not just presence), and a
+  four-name literal anchor asserting those names still exist on the contract.
+  - **The anchor is the part worth keeping.** A purely derived list can silently shrink: delete a
+    contract export and the gate happily requires one fewer name. The anchor stops that for the four
+    names the contract calls out by name.
+  - **Honest tradeoff the gate-writer named rather than hid:** the old list failed loudly if any of
+    the other 36 contract names was renamed; the derived list simply tracks the rename. That is
+    arguably correct — the contract is the source of truth and the entry must follow it — but the
+    residual risk is an accidental _deletion_ of one of those 36 going unnoticed by this gate. The
+    other gates that import the deleted name would catch it, subject to the standing
+    silent-`undefined` hazard.
+  - Proven to bite before being accepted: three fake entry points in the harness only — old 36 only
+    (failed, naming exactly the four missing), all 40 (passed), 39 plus a rebuilt copy of
+    `storedObjectSummarySchema` (failed, naming exactly that one). Fakes deleted, 21/21 failing again.
+
+- **`storage` gates APPROVED 2026-08-29 after one round. 21 gates across 8 files (~1525 lines with
+  fixtures), orchestrator-verified failing: 8 files failed, 21/21 gates failed, and every one of the
+  21 failed with the SAME diagnostic** — `gate could not load the public entry point of
+@hearthkit/storage (not implemented yet?)`. No collection error, no fixture error, no syntax error.
+  The `beforeAll` hooks reached MinIO and created and destroyed their buckets on every run, and
+  `ListBuckets` returned `[]` afterwards, so the suite leaves no state behind.
+  - **The prescribed loop command still does not work for a package with no manifest.**
+    `pnpm --filter @hearthkit/storage test` prints `No projects matched the filters` and exits **0**,
+    orchestrator-confirmed, because `packages/storage/package.json` is implementor-owned and does not
+    exist yet. Identical to the `templates/app` situation. Real evidence came from running Vitest
+    directly against a scratch harness (workspace root with `@hearthkit/config` symlinked, no
+    manifest and no `index.ts` for storage, gate files re-copied from the repo immediately before the
+    run so the run tested exactly what is committed). **Do not read that exit 0 as a pass.**
+  - Import discipline audited by the orchestrator rather than taken on trust: every runtime call to
+    the package goes through a single dynamic `import('@hearthkit/storage')` inside
+    `test-fixtures/hearthkit-storage-entry.ts`. Gate files import only `./storage-contract.ts`, the
+    fixtures, `vitest`, and — in the env-fragment gate alone — `@hearthkit/config`. No gate reaches
+    into an internal implementation module.
+  - Services are real: MinIO from compose for everything except two variants that cannot use it —
+    `storage-request-failed` (in-process `node:http` server answering 500, the technique the
+    observability gates established and the contract sanctions) and `storage-endpoint-unreachable`
+    (a dead local port). The S3 SDK itself is never mocked.
+  - **The gate-writer built a throwaway reference implementation to prove the gates are satisfiable,
+    which is beyond what it was asked for and caught two defects that would otherwise have shipped:**
+    the never-throws gate passed against a stub that resolved with `{kind:'stub'}` (it now also
+    asserts each settled value is the correct contract failure, so a stub cannot pass it), and the
+    secret-leak sweep produced a false positive on every failure because MinIO's secret is the word
+    `hearthkit`, which is also the first word of every contract message prefix (it now forbids only a
+    distinctive sentinel secret). **This is the one claim the orchestrator did NOT independently
+    verify** — confirming it would mean writing the implementation, which is the implementor's job.
+    The implementor's first round will confirm or refute it.
+  - Gate count is in line with the rest of the repo (observability 14, `storage` 21, `db` 24, `cli`
+    25, `ui` and `templates/app` 27), and each gate is a multi-step integration scenario rather than
+    a per-schema unit test.
+
+- **`storage` contract APPROVED 2026-08-29, no revision round** (one small correction round for
+  documented facts followed, see below). Both files read by the orchestrator;
+  `pnpm format:check` exit 0 across the repo, which answers the contract-author's question 5 (it had
+  no shell tool and asked for the check to be run at review time). All four plan-mandated functions
+  present with the exact plan names, all three plan failure modes present, nothing invented without a
+  justification. The four open questions resolved as follows.
+  1. **`STORAGE_REGION` confirmed** as a fifth optional env var defaulting to `auto`, beyond plan
+     section 4.5's four. The SDK requires a region, R2 documents `auto`, and a defaulted variable
+     leaves an escape hatch for a MinIO site region while keeping the plan's four working unchanged.
+  2. **The `HEAD` in `createPresignedDownloadUrl` confirmed**, round trip and all. Without it
+     `storage-object-not-found` has no producer anywhere in the package, and the plan names it as a
+     failure mode; it also supplies the returned metadata and makes the plan's "delete it, confirm it
+     is gone" gate direct. The time-of-check race is real, stated in the contract, and accepted.
+  3. Local bucket ownership → moved to Open issues, not fixed here.
+  4. **Widened failure union confirmed** — `storage-endpoint-unreachable` (forced by the empty
+     `AggregateError`), `storage-parameter-out-of-range` (without it a bad expiry throws, breaking
+     the never-throws promise) and the `storage-request-failed` catch-all that keeps that promise
+     honest.
+
+- **Two load-bearing contract claims verified by orchestrator spike before approval, 7/7 — the
+  contract-author cited SDK source but could not execute anything, and both claims drive
+  implementation requirements and gates.**
+  - **The content-type pin is genuinely decorative without `signableHeaders`, and this is a real
+    security finding rather than a theoretical one.** Presigning a `PUT` with `ContentType:
+'text/plain'` and no `signableHeaders`, then uploading with `content-type: text/html`, returned
+    **200 and stored the object as `text/html`** — the client's choice silently won. Adding
+    `signableHeaders: new Set(['content-type'])` to `getSignedUrl` flipped the same mismatch to
+    **403**, while the matching type still returned 200. That is the stored-XSS hazard Decisions 6
+    names, confirmed end to end. **The implementation MUST pass `signableHeaders` or the pin, the
+    contract's `requiredRequestHeaders`, and any gate asserting on them are all theatre.**
+  - **`HeadObject` cannot distinguish a missing key from a missing bucket**, so the contract's
+    second bucket-level `HEAD` is genuinely required, not defensive padding. Both cases returned
+    byte-identical `name=NotFound`, `Code=undefined`, `status=404`. `HeadBucket` disambiguates
+    cleanly (present → ok, absent → `NotFound`/404). For reference, `GetObject` on a missing key
+    _does_ carry `NoSuchKey`, which confirms the stated mechanism: a `HEAD` has no XML body, so the
+    S3 error code never arrives.
+  - Consequence for the gate-writer and for Phase 6, worth stating once: because the signed
+    content-type must match **exactly**, a browser `fetch` with a string body sends
+    `text/plain;charset=UTF-8` and gets a 403 against a URL signed for `text/plain`. Uploading a
+    `Blob` whose type is set to the signed value is the working pattern. `storageContentTypeSchema`
+    rejects parameters such as `; charset=utf-8`, so the charset form cannot be signed either. This
+    is inherent to pinning the type, not a defect, but it will bite whoever writes the template's
+    storage section.
+
+- **Phase 5 opened on `storage` 2026-08-29. MinIO added to the repo-root `docker-compose.yml`
+  (orchestrator-owned, plan section 6) and spiked before any contract was written: 13/13 checks
+  green against `minio/minio:RELEASE.2025-09-07T16-13-09Z` on `localhost:9000`, creds
+  `hearthkit`/`hearthkit`, console 9001, healthcheck `mc ready local`.** Image tag and credentials
+  deliberately match `localInfraServiceImageByName` in `packages/cli/src/cli-contract.ts` so the repo
+  compose and a generated project's compose agree. AWS SDK v3.1121.0
+  (`@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`, 27 transitive packages).
+  - **The MinIO community image is frozen and that is now a confirmed fact, not a worry.** Docker Hub
+    shows no push since 2025-09-07 — ~12 months — and `latest` points at the same digest as the
+    pinned tag. The `cli` contract's "final choice deferred to Phase 5" is hereby resolved as: keep
+    the pin. It is local-development only, it passes every check the plan entry requires, and plan
+    section 4.5's "R2 and MinIO both speak S3, so the only difference is the endpoint" is exactly
+    what makes swapping the local server later a one-line change. Not escalated to the user.
+  - **`forcePathStyle: true` is required for MinIO** — presigned URLs come out as
+    `http://localhost:9000/<bucket>/<key>`, not virtual-host style. R2 accepts path style too, so one
+    setting serves both, but the contract has to name it rather than leave it to the implementor.
+  - **The plan entry's four env vars are not sufficient.** The SDK requires a `region` even though
+    MinIO ignores its value (R2 wants `auto`). Either a fifth variable or a documented constant is
+    needed; the contract must settle which.
+  - **"Object not found" cannot be a failure mode of delete.** S3 delete is idempotent: removing a
+    key that never existed returned success, not an error. The failure mode is real for download and
+    head only, so either delete does a HEAD first or the contract narrows where the mode applies.
+  - **An unreachable endpoint throws `AggregateError` with an EMPTY message** — the one error shape
+    here that is useless as-is, so it needs wrapping into a named failure with the endpoint in the
+    text. Contrast with the well-named ones: `NoSuchBucket`/404 for a missing bucket,
+    `InvalidAccessKeyId`/403 for bad credentials, `NotFound`/404 for a missing key.
+  - Also confirmed working, each worth a gate: presigned PUT accepted from plain `fetch` (200);
+    presigned GET round-tripped bytes; `ResponseContentDisposition` survived presigning, so
+    download-filename control needs no server-side proxying; list honoured `Prefix` and `MaxKeys` and
+    returned a continuation token, so pagination is available; **an expired presigned URL was
+    rejected with 403**, so expiry is enforced by the server rather than merely advisory.
+  - Gap noted, not this loop's call: the `cli` compose generator emits no healthcheck for its `minio`
+    service (postgres gets one), so `hearthkit dev` has nothing to wait on. Repo compose has one.
 
 - Throwaway probe deleted by the user 2026-08-29; orchestrator confirmed
   `chrisdevelops/hearthkit-template-probe-80cr2w` no longer resolves. **Not confirmed:** whether the
