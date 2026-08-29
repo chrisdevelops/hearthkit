@@ -6,9 +6,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. Phase 4 complete.
 - Package: `storage`
-- Step: commit — PR #10 open, awaiting CI and merge
+- Step: commit — PR #10 open and CI green, awaiting merge (user's call)
 - Branch: pkg/storage
-- Last commit: ec228f1 `feat(storage): implement the storage contract` (PR #10, not yet merged)
+- Last commit: 0972ef6 `ci(storage): start MinIO for the gates, and say so when it is missing`
+  (PR #10, CI green, not yet merged)
 
 ## Phase checklist
 
@@ -29,9 +30,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package   | Step   | Implementor rounds | Notes                                           |
-| --------- | ------ | ------------------ | ----------------------------------------------- |
-| `storage` | commit | 1                  | 21/21 green in round 1; PR #10 open, not merged |
+| Package   | Step   | Implementor rounds | Notes                                               |
+| --------- | ------ | ------------------ | --------------------------------------------------- |
+| `storage` | commit | 1                  | 21/21 green in round 1; PR #10 CI green, not merged |
 
 ## Open issues
 
@@ -47,6 +48,12 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   confirmed by the orchestrator as a real gap rather than smuggled into this package.
 
 ## Verified facts this session
+
+- **CI GREEN on PR #10 after the MinIO fix (run 33269760070, 2m15s).** The proof that matters is that
+  the storage gates **ran** on the runner rather than being skipped: `packages/storage test: Test
+Files 8 passed (8), Tests 21 passed (21)`, against a real MinIO started from the repo's compose
+  file. All seven projects green (config 2, ui 5, observability 4, db 6, storage 8, app-template 9,
+  cli 5). `docker compose up -d --wait minio` verified locally first: healthy in 6.1 s, exit 0.
 
 - **CI FAILED ON PR #10 WHILE EVERY LOCAL COMMAND WAS GREEN, and the cause is a gap in the loop
   itself rather than in the package.** The repo-root `docker-compose.yml` gained a `minio` service so
