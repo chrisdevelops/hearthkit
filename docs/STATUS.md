@@ -37,19 +37,16 @@ Only the current package is tracked here. Steps: contract, contract-review, gate
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- **Throwaway probe still live — blocked on a token scope, not on a decision.** The user authorised
-  deletion; the orchestrator's `gh` token cannot perform it. Scopes are
-  `admin:public_key, gist, read:org, repo, workflow`; `gh repo delete` returns
-  `HTTP 403: Must have admin rights to Repository` and asks for `delete_repo`. The refresh is an
-  interactive browser flow, so the user must run it:
-  `gh auth refresh -h github.com -s delete_repo,delete:packages`
-  Then either the user or the orchestrator can run
-  `gh repo delete chrisdevelops/hearthkit-template-probe-80cr2w --yes`.
-  Also check https://github.com/users/chrisdevelops/packages for the GHCR package
-  `hearthkit-template-probe-80cr2w` — deleting a repository does not always remove a linked
-  container package.
+- None.
 
 ## Verified facts this session
+
+- Throwaway probe deleted by the user 2026-08-29; orchestrator confirmed
+  `chrisdevelops/hearthkit-template-probe-80cr2w` no longer resolves. **Not confirmed:** whether the
+  linked GHCR container package went with it — the orchestrator's `gh` token lacks `read:packages`,
+  so the query returns 403 rather than an answer. Check
+  https://github.com/users/chrisdevelops/packages if a stray package matters later. Nothing blocks
+  on it, which is why this sits here rather than under Open issues.
 
 - **`@hearthkit/ui/ui-contract` subpath round merged 2026-08-29 (PR #9, cf0e84d); the contract
   mirror is deleted.**
