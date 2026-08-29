@@ -8,7 +8,7 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 - Package: `cli` (re-opened for the local storage bucket; `storage` itself is on `pkg/storage`, PR #10)
 - Step: commit
 - Branch: pkg/cli-local-storage-bucket (cut from main, independent of PR #10)
-- Last commit: 5eea5ed
+- Last commit: 8b402c9 `feat(cli): create the local storage bucket in dev infra up` (PR #11)
 
 **Branch note for whoever reads this next:** two branches are open at once. `pkg/storage` (PR #10,
 CI green, awaiting merge) carries the whole `storage` package plus the MinIO service in the repo
@@ -35,9 +35,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step      | Implementor rounds | Notes                                      |
-| ------- | --------- | ------------------ | ------------------------------------------ |
-| `cli`   | implement | 1                  | 14 gates approved; 25 existing still green |
+| Package | Step   | Implementor rounds | Notes                                |
+| ------- | ------ | ------------------ | ------------------------------------ |
+| `cli`   | commit | 2                  | 39/39 green; PR #11 open, not merged |
 
 ## Open issues
 
@@ -47,6 +47,39 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   fixed on this branch rather than left open.)
 
 ## Verified facts this session
+
+- **`cli` local-storage-bucket amendment COMPLETE 2026-08-29. PR #11, commit `8b402c9`. Not merged.**
+  Two implementor rounds, the second a comment-wording fix only. Orchestrator-run:
+  `pnpm --filter @hearthkit/cli test` **7 files, 39/39 passed** (25 pre-existing plus 14 new),
+  `pnpm run typecheck`, `pnpm run lint`, `pnpm run format:check` all exit 0, and
+  `pnpm --recursive --if-present run test` gives **143/143 across six projects**.
+  - **The gate-writer proved a text-only gate would NOT have caught the `--wait` defect**, by running
+    the Docker gates against an implementation with and without the `tail`. Without it:
+    `exitCode=1 kind=infra-compose-failed` **while the signed S3 PUT still returned 200**. So the
+    load-bearing assertion is the exit code, not the upload — an S3-only gate would have passed a
+    broken implementation. Worth remembering for `email`: proving the service works is not the same
+    as proving the command that starts it succeeded.
+  - The Docker gates remap only the _published_ host ports, because the repo's own `hearthkit-minio`
+    holds 9000/9001, and `remapGeneratedMinioHostPorts` throws a named error if the generated file
+    ever stops publishing `9000:9000` — so the remap cannot silently no-op and test nothing.
+  - Round 2 existed because the comment emitted into **every generated project's** compose file did
+    not parse ("calls a service that has exited a failed startup"). That comment is the only thing
+    standing between a future reader and deleting the `tail`, so garbled text there is a real defect,
+    not a typo. Rewritten and re-verified against real generated output for both properties that
+    matter: 2-space indent so it lands in neither service block, and no `restart:`/`ports:`/
+    `volumes:`/`environment:` that would trip the gates' absent-key regexes.
+  - Implementor judgement calls accepted: `LocalStorageBucketName` and `DeriveLocalStorageBucketName`
+    re-exported as types (without the first, Phase 6 can only write
+    `ReturnType<typeof deriveLocalStorageBucketName>`); `localStorageServiceEndpoint` as a named
+    constant rather than built from the published port, since the gate remaps the published port and
+    the in-network address must never be remapped; `buildBucketInitBlock` kept private beside the
+    existing private helpers.
+  - **Orchestrator false alarm worth recording.** A `pnpm lint` run appeared to fail with
+    `Unable to locate a Java Runtime` — an earlier `cd packages/cli/src` had persisted in the shell,
+    and from there `pnpm lint` resolved to Homebrew's `/opt/homebrew/bin/lint` (Android
+    command-line tools) instead of the package script. Re-run from the repo root, everything is
+    green. **Use `pnpm run <script>` rather than `pnpm <script>`, and do not trust a shell cwd across
+    calls.** The implementor's green report was correct and the doubt was mine.
 
 - **`cli` contract amendment APPROVED 2026-08-29 after one correction round, and the correction was
   a real defect that would have shipped a permanently-failing command.** `pnpm format:check` exit 0.
