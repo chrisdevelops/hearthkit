@@ -6,9 +6,9 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 4 (`templates/app`, Dockerfile, project CI workflows) — in progress
 - Package: `templates/app`
-- Step: implement (round 1)
+- Step: commit — PR #8 open, CI green, awaiting merge
 - Branch: pkg/app-template
-- Last commit: 7ef9ee8 (branched from main)
+- Last commit: 03e3ade feat(app-template): implement the Phase 4 app template contract
 
 ## Phase checklist
 
@@ -29,15 +29,27 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package         | Step      | Implementor rounds | Notes                                                         |
-| --------------- | --------- | ------------------ | ------------------------------------------------------------- |
-| `templates/app` | implement | 1                  | Contract 2 rounds, gates 2 rounds, both orchestrator-verified |
+| Package         | Step   | Implementor rounds | Notes                                              |
+| --------------- | ------ | ------------------ | -------------------------------------------------- |
+| `templates/app` | commit | 1                  | PR #8, CI green. Contract 2 rounds, gates 2 rounds |
 
 ## Open issues
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- none
+- **Phase 4 is NOT complete when PR #8 merges.** Its definition of done is "an image builds in CI
+  and runs with `/health` green", and plan section 11 also requires the project `ci.yml` and
+  `deploy.yml` to be "tested against a throwaway repo". Only the local half is verified
+  (`verify:container`, orchestrator-run, exit 0). The build-and-GHCR-push half needs a throwaway
+  GitHub repository, which is a visible action on the user's account. **Awaiting the user's choice:
+  hand them exact steps to run, or get explicit authorisation to create a private throwaway repo
+  with `gh` and drive it.** The Dokploy webhook call stays untested until Phase 7 either way.
+- Deferred, recorded so it is not rediscovered: `@hearthkit/ui` exports only `.` and
+  `./hearthkit-theme.css`, and `.` resolves through `.tsx`, so no bare-Node script can import
+  anything that imports the ui package. This is what forces `verify:container` to mirror contract
+  values rather than import them. A JSX-free `./ui-contract` subpath export would fix it
+  (`packages/ui/src/ui-contract.ts` imports only zod). Changes a merged package's public API, so it
+  needs its own loop — worth doing before Phase 6, since `@hearthkit/create` will hit the same wall.
 
 ## Verified facts this session
 
