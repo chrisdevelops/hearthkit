@@ -37,13 +37,17 @@ Only the current package is tracked here. Steps: contract, contract-review, gate
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- **Phase 4 is NOT complete when PR #8 merges.** Its definition of done is "an image builds in CI
-  and runs with `/health` green", and plan section 11 also requires the project `ci.yml` and
-  `deploy.yml` to be "tested against a throwaway repo". Only the local half is verified
-  (`verify:container`, orchestrator-run, exit 0). The build-and-GHCR-push half needs a throwaway
-  GitHub repository, which is a visible action on the user's account. **Awaiting the user's choice:
-  hand them exact steps to run, or get explicit authorisation to create a private throwaway repo
-  with `gh` and drive it.** The Dokploy webhook call stays untested until Phase 7 either way.
+- **Two cleanup actions need the user — the orchestrator's `gh` token cannot do either.** Scopes are
+  `admin:public_key, gist, read:org, repo, workflow`; deleting needs `delete_repo` and
+  `delete:packages`. The throwaway probe from the Phase 4 verification is still live:
+  1. Repo `chrisdevelops/hearthkit-template-probe-80cr2w` (private) — delete via Settings → General
+     → Danger Zone → Delete this repository, or run
+     `gh auth refresh -s delete_repo` then `gh repo delete chrisdevelops/hearthkit-template-probe-80cr2w --yes`.
+  2. GHCR package `hearthkit-template-probe-80cr2w` — **deleting the repository does not always
+     remove a linked container package.** Check https://github.com/users/chrisdevelops/packages and
+     delete it there if it survives.
+- **PR #8 is open with CI green and is not merged.** Phase 4 stays unticked in the checklist until
+  it is, even though its definition of done is now fully verified (see below).
 - Deferred, recorded so it is not rediscovered: `@hearthkit/ui` exports only `.` and
   `./hearthkit-theme.css`, and `.` resolves through `.tsx`, so no bare-Node script can import
   anything that imports the ui package. This is what forces `verify:container` to mirror contract
@@ -52,6 +56,38 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   needs its own loop — worth doing before Phase 6, since `@hearthkit/create` will hit the same wall.
 
 ## Verified facts this session
+
+- **PHASE 4 DEFINITION OF DONE FULLY VERIFIED 2026-08-28**, against a real throwaway repository
+  (`chrisdevelops/hearthkit-template-probe-80cr2w`, private, user-authorised). The template was
+  materialized exactly as `@hearthkit/create` will do it, using the loop's own
+  `materializeAppTemplateProject`, then pushed to a repo with no relationship to this workspace.
+  - **The generated project stands alone.** Outside the monorepo, with `@hearthkit/*` resolved from
+    packed tarballs rather than `workspace:*`: `pnpm install` exit 0, `pnpm lint` exit 0,
+    `pnpm typecheck` exit 0, `pnpm build` exit 0, `.next/standalone/server.js` produced. This is the
+    first evidence the template survives being copied out of the workspace.
+  - **Pruning is correct in practice, not just in gates.** 27 files committed: no `CONTRACT.md`, no
+    `src/`, no `test-fixtures/`, no `vitest.config.mts`, no `node_modules`, no build output.
+    `gitignore` arrived as `.gitignore`. `test` and `verify:container` scripts and the `vitest`/`zod`
+    dev dependencies were all removed from the manifest.
+  - **`ci.yml` passes on a pull request:** install, lint, typecheck, Chromium install, then
+    `pnpm test:e2e` → `Running 2 tests using 1 worker`, both specs `✓`, `2 passed`.
+  - **`deploy.yml` passes on push to main**, and the guard behaves: the image built and pushed to
+    `ghcr.io/chrisdevelops/hearthkit-template-probe-80cr2w` tagged with **both** the commit SHA and
+    `latest` on one digest (`sha256:8f2df8d9…`), matching plan section 7 — and the
+    `Trigger the Dokploy deployment` step reported **`skipped`, not `failed`**, with no secret set.
+    That is the user's Q4 decision working end to end.
+  - **The CI-built image runs and `/health` is green.** Local `verify:container` proves an arm64
+    image built on the orchestrator's machine; that is not the same claim as the amd64 image GitHub
+    built. A throwaway-only `probe-run-image.yml` (added to the probe repo, **never** to
+    `templates/app`) pulled the pushed image on a runner and asserted three things:
+    `status=200`, `body={"status":"ok","checks":[]}`, and container stdout carrying
+    `{"level":30,…,"pid":1,…,"msg":"hearthkit app started"}`. Passed.
+    Deliberately not added to the shipped `deploy.yml`: plan section 7 specifies exactly three steps
+    for it, and silently adding a fourth to every future project is not the loop's call.
+  - Still untested, unchanged: the Dokploy webhook call, until Phase 7 provisions an instance.
+  - Cosmetic issue for Phase 6, not blocking: the materializer copies `next-env.d.ts` when it is
+    present in the template working tree. It is gitignored so it never reaches a commit, and Next
+    regenerates it, but `@hearthkit/create` should skip it rather than copy cruft.
 
 - **SUPERSEDED — TypeScript 7 now works with Next.js.** The Phase 4 constraint recorded below
   ("`templates/app` must ship TS 5.x or `next.config.mjs`") was true for Next 16.1.4 and is
