@@ -43,7 +43,7 @@ The initial set is the smallest one the app template and its later flows (sign-i
 | theme mode      | `ThemeModeProvider`, `ThemeModeToggle`, `useThemeMode`                                                                         | light/dark mode is in the package purpose  |
 | utility         | `mergeTailwindClasses`                                                                                                         | copied components need the class merger    |
 
-This is a **minimum** surface: shadcn generates extra sub-parts (for example `CardAction`, `DialogOverlay`, `DropdownMenuGroup`); the implementor exports those too, by name. The guaranteed names above are machine-checkable via `hearthkitUiMinimumExportNames` in `ui-contract.ts`, which also guarantees `hearthkitThemeCssImportSpecifier` (see Package entry point).
+This is a **minimum** surface: shadcn generates extra sub-parts (for example `CardAction`, `DialogOverlay`, `DropdownMenuGroup`); the implementor exports those too, by name. The guaranteed names above are machine-checkable via `hearthkitUiMinimumExportNames` in `ui-contract.ts`, which also guarantees `hearthkitThemeCssImportSpecifier` and `hearthkitUiContractImportSpecifier` (see Package entry point).
 
 **Variant recipes.** The shadowed-component workflow in `docs/theming.md` ("Shadowing a single component") imports a component's cva recipe so a structural fork keeps the package's variant classes. Any variant recipe that workflow makes public API is a guaranteed export. Today that is exactly `buttonVariants` — the only `*Variants` recipe in the package; card, input, label, dialog, and dropdown-menu ship no cva recipe. A future component whose recipe the fork pattern uses adds its `*Variants` name to the list (additive).
 
@@ -71,7 +71,21 @@ Sidebar and chart tokens ship even though no sidebar or chart component ships ye
 
 ### Package entry point
 
-The public entry is `src/index.ts`, a thin named re-export (no `export *`). It re-exports by name: every component listed above (including `buttonVariants`), and from `ui-contract.ts`: `hearthkitThemeTokenNames`, `hearthkitThemeTokenNameSchema`, `darkModeOverriddenTokenNames`, `darkModeClassName`, `hearthkitThemeCssFileName`, `hearthkitThemeCssImportSpecifier`, `tailwindSourceDirectiveForUi`, `themeModeSchema`, `resolvedThemeModeSchema`, `themeModeToggleOptionLabels`, `uiComponentFamilyNames`, `uiComponentFamilyNameSchema`, `hearthkitUiMinimumExportNames`, `themeProviderMissingErrorPrefix`, `uiFailureSchema`, and types `HearthkitThemeTokenName`, `ThemeMode`, `ResolvedThemeMode`, `UseThemeModeResult`, `UiComponentFamilyName`, `UiFailure`. `hearthkitThemeCssImportSpecifier` is defined in `ui-contract.ts` and reaches the entry the same way `hearthkitThemeCssFileName` does: the implementor adds it to the named re-export block from `./ui-contract.ts` in `src/index.ts`. `package.json` `exports` maps `.` to the entry and `./hearthkit-theme.css` to the stylesheet; no other subpaths in this phase.
+The public entry is `src/index.ts`, a thin named re-export (no `export *`). It re-exports by name: every component listed above (including `buttonVariants`), and from `ui-contract.ts`: `hearthkitThemeTokenNames`, `hearthkitThemeTokenNameSchema`, `darkModeOverriddenTokenNames`, `darkModeClassName`, `hearthkitThemeCssFileName`, `hearthkitThemeCssImportSpecifier`, `hearthkitUiPackageExportSubpaths`, `hearthkitUiContractImportSpecifier`, `tailwindSourceDirectiveForUi`, `themeModeSchema`, `resolvedThemeModeSchema`, `themeModeToggleOptionLabels`, `uiComponentFamilyNames`, `uiComponentFamilyNameSchema`, `hearthkitUiMinimumExportNames`, `themeProviderMissingErrorPrefix`, `uiFailureSchema`, and types `HearthkitThemeTokenName`, `ThemeMode`, `ResolvedThemeMode`, `UseThemeModeResult`, `UiComponentFamilyName`, `UiFailure`. `hearthkitThemeCssImportSpecifier` is defined in `ui-contract.ts` and reaches the entry the same way `hearthkitThemeCssFileName` does: the implementor adds it to the named re-export block from `./ui-contract.ts` in `src/index.ts`.
+
+`package.json` `exports` publishes exactly the three subpaths named by `hearthkitUiPackageExportSubpaths`:
+
+- `.` → `src/index.ts`. Every app and every bundler-run consumer.
+- `./hearthkit-theme.css` → `src/hearthkit-theme.css`. An app's `globals.css`, via `hearthkitThemeCssImportSpecifier`.
+- `./ui-contract` → `src/ui-contract.ts`. Node-executed scripts, via `hearthkitUiContractImportSpecifier`.
+
+**Why `./ui-contract` exists.** The `.` entry resolves through `.tsx` component modules, and bare Node refuses that extension outright (`ERR_UNKNOWN_FILE_EXTENSION`); no flag changes it. So no script run by plain `node` can import anything that imports `@hearthkit/ui`, however little of the package it actually wants. `src/ui-contract.ts` imports only `zod` and contains no JSX, so it loads from bare Node. Node-executed consumers — `templates/app`'s `verify:container` today, `@hearthkit/create` in Phase 6 — import the constants from `@hearthkit/ui/ui-contract` (the exact string is `hearthkitUiContractImportSpecifier`) instead of mirroring them by hand.
+
+One limit comes from Node itself, not from this package: Node refuses to strip types from a TypeScript file whose **resolved** path sits under `node_modules` (see **Verified**). Inside this workspace that never bites, because pnpm's symlink resolves to `packages/ui/src/ui-contract.ts`, a real path outside any `node_modules`. It does bite a consumer that installs `@hearthkit/ui` as a real directory under `node_modules` and runs plain `node` against it — the case `@hearthkit/create` lands in once it is published. Making that work is a Phase 6 packaging decision (ship compiled JavaScript for this subpath, or bundle `create`), not a change to this contract; the subpath and the constants are the same either way.
+
+**The obligation this places on the package: `src/ui-contract.ts` must stay JSX-free and must import nothing but `zod`.** A React import or a `.tsx` import takes the subpath out of bare Node's reach outright — the `ERR_UNKNOWN_FILE_EXTENSION` wall — and re-breaks every Node-executed caller the moment it lands. Any other non-`zod` import is the more dangerous half, because it need not break bare Node at all: `@hearthkit/config`'s entry is a `.ts` file that pnpm's symlink resolves outside `node_modules`, so importing a sibling hearthkit package or a `node:` builtin from here would load perfectly well while the rule is violated and every runtime check stays green. A sibling import additionally breaks the root-of-the-graph rule stated under Dependencies. Both kinds bite silently and at a distance, which is why each has its own gate and neither subsumes the other. This is the one rule a future change to the contract file can break without any type error.
+
+The change is additive. `.` still exports everything it did, both new constants are re-exported from the entry alongside the rest of `ui-contract.ts`, `hearthkitUiContractImportSpecifier` joins `hearthkitUiMinimumExportNames`, and no existing consumer changes. `hearthkitUiPackageExportSubpaths` holds manifest keys rather than symbol names, so it stays out of `hearthkitUiMinimumExportNames` (whose gate checks the entry point for each name) and is asserted against `package.json` instead.
 
 Distribution must keep Tailwind class strings visible to `@source` scanning: whatever the implementor publishes (source or transpiled), the files under the package root that `@source "../node_modules/@hearthkit/ui"` scans must contain the literal class strings.
 
@@ -100,6 +114,9 @@ Everything else that can go wrong is a build-time or gate-time check:
 
 - A token missing from `:root` or `.dark` in `hearthkit-theme.css` — gate compares the file against `hearthkitThemeTokenNames` / `darkModeOverriddenTokenNames`.
 - A guaranteed export missing from the entry — gate compares against `hearthkitUiMinimumExportNames`.
+- A subpath missing from `package.json` `exports` — gate compares the manifest's export keys against `hearthkitUiPackageExportSubpaths`.
+- `src/ui-contract.ts` losing its bare-Node importability — gate imports `hearthkitUiContractImportSpecifier` from a plain `node` process, which fails the moment the file gains JSX or a `.tsx` import, and also catches the resolution-level regressions no specifier list can see (a wrong `exports` target, a broken symlink, a `zod` that no longer resolves).
+- `src/ui-contract.ts` importing something other than `zod` — gate reads the file's own import specifiers and compares them against `['zod']`. Neither check subsumes the other: a sibling hearthkit package or a `node:` builtin still loads under bare Node here, so only the static check catches it.
 - A component failing to render in Vitest browser/jsdom — gate per family in `uiComponentFamilyNames`.
 - Theme token overrides in a test CSS file must change computed styles; toggling dark mode must switch the `darkModeClassName` (`dark`) class on the root element, and the three `ThemeModeToggle` items must carry the accessible names in `themeModeToggleOptionLabels`.
 
@@ -127,7 +144,13 @@ Checked 2026-08-27:
 - shadcn CLI fully supports Tailwind v4 init and the `@theme` / `@theme inline` directives — https://ui.shadcn.com/docs/tailwind-v4
 - shadcn dark mode for React apps uses `next-themes` with `attribute="class"`, `defaultTheme="system"`, `enableSystem`, `disableTransitionOnChange`; the toggled class on the root element is `dark` — https://ui.shadcn.com/docs/dark-mode/next
 
-Not yet verifiable: `packages/ui` has no `package.json`; the implementor adds `zod@4.4.3` (matching the workspace pin) so `ui-contract.ts` resolves. The contract file has no side effects on import.
+Checked 2026-08-29:
+
+- Node's built-in type stripping runs `.ts`, `.mts`, and `.cts`, and states plainly that "`.tsx` files are unsupported", which is why the `.` entry cannot be loaded by bare `node`. The same page: "To discourage package authors from publishing packages written in TypeScript, Node.js refuses to handle TypeScript files inside folders under a `node_modules` path", which is the limit recorded under Package entry point — https://nodejs.org/api/typescript.html
+
+Measured by the orchestrator with bare `node` 24.20.0 on 2026-08-29, and not to be re-hedged: importing `@hearthkit/ui` fails with `ERR_UNKNOWN_FILE_EXTENSION` because the `.` entry re-exports `.tsx` modules and no flag makes Node accept that extension, while `packages/ui/src/ui-contract.ts` imports cleanly from bare Node, including through a consumer's symlinked `node_modules/@hearthkit/ui`. That measurement is the whole reason the `./ui-contract` subpath exists.
+
+Settled: the package ships a `package.json` pinning `zod` at `4.4.3`, the workspace pin, so `ui-contract.ts` resolves; its `exports` map is what the subpath gate reads. Importing the contract file still has no side effects, which is what makes the bare-Node subpath gate a pure resolution check.
 
 ## Decisions
 
@@ -141,3 +164,5 @@ Round-2 review outcomes (orchestrator, 2026-08-27). The four round-1 defaults we
 The same round pinned four gate-writer ambiguities, now in the body above: the `useThemeMode` return shape (Theme mode API), the on-disk stylesheet path (`packages/ui/src/hearthkit-theme.css`), the `ThemeModeToggle` structure and its accessible item names, and `PageHeader`'s `pageTitle` rendering as a heading element.
 
 Cleanup round (2026-08-28), closing the gaps recorded in `docs/STATUS.md` under "Phase 3 DoD completed": `buttonVariants` and `hearthkitThemeCssImportSpecifier` joined `hearthkitUiMinimumExportNames` (both additive); the shadcn CLI configuration (`components.json`, `@/*` alias) became documented contract surface with its manual-fix tension stated. No renames, no schema changes.
+
+Subpath round (2026-08-29): the package gained the additive `./ui-contract` export (`hearthkitUiPackageExportSubpaths`, `hearthkitUiContractImportSpecifier`) so Node-executed callers can import the theme constants without touching a `.tsx` module, which let `templates/app` delete the hand-written mirror its `verify:container` script relied on. No renames, no schema changes, no component or token change.

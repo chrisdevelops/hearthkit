@@ -1,17 +1,17 @@
 import { mkdir, copyFile, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { runVerifyCommand } from './run-verify-command.ts'
 import {
+  appTemplateNeverCopiedDirectoryNames,
+  appTemplateRenamedPaths,
+  appTemplateRepoOnlyDependencyNames,
+  appTemplateRepoOnlyDirectoryNames,
+  appTemplateRepoOnlyPaths,
+  appTemplateRepoOnlyScriptNames,
+  appTemplateRequiredPackageNames,
+  appTemplateWorkspaceDependencySpecifier,
   appVerifyContainerFailedErrorPrefix,
-  mirroredNeverCopiedDirectoryNames,
-  mirroredRenamedPaths,
-  mirroredRepoOnlyDependencyNames,
-  mirroredRepoOnlyDirectoryNames,
-  mirroredRepoOnlyPaths,
-  mirroredRepoOnlyScriptNames,
-  mirroredRequiredPackageNames,
-  mirroredWorkspaceDependencySpecifier,
-} from './verify-app-container-contract-mirror.ts'
+} from './app-template-contract.ts'
+import { runVerifyCommand } from './run-verify-command.ts'
 
 /**
  * Step one of `verify:container`: turn `templates/app` into a self-contained project directory that
@@ -47,9 +47,9 @@ function isPrunedTemplatePath(relativePath: string): boolean {
   const [firstSegment = ''] = relativePath.split('/')
 
   return (
-    mirroredNeverCopiedDirectoryNames.some((directoryName) => directoryName === firstSegment) ||
-    mirroredRepoOnlyDirectoryNames.some((directoryName) => directoryName === firstSegment) ||
-    mirroredRepoOnlyPaths.some((repoOnlyPath) => repoOnlyPath === relativePath) ||
+    appTemplateNeverCopiedDirectoryNames.some((directoryName) => directoryName === firstSegment) ||
+    appTemplateRepoOnlyDirectoryNames.some((directoryName) => directoryName === firstSegment) ||
+    appTemplateRepoOnlyPaths.some((repoOnlyPath) => repoOnlyPath === relativePath) ||
     firstSegment === '.git' ||
     firstSegment === packedPackagesDirectoryName
   )
@@ -58,7 +58,7 @@ function isPrunedTemplatePath(relativePath: string): boolean {
 /** The name a template file is written under in a generated project; only the ignore file changes. */
 function generatedProjectPathOf(relativePath: string): string {
   return (
-    mirroredRenamedPaths.find((rename) => rename.templatePath === relativePath)
+    appTemplateRenamedPaths.find((rename) => rename.templatePath === relativePath)
       ?.generatedProjectPath ?? relativePath
   )
 }
@@ -170,22 +170,22 @@ async function rewriteProjectPackageJson(
   manifest.name = projectName
 
   const scripts = manifestSectionOf(manifest, 'scripts')
-  for (const scriptName of mirroredRepoOnlyScriptNames) {
+  for (const scriptName of appTemplateRepoOnlyScriptNames) {
     delete scripts[scriptName]
   }
   manifest.scripts = scripts
 
   const devDependencies = manifestSectionOf(manifest, 'devDependencies')
-  for (const dependencyName of mirroredRepoOnlyDependencyNames) {
+  for (const dependencyName of appTemplateRepoOnlyDependencyNames) {
     delete devDependencies[dependencyName]
   }
   manifest.devDependencies = devDependencies
 
   const dependencies = manifestSectionOf(manifest, 'dependencies')
-  for (const packageName of mirroredRequiredPackageNames) {
-    if (dependencies[packageName] !== mirroredWorkspaceDependencySpecifier) {
+  for (const packageName of appTemplateRequiredPackageNames) {
+    if (dependencies[packageName] !== appTemplateWorkspaceDependencySpecifier) {
       throw new Error(
-        `${appVerifyContainerFailedErrorPrefix} ${packageName} is not declared at ${mirroredWorkspaceDependencySpecifier} in templates/app/package.json`,
+        `${appVerifyContainerFailedErrorPrefix} ${packageName} is not declared at ${appTemplateWorkspaceDependencySpecifier} in templates/app/package.json`,
       )
     }
     const tarballFileName = tarballFileNameByPackageName.get(packageName)
@@ -211,7 +211,7 @@ export async function materializeAppTemplateProject(
   await copyTemplateTree(options.templateDirectoryPath, options.projectDirectoryPath, '')
 
   const tarballFileNameByPackageName = new Map<string, string>()
-  for (const packageName of mirroredRequiredPackageNames) {
+  for (const packageName of appTemplateRequiredPackageNames) {
     tarballFileNameByPackageName.set(
       packageName,
       await packWorkspacePackage(

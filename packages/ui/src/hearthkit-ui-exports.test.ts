@@ -7,6 +7,7 @@ import {
   hearthkitThemeCssImportSpecifier,
   hearthkitThemeTokenNames,
   hearthkitUiMinimumExportNames,
+  hearthkitUiPackageExportSubpaths,
   tailwindSourceDirectiveForUi,
   themeModeToggleOptionLabels,
   themeProviderMissingErrorPrefix,
@@ -41,6 +42,7 @@ describe('@hearthkit/ui export surface', () => {
     expect(entry.darkModeOverriddenTokenNames).toEqual(darkModeOverriddenTokenNames)
     expect(entry.uiComponentFamilyNames).toEqual(uiComponentFamilyNames)
     expect(entry.hearthkitUiMinimumExportNames).toEqual(hearthkitUiMinimumExportNames)
+    expect(entry.hearthkitUiPackageExportSubpaths).toEqual(hearthkitUiPackageExportSubpaths)
     expect(entry.themeModeToggleOptionLabels).toEqual(themeModeToggleOptionLabels)
 
     const missingSchemaNames = [

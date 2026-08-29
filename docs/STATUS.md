@@ -5,9 +5,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 ## Position
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — next, not started. Phase 4 complete.
-- Package: none
-- Step: not started
-- Branch: main
+- Package: `ui` + `templates/app` — cleanup round, not a new package loop. Adds the JSX-free
+  `@hearthkit/ui/ui-contract` subpath export and deletes the template's contract mirror.
+- Step: commit
+- Branch: pkg/ui-contract-subpath
 - Last commit: fd0850c squash-merge of PR #8 (`templates/app`)
 
 ## Phase checklist
@@ -29,9 +30,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                             |
-| ------- | ---- | ------------------ | ------------------------------------------------- |
-| —       | —    | 0                  | `templates/app` merged (PR #8); Phase 5 not begun |
+| Package                | Step   | Implementor rounds | Notes                                                              |
+| ---------------------- | ------ | ------------------ | ------------------------------------------------------------------ |
+| `ui` + `templates/app` | commit | 1                  | subpath round done; all six commands green, `verify:container` 7/7 |
 
 ## Open issues
 
@@ -48,14 +49,50 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   Also check https://github.com/users/chrisdevelops/packages for the GHCR package
   `hearthkit-template-probe-80cr2w` — deleting a repository does not always remove a linked
   container package.
-- Deferred, recorded so it is not rediscovered: `@hearthkit/ui` exports only `.` and
-  `./hearthkit-theme.css`, and `.` resolves through `.tsx`, so no bare-Node script can import
-  anything that imports the ui package. This is what forces `verify:container` to mirror contract
-  values rather than import them. A JSX-free `./ui-contract` subpath export would fix it
-  (`packages/ui/src/ui-contract.ts` imports only zod). Changes a merged package's public API, so it
-  needs its own loop — worth doing before Phase 6, since `@hearthkit/create` will hit the same wall.
 
 ## Verified facts this session
+
+- **`@hearthkit/ui/ui-contract` subpath round complete 2026-08-29; the contract mirror is deleted.**
+  `packages/ui/package.json` now publishes a third subpath, `./ui-contract` → `./src/ui-contract.ts`,
+  which is JSX-free and imports only zod. `templates/app/src/app-template-contract.ts` takes its two
+  theme constants from that subpath instead of the `@hearthkit/ui` entry, so the whole template
+  contract is importable from bare Node — and `src/verify-app-container-contract-mirror.ts`, 118
+  lines re-declaring 13 contract values, is gone. `verify-app-container.ts` and
+  `materialize-app-template-project.ts` import the contract directly. Net −44 lines.
+  - **All six commands orchestrator-run and green.** `pnpm --filter @hearthkit/ui test` 27/27 (was
+    23), `pnpm --filter @hearthkit/app-template test` 27/27 (was 26), `pnpm typecheck` exit 0 all
+    six projects, `pnpm lint` exit 0, `pnpm format:check` exit 0.
+  - **`pnpm --filter @hearthkit/app-template run verify:container` passed all seven steps with the
+    mirror deleted**, which is the proof that matters: the script read the real contract. `/health`
+    answered 200 after 1145 ms, container stdout carried `hearthkit app started`, Playwright smoke
+    2/2 against the image, clean teardown.
+  - Bare Node importing `templates/app/src/app-template-contract.ts` confirmed directly by the
+    orchestrator: exit 0, 49 exports, `appTemplateGlobalsCssRequiredLines` carrying both
+    ui-sourced literals.
+  - **Four new gates, and one of them exists because the first design of it was wrong.** Bare-Node
+    loadability covers only the `.tsx` half of the rule "`ui-contract.ts` stays JSX-free and imports
+    nothing but zod". `@hearthkit/config`'s entry is a `.ts` file that pnpm's symlink resolves
+    outside `node_modules`, so a sibling-package import would load cleanly from bare Node while
+    breaking the rule and leaving every runtime check green. A static scan of the file's import
+    specifiers against `['zod']` closes that half; neither check subsumes the other. The same
+    finding corrected an overstated sentence in `packages/ui/CONTRACT.md`.
+  - The gate proving bare Node can import the subpath spawns a real `node` (never an in-process
+    import) for two reasons worth keeping: Vite transforms `.tsx` happily, so the wall is invisible
+    inside Vitest; and `packages/ui/vitest.config.ts` aliases the string `@hearthkit/ui`, which Vite
+    also applies to `@hearthkit/ui/…`, so an in-process subpath import never reaches the exports map.
+    The child resolves the real specifier through Node's **self-referencing** rule — a manifest with
+    `name` + `exports` can be imported by its own name from inside itself — so the ui gate needs no
+    self-link and never borrows another package's `node_modules`. `NODE_OPTIONS` is stripped from
+    the child so a parent loader cannot decide the answer.
+  - A control gate pins the wall: bare Node still refuses the `.` entry. Green before and after, by
+    design. If it ever goes red, the subpath's reason for existing has changed.
+  - **Phase 6 limit, recorded now so it is not rediscovered:** this works in-workspace because
+    pnpm's symlink resolves to a real path outside `node_modules`. Node refuses to strip types from
+    a file whose resolved path is under `node_modules`, so once `@hearthkit/ui` is installed from
+    npm as a real directory, `@hearthkit/create` hits that wall — a different one from the JSX wall
+    this round removed. Same constraint the 2026-08-27 hybrid-TS decision already recorded for
+    `cli` and `create`: a registry install of a Node-executed package needs a publish-time build.
+    Stated in `packages/ui/CONTRACT.md` as a Phase 6 packaging decision, not decided here.
 
 - **PHASE 4 DEFINITION OF DONE FULLY VERIFIED 2026-08-28**, against a real throwaway repository
   (`chrisdevelops/hearthkit-template-probe-80cr2w`, private, user-authorised). The template was
@@ -170,18 +207,14 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   `format:check` needed one fix of its own: `docs/STATUS.md` had drifted out of Prettier style from
   this session's own edits. Orchestrator-owned file, reformatted in place.
 - `templates/app` implementor judgement calls the contract did not settle, accepted 2026-08-28:
-  1. **`verify:container` mirrors the contract instead of importing it — known limitation.**
-     `src/app-template-contract.ts` imports `@hearthkit/ui`, whose only package entry is
-     `./src/index.ts` and resolves through `.tsx`; bare Node refuses that
-     (`ERR_UNKNOWN_FILE_EXTENSION`, reproduced with and without `--experimental-transform-types`),
-     and no JSX-capable runner is resolvable from the template without shipping a dev dependency
-     into every generated project. So `src/verify-app-container-contract-mirror.ts` re-declares the
-     13 values the script needs and asserts each still appears in the contract's source text before
-     running. **Weakness, stated: it catches a reworded prefix or a renamed path, but not a value
-     ADDED to a contract list.** The clean fix is a JSX-free subpath export on `@hearthkit/ui`
-     (`ui-contract.ts` imports only zod, so it is eligible) — `packages/ui/package.json` currently
-     exports only `.` and `./hearthkit-theme.css`. Deferred: it changes a merged package's public
-     API and belongs in its own loop, not this one.
+  1. **SUPERSEDED 2026-08-29 — the mirror is gone.** This entry recorded that
+     `verify:container` mirrored the contract because `src/app-template-contract.ts` imported
+     `@hearthkit/ui`, whose only entry resolves through `.tsx` and which bare Node refuses
+     (`ERR_UNKNOWN_FILE_EXTENSION`, reproduced with and without `--experimental-transform-types`).
+     The predicted fix was the right one: `@hearthkit/ui` now publishes the JSX-free
+     `./ui-contract` subpath, the contract imports its two theme constants from there, and
+     `src/verify-app-container-contract-mirror.ts` is deleted. See the subpath round entry at the
+     top of this section.
   2. `instrumentation.ts` throws rather than calling `process.exit`. Next compiles the file for the
      Edge runtime too, where `process.exit`/`process.stderr` produced two Turbopack warnings per
      build. Verified in a container with `LOG_LEVEL=nope GLITCHTIP_DSN=not-a-url`: stderr carries
