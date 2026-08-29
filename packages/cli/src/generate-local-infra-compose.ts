@@ -2,13 +2,19 @@ import {
   generateLocalInfraComposeOptionsSchema,
   localInfraServiceImageByName,
   localInfraServiceNameSchema,
+  localStorageBucketInitImage,
+  localStorageBucketInitServiceName,
   type GenerateLocalInfraCompose,
   type HearthkitProjectName,
   type LocalInfraServiceName,
 } from './cli-contract.ts'
+import { deriveLocalStorageBucketName } from './derive-local-storage-bucket-name.ts'
 
 /** Credentials baked into the generated Postgres and MinIO services; they match defaultLocalAdminDatabaseUrl. */
 const localInfraCredential = 'hearthkit'
+
+/** The address the bucket init container reaches MinIO on: inside the compose network, so it never depends on a published host port. */
+const localStorageServiceEndpoint = 'http://minio:9000'
 
 /** Services whose data survives a compose down, each with one named volume derived from the project name. */
 const volumeBackedServiceNames = [
@@ -19,7 +25,8 @@ const volumeBackedServiceNames = [
 /**
  * Builds the local infra compose file. Pure and deterministic: the same options always produce the
  * same bytes, services are emitted in a fixed order whatever order the caller listed them in, and
- * every image comes from localInfraServiceImageByName so there is one place to bump a version.
+ * every image comes from localInfraServiceImageByName so there is one place to bump a version. The
+ * bucket init container follows minio whenever minio is emitted, and only then.
  */
 export const generateLocalInfraCompose: GenerateLocalInfraCompose = (options) => {
   const { hearthkitProjectName, infraServices } =
@@ -30,7 +37,12 @@ export const generateLocalInfraCompose: GenerateLocalInfraCompose = (options) =>
   )
 
   const serviceBlocks = emittedServiceNames.map((serviceName) =>
-    buildServiceBlock(serviceName, hearthkitProjectName),
+    serviceName === 'minio'
+      ? [
+          ...buildServiceBlock(serviceName, hearthkitProjectName),
+          ...buildBucketInitBlock(hearthkitProjectName),
+        ]
+      : buildServiceBlock(serviceName, hearthkitProjectName),
   )
   const volumeNames = volumeBackedServiceNames
     .filter((serviceName) => requestedServiceNames.has(serviceName))
@@ -102,8 +114,41 @@ function buildServiceBlock(
       "      - '9001:9001'",
       '    volumes:',
       `      - ${namedVolumeFor(hearthkitProjectName, serviceName)}:/data`,
+      '    healthcheck:',
+      "      test: ['CMD', 'mc', 'ready', 'local']",
+      '      interval: 5s',
+      '      timeout: 5s',
+      '      retries: 20',
     ]
   }
 
   return [...header, '    ports:', "      - '1025:1025'", "      - '8025:8025'"]
+}
+
+/**
+ * The compose lines for the container that creates the local storage bucket. It carries no restart,
+ * ports, volumes or environment keys on purpose: it publishes and stores nothing, and compose's
+ * default restart policy of no is the right one for a container whose work is already done.
+ */
+function buildBucketInitBlock(hearthkitProjectName: HearthkitProjectName): string[] {
+  const localStorageBucketName = deriveLocalStorageBucketName(hearthkitProjectName)
+  const bucketInitCommand = [
+    `mc alias set local ${localStorageServiceEndpoint} ${localInfraCredential} ${localInfraCredential}`,
+    `mc mb --ignore-existing local/${localStorageBucketName}`,
+    'tail -f /dev/null',
+  ].join(' && ')
+
+  return [
+    '  # Creates the bucket, then idles on purpose. It is not stuck. hearthkit dev infra up always',
+    '  # runs docker compose up --wait. That command fails if a service has exited, whatever its',
+    '  # exit code. Remove the tail -f /dev/null below and every dev infra up fails, even though',
+    '  # the bucket is created. A failed step stops the && chain before tail and exits nonzero.',
+    `  ${localStorageBucketInitServiceName}:`,
+    `    image: '${localStorageBucketInitImage}'`,
+    `    container_name: ${hearthkitProjectName}-${localStorageBucketInitServiceName}`,
+    '    depends_on:',
+    '      minio:',
+    '        condition: service_healthy',
+    `    entrypoint: ['sh', '-c', '${bucketInitCommand}']`,
+  ]
 }

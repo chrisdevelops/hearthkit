@@ -85,13 +85,13 @@ export const hearthkitProjectNameSchema = z
 /** Branded hearthkit project name; derived from package.json name by stripping the scope and sanitizing to kebab-case. */
 export type HearthkitProjectName = z.infer<typeof hearthkitProjectNameSchema>
 
-/** The three local infra services from plan section 6; the only services compose generation knows how to emit. */
+/** The three local infra services from plan section 6; the only values infraServices accepts and the only names startedInfraServices reports. */
 export const localInfraServiceNameSchema = z.enum(['postgres', 'minio', 'mailpit'])
 
 /** Local infra service name; postgres for db, minio for storage, mailpit for email. */
 export type LocalInfraServiceName = z.infer<typeof localInfraServiceNameSchema>
 
-/** Pinned container image per local infra service; the single place to bump an image (minio's Docker Hub tag is the last community release). */
+/** Pinned container image per selectable local infra service; the one place to bump these three (the bucket init container is pinned by localStorageBucketInitImage). */
 export const localInfraServiceImageByName = {
   postgres: 'postgres:17',
   minio: 'minio/minio:RELEASE.2025-09-07T16-13-09Z',
@@ -105,7 +105,29 @@ export const localInfraServiceByHearthkitPackage = {
   '@hearthkit/email': 'mailpit',
 } as const satisfies Record<string, LocalInfraServiceName>
 
-/** Options for generateLocalInfraCompose; infraServices must name at least one service, duplicates are a caller bug. */
+/** Compose service key of the container that creates the local storage bucket and then stays running on purpose, because docker compose up --wait exits 1 when a service it started has exited; deliberately not a LocalInfraServiceName because no project selects it. */
+export const localStorageBucketInitServiceName = 'minio-init'
+
+/** Pinned image of the bucket init container; the one place to bump it, kept out of localInfraServiceImageByName because that map is keyed by selectable services. */
+export const localStorageBucketInitImage = 'minio/mc:RELEASE.2025-08-13T08-35-41Z'
+
+/** Local development bucket name; the S3 and R2 intersection, so the same string is valid against either and against MinIO. */
+export const localStorageBucketNameSchema = z
+  .string()
+  .min(3)
+  .max(63)
+  .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/)
+  .brand<'LocalStorageBucketName'>()
+
+/** Branded local storage bucket name; what dev infra up creates in MinIO and what STORAGE_BUCKET holds during local development. */
+export type LocalStorageBucketName = z.infer<typeof localStorageBucketNameSchema>
+
+/** Signature of deriveLocalStorageBucketName: pure and total, truncating the project name so every valid project name yields a valid bucket name. */
+export type DeriveLocalStorageBucketName = (
+  hearthkitProjectName: HearthkitProjectName,
+) => LocalStorageBucketName
+
+/** Options for generateLocalInfraCompose; infraServices must name at least one service, duplicates are a caller bug, and the bucket name is derived from hearthkitProjectName rather than passed in. */
 export const generateLocalInfraComposeOptionsSchema = z.object({
   hearthkitProjectName: hearthkitProjectNameSchema,
   infraServices: z.array(localInfraServiceNameSchema).min(1),
@@ -116,7 +138,7 @@ export type GenerateLocalInfraComposeOptions = z.infer<
   typeof generateLocalInfraComposeOptionsSchema
 >
 
-/** Signature of generateLocalInfraCompose: pure and deterministic, returns compose YAML using localInfraServiceImageByName pins. */
+/** Signature of generateLocalInfraCompose: pure and deterministic, returns compose YAML using the localInfraServiceImageByName and localStorageBucketInitImage pins. */
 export type GenerateLocalInfraCompose = (options: GenerateLocalInfraComposeOptions) => string
 
 /** Every command path the Phase 2 CLI dispatches; later phases append payments sync, infra apply, vps bootstrap additively. */

@@ -4,12 +4,12 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. Phase 4 complete.
-- Package: `storage`
-- Step: commit — PR #10 open and CI green, awaiting merge (user's call)
-- Branch: pkg/storage
-- Last commit: 0972ef6 `ci(storage): start MinIO for the gates, and say so when it is missing`
-  (PR #10, CI green, not yet merged)
+- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` merged; `email`, `auth`,
+  `payments` remain. Phase 4 complete.
+- Package: `cli` (re-opened for the local storage bucket, PR #11)
+- Step: commit — PR #11 merging; `storage` merged as `f387155` (PR #10)
+- Branch: pkg/cli-local-storage-bucket
+- Last commit: 8b402c9 `feat(cli): create the local storage bucket in dev infra up` (PR #11)
 
 ## Phase checklist
 
@@ -20,7 +20,8 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 2: `cli` (merged, PR #3)
 - [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
 - [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (merged, PR #8); DoD verified on a throwaway repo
-- [ ] Phase 5: `storage` (PR #10 open, not merged), `email`, `auth`, `payments`
+- [ ] Phase 5: `storage` (merged, PR #10) + `cli` local bucket (PR #11); `email`, `auth`, `payments`
+      still to do
 - [ ] Phase 6: `create`
 - [ ] Phase 7: `infra/tofu`, `hearthkit vps bootstrap`, backups
 - [ ] Phase 8: AI tooling, docs
@@ -30,24 +31,136 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package   | Step   | Implementor rounds | Notes                                               |
-| --------- | ------ | ------------------ | --------------------------------------------------- |
-| `storage` | commit | 1                  | 21/21 green in round 1; PR #10 CI green, not merged |
+| Package   | Step   | Implementor rounds | Notes                                     |
+| --------- | ------ | ------------------ | ----------------------------------------- |
+| `storage` | merged | 1                  | 21/21 green in round 1; PR #10, `f387155` |
+| `cli`     | commit | 2                  | 39/39 green; PR #11 CI green, merging now |
 
 ## Open issues
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- **Nothing creates a local storage bucket. Non-blocking for `storage`, owed before Phase 6 ships a
-  storage-enabled scaffold.** `hearthkit dev infra up` starts MinIO empty, so a generated app with
-  `storage` installed fails its first upload until someone creates a bucket by hand. The `storage`
-  package deliberately does not fix this — it requires a bucket to exist, because production buckets
-  come from the OpenTofu module — and its gates create and destroy their own. The decision owed is
-  where the fix lives: an `mc mb` init container in the `cli` compose generator, a
-  `hearthkit storage init` command, or scaffold-time creation in `create`. Raised by contract-author,
-  confirmed by the orchestrator as a real gap rather than smuggled into this package.
+- None. The "nothing creates a local storage bucket" item raised during the `storage` loop was fixed
+  rather than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **CI GREEN on PR #11 (run 33274160723, 2m34s), and the new Docker gates really ran on the runner:
+  `packages/cli test: Test Files 7 passed (7), Tests 39 passed (39)`.** Notable because this branch is
+  cut from `main` and therefore does **not** carry PR #10's MinIO step in `ci.yml` — it does not need
+  it. The bucket gates start their own compose stack on reserved ports rather than borrowing the
+  repo's MinIO, so they are self-sufficient on a runner that only has Docker.
+
+- **`cli` local-storage-bucket amendment COMPLETE 2026-08-29. PR #11, commit `8b402c9`. Not merged.**
+  Two implementor rounds, the second a comment-wording fix only. Orchestrator-run:
+  `pnpm --filter @hearthkit/cli test` **7 files, 39/39 passed** (25 pre-existing plus 14 new),
+  `pnpm run typecheck`, `pnpm run lint`, `pnpm run format:check` all exit 0, and
+  `pnpm --recursive --if-present run test` gives **143/143 across six projects**.
+  - **The gate-writer proved a text-only gate would NOT have caught the `--wait` defect**, by running
+    the Docker gates against an implementation with and without the `tail`. Without it:
+    `exitCode=1 kind=infra-compose-failed` **while the signed S3 PUT still returned 200**. So the
+    load-bearing assertion is the exit code, not the upload — an S3-only gate would have passed a
+    broken implementation. Worth remembering for `email`: proving the service works is not the same
+    as proving the command that starts it succeeded.
+  - The Docker gates remap only the _published_ host ports, because the repo's own `hearthkit-minio`
+    holds 9000/9001, and `remapGeneratedMinioHostPorts` throws a named error if the generated file
+    ever stops publishing `9000:9000` — so the remap cannot silently no-op and test nothing.
+  - Round 2 existed because the comment emitted into **every generated project's** compose file did
+    not parse ("calls a service that has exited a failed startup"). That comment is the only thing
+    standing between a future reader and deleting the `tail`, so garbled text there is a real defect,
+    not a typo. Rewritten and re-verified against real generated output for both properties that
+    matter: 2-space indent so it lands in neither service block, and no `restart:`/`ports:`/
+    `volumes:`/`environment:` that would trip the gates' absent-key regexes.
+  - Implementor judgement calls accepted: `LocalStorageBucketName` and `DeriveLocalStorageBucketName`
+    re-exported as types (without the first, Phase 6 can only write
+    `ReturnType<typeof deriveLocalStorageBucketName>`); `localStorageServiceEndpoint` as a named
+    constant rather than built from the published port, since the gate remaps the published port and
+    the in-network address must never be remapped; `buildBucketInitBlock` kept private beside the
+    existing private helpers.
+  - **Orchestrator false alarm worth recording.** A `pnpm lint` run appeared to fail with
+    `Unable to locate a Java Runtime` — an earlier `cd packages/cli/src` had persisted in the shell,
+    and from there `pnpm lint` resolved to Homebrew's `/opt/homebrew/bin/lint` (Android
+    command-line tools) instead of the package script. Re-run from the repo root, everything is
+    green. **Use `pnpm run <script>` rather than `pnpm <script>`, and do not trust a shell cwd across
+    calls.** The implementor's green report was correct and the doubt was mine.
+
+- **`cli` contract amendment APPROVED 2026-08-29 after one correction round, and the correction was
+  a real defect that would have shipped a permanently-failing command.** `pnpm format:check` exit 0.
+  - **`docker compose up -d --wait` returns exit 1 when any service it started has EXITED, whatever
+    its exit code.** The first draft specified `minio-init` as a one-shot container that exits 0.
+    The emitted YAML was correct by inspection; `dev infra up` would still have reported
+    `infra-compose-failed` on **every** run, fresh or repeat, with the bucket created perfectly.
+    `composeUpArguments` in `src/docker-compose-commands.ts` passes `--wait` unconditionally.
+    Compose issue 10596 is open on this; the flag's own reference documents no exception.
+  - **Fix: the entrypoint ends `&& tail -f /dev/null`, so the container stays alive by design.**
+    Verified under every invocation: fresh `up -d --wait` exit 0, repeat `up -d --wait` exit 0,
+    plain `up -d` exit 0, presigned PUT into the created bucket **200**, `down -v` exit 0 with every
+    container removed. The `&&` chain still fails loudly the right way — a failed `mc mb`
+    short-circuits before `tail`, the container exits nonzero, and the existing
+    `infra-compose-failed` reports it. Staying alive is the success path only.
+  - **Three alternatives run and rejected, recorded so nobody re-derives them:** stating
+    `restart: 'no'` explicitly changes nothing (compose objects to the exit, not the missing key);
+    `profiles: ['init']` plus `docker compose run --rm` works for the CLI but leaves a plain
+    `docker compose up` with no bucket; and MinIO's own healthcheck cannot run `mc mb` because the
+    server image's built-in `local` alias is unauthenticated and returns `Access Denied`.
+  - **Why the idle container won over the profile variant**, which is the part worth remembering:
+    `resolveLocalInfraComposeFile` never overwrites an existing compose file, so users own and run
+    these files by hand from then on. A file that works under `docker compose up` but fails under
+    `docker compose up --wait` is a landmine in something the CLI hands over and never touches
+    again. One idle container is a visible, explainable cost; a sharp edge on a common flag is not.
+  - **Orchestrator process note, twice bitten this session:** the first probe's "idempotent, exits 0"
+    claim was WRONG — `docker compose up` was piped through `tail`, so `$?` captured tail's status,
+    not compose's, and `docker inspect` was reporting the _init container's_ exit code rather than
+    compose's. The pattern was fine; the verification of it missed the thing that mattered.
+    **Capture exit codes directly, never through a pipeline**, or use `${pipestatus[1]}` in zsh.
+  - Contract-author's two open questions ruled on: `deriveHearthkitProjectName` promoted to public
+    (without it `create` re-implements the sanitiser and drifts, the exact failure this amendment
+    prevents), and `-uploads` with no S3 reserved-prefix screening (screening would trade a total
+    function for a rule R2 does not impose).
+
+- **The `mc` init-container pattern is verified working against our exact pinned images, before any
+  contract was commissioned.** `minio/mc:RELEASE.2025-08-13T08-35-41Z` (frozen alongside the server
+  image; last Docker Hub push 2025-09-07) as a sidecar with
+  `depends_on: {minio: {condition: service_healthy}}`, running
+  `mc alias set` then `mc mb --ignore-existing`. Probe on shifted ports 9100/9101 so it could not
+  collide with the repo's MinIO:
+  - Created the bucket and exited **0**, having waited for the healthcheck rather than racing it.
+  - ~~**Idempotent** — a second `docker compose up -d --wait` exited 0 again.~~ **CORRECTED: this
+    claim was wrong.** `docker compose up` was piped through `tail`, so the captured status was
+    tail's, and the exit code checked with `docker inspect` was the init container's, not compose's.
+    Compose actually returns **1** whenever a service it started has exited. See the `--wait` entry
+    above; `mc mb --ignore-existing` is genuinely idempotent, but that was never the failing part.
+  - **The bucket is genuinely usable over the S3 API**, which is the point: a presigned PUT that
+    returns **404 today** returned **200** into the init-created bucket, and the object was then
+    listed. Probe torn down; the repo's own MinIO was never touched.
+- **`MINIO_DEFAULT_BUCKETS` is a Bitnami-image feature and does nothing on the official
+  `minio/minio` image this repo pins.** Recorded so nobody reaches for it as the "simpler" option.
+- **The design constraint that decides this contract, found by reading the call site rather than
+  assuming:** `resolveLocalInfraComposeFile` builds compose from the project's `package.json`
+  manifest — it has `hearthkitProjectName` and `infraServices` and **no bucket name**, and reads no
+  `.env`. So an explicit `storageBucketName` input cannot be satisfied by the `dev infra up` path
+  without adding `.env` I/O to a function the contract calls pure and deterministic. Deriving the
+  name from the project name through one exported function, which `create` later uses for the value
+  it writes to `STORAGE_BUCKET`, keeps a single source of truth with no new I/O.
+  Escape hatch already exists and needs no new code: `resolveLocalInfraComposeFile` never overwrites
+  an existing compose file, so anyone with a custom `STORAGE_BUCKET` owns their compose file.
+
+- **`mc` IS bundled in the pinned MinIO server image, so the generated `minio` healthcheck is sound.**
+  This was the one fact contract-author flagged that it could not verify and correctly refused to
+  assert. Settled directly: `docker exec hearthkit-minio mc ready local` prints
+  `The cluster 'local' is ready` and exits **0**. Worth keeping: the server image bundles
+  `mc version RELEASE.2025-08-13T08-35-41Z` — byte-identical to the standalone `minio/mc` release the
+  contract pins for the init container, so the two pins are consistent rather than coincidentally
+  close. (The image has no `which`, so probe with the binary itself.)
+
+- **The bucket-name derivation is total, checked against the worst inputs rather than assumed.**
+  `hearthkitProjectNameSchema` is `/^[a-z][a-z0-9-]*$/` with `max(63)`, so a project name can be one
+  character, can end in a hyphen, and can be 63 characters. Truncate-to-55 → strip trailing hyphens →
+  append `-uploads` was run over all of those: output stays **9 to 63 characters** and satisfies
+  `localStorageBucketNameSchema` every time. The two that could have broken it both hold —
+  `a` + 62 hyphens collapses to `a-uploads` rather than a trailing-hyphen name, and `my-app-` yields
+  `my-app-uploads` rather than `my-app--uploads`. This is what justifies the function having no
+  failure mode.
 
 - **CI GREEN on PR #10 after the MinIO fix (run 33269760070, 2m15s).** The proof that matters is that
   the storage gates **ran** on the runner rather than being skipped: `packages/storage test: Test
