@@ -6,7 +6,7 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress.
 - Package: `cli` (re-opened for the local storage bucket; `storage` itself is on `pkg/storage`, PR #10)
-- Step: commit
+- Step: commit — PR #11 open and CI green, awaiting merge (user's call)
 - Branch: pkg/cli-local-storage-bucket (cut from main, independent of PR #10)
 - Last commit: 8b402c9 `feat(cli): create the local storage bucket in dev infra up` (PR #11)
 
@@ -35,9 +35,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                |
-| ------- | ------ | ------------------ | ------------------------------------ |
-| `cli`   | commit | 2                  | 39/39 green; PR #11 open, not merged |
+| Package | Step   | Implementor rounds | Notes                                    |
+| ------- | ------ | ------------------ | ---------------------------------------- |
+| `cli`   | commit | 2                  | 39/39 green; PR #11 CI green, not merged |
 
 ## Open issues
 
@@ -47,6 +47,12 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   fixed on this branch rather than left open.)
 
 ## Verified facts this session
+
+- **CI GREEN on PR #11 (run 33274160723, 2m34s), and the new Docker gates really ran on the runner:
+  `packages/cli test: Test Files 7 passed (7), Tests 39 passed (39)`.** Notable because this branch is
+  cut from `main` and therefore does **not** carry PR #10's MinIO step in `ci.yml` — it does not need
+  it. The bucket gates start their own compose stack on reserved ports rather than borrowing the
+  repo's MinIO, so they are self-sufficient on a runner that only has Docker.
 
 - **`cli` local-storage-bucket amendment COMPLETE 2026-08-29. PR #11, commit `8b402c9`. Not merged.**
   Two implementor rounds, the second a comment-wording fix only. Orchestrator-run:
