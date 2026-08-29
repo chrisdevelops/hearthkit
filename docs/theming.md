@@ -61,11 +61,16 @@ export default nextConfig
 The package ships TypeScript source, not a build. `transpilePackages` is what makes Next compile it.
 Add every other `@hearthkit/*` package the app uses to the same array.
 
-The app's own `typescript` dev dependency must be 5.x. Next 16's `next.config.ts` loader calls the
-installed TypeScript's JavaScript API, which the native `typescript@7` preview does not provide; it
-fails with `Cannot read properties of undefined (reading 'fileExists')`. The workspace pins TS 7 for
-package builds; apps pin `typescript@5.9.3`. An app that would rather stay on TS 7 has to use
-`next.config.mjs` instead.
+The app uses the workspace's `typescript@7.0.2`. Next reads `next.config.ts` without the TypeScript
+JavaScript API, and type-checks the build with the project-local `tsc` CLI, so no extra
+configuration is needed. Do not set `experimental.useTypeScriptCli`: it is already `true` in Next
+16.3.3's `defaultConfig`, and setting it would imply a dependency on an experimental opt-in that
+does not exist.
+
+This needs `next@16.3.3` or newer. On Next 16.1.4 the config loader did call TypeScript's
+JavaScript API, which `typescript@7` does not provide, and failed with
+`Cannot read properties of undefined (reading 'fileExists')`. Both directions were verified
+2026-08-28; see `docs/STATUS.md`.
 
 ### `app/layout.tsx`
 

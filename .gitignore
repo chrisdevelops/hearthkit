@@ -6,3 +6,9 @@ dist/
 .env.local
 *.tsbuildinfo
 .DS_Store
+
+# templates/app stores its ignore file dotless (npm strips a nested .gitignore
+# from a published tarball), so its entries do not apply inside this repo.
+test-results/
+playwright-report/
+next-env.d.ts

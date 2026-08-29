@@ -1,0 +1,25 @@
+# Stored without the leading dot in the hearthkit template because npm strips a nested .gitignore
+# from a published tarball. The scaffolder writes it as .gitignore in a generated project.
+
+# dependencies
+node_modules/
+
+# build output
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# test artifacts
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# editors and operating systems
+.DS_Store
+*.swp

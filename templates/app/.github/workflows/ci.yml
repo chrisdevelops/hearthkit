@@ -1,0 +1,23 @@
+name: ci
+
+# Runs on every pull request. Keep it fast: lint, typecheck, and the Playwright smoke test against
+# a production build. Anything slower belongs on a manual trigger or on push to main.
+on:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # Only Chromium: the smoke test asserts computed styles, not cross-browser rendering.
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e

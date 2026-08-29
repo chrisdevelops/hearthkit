@@ -1,0 +1,13 @@
+/*
+ * The app's one stylesheet entry point. Order matters: Tailwind first, then the hearthkit theme
+ * tokens, then the @source line that makes Tailwind scan @hearthkit/ui for the class names its
+ * components use. Tailwind v4 skips node_modules during automatic source detection, so without
+ * that line the package's components render unstyled and nothing errors.
+ *
+ * The relative path assumes this file sits one level below the project root, next to app/.
+ *
+ * Override any theme token below these three lines, in both :root and .dark. See docs/theming.md.
+ */
+@import 'tailwindcss';
+@import '@hearthkit/ui/hearthkit-theme.css';
+@source "../node_modules/@hearthkit/ui";
