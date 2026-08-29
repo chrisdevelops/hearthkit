@@ -1,0 +1,23 @@
+# The image build copies the whole project, so everything the build does not need is excluded here.
+# pnpm-lock.yaml is deliberately not excluded: the deps install is --frozen-lockfile.
+
+node_modules
+.next
+.git
+.gitignore
+.github
+
+# secrets never enter an image; every value arrives as an environment variable at run time
+.env
+.env.*
+!.env.example
+
+# test and tooling artifacts
+test-results
+playwright-report
+blob-report
+*.tsbuildinfo
+Dockerfile
+.dockerignore
+README.md
+docs

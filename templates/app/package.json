@@ -1,0 +1,41 @@
+{
+  "name": "@hearthkit/app-template",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Next.js App Router template @hearthkit/create copies to make a new project",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "oxlint --type-aware .",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "verify:container": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/verify-app-container.ts"
+  },
+  "dependencies": {
+    "@hearthkit/config": "workspace:*",
+    "@hearthkit/observability": "workspace:*",
+    "@hearthkit/ui": "workspace:*",
+    "next": "16.3.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "oxlint": "1.80.0",
+    "oxlint-tsgolint": "7.0.2001",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11",
+    "zod": "4.4.3"
+  }
+}

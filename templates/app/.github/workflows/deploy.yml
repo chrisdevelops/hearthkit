@@ -1,0 +1,48 @@
+name: deploy
+
+# Builds the image on every push to main, pushes it to GitHub Container Registry tagged with the
+# commit SHA and latest, then asks Dokploy to pull it.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    # The secrets context is not available in any `if` key, job-level or step-level, so the webhook
+    # URL is mapped into env here and the deploy step conditions on the env value instead. Without
+    # the secret set, the build and push still run and the deploy step is skipped, which is what
+    # makes this workflow testable on a repository with no Dokploy instance behind it.
+    env:
+      DOKPLOY_DEPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_DEPLOY_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ghcr.io rejects an uppercase path, and repository names are not case-normalised for us.
+      - id: image
+        run: echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.image.outputs.repository }}:${{ github.sha }}
+            ${{ steps.image.outputs.repository }}:latest
+
+      - name: Trigger the Dokploy deployment
+        if: env.DOKPLOY_DEPLOY_WEBHOOK_URL != ''
+        run: |
+          curl --fail-with-body --silent --show-error --request POST \
+            --header 'content-type: application/json' \
+            "$DOKPLOY_DEPLOY_WEBHOOK_URL"
