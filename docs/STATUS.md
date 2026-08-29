@@ -4,11 +4,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 4 (`templates/app`, Dockerfile, project CI workflows) — in progress
-- Package: `templates/app`
-- Step: commit — PR #8 open, CI green, awaiting merge
-- Branch: pkg/app-template
-- Last commit: 03e3ade feat(app-template): implement the Phase 4 app template contract
+- Phase: 5 (`storage`, `email`, `auth`, `payments`) — next, not started. Phase 4 complete.
+- Package: none
+- Step: not started
+- Branch: main
+- Last commit: fd0850c squash-merge of PR #8 (`templates/app`)
 
 ## Phase checklist
 
@@ -18,7 +18,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 1: `config` (merged, PR #1), `db` (merged, PR #2)
 - [x] Phase 2: `cli` (merged, PR #3)
 - [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
-- [ ] Phase 4: `templates/app`, Dockerfile, project CI workflows
+- [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (merged, PR #8); DoD verified on a throwaway repo
 - [ ] Phase 5: `storage`, `email`, `auth`, `payments`
 - [ ] Phase 6: `create`
 - [ ] Phase 7: `infra/tofu`, `hearthkit vps bootstrap`, backups
@@ -29,25 +29,25 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package         | Step   | Implementor rounds | Notes                                              |
-| --------------- | ------ | ------------------ | -------------------------------------------------- |
-| `templates/app` | commit | 1                  | PR #8, CI green. Contract 2 rounds, gates 2 rounds |
+| Package | Step | Implementor rounds | Notes                                             |
+| ------- | ---- | ------------------ | ------------------------------------------------- |
+| —       | —    | 0                  | `templates/app` merged (PR #8); Phase 5 not begun |
 
 ## Open issues
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- **Two cleanup actions need the user — the orchestrator's `gh` token cannot do either.** Scopes are
-  `admin:public_key, gist, read:org, repo, workflow`; deleting needs `delete_repo` and
-  `delete:packages`. The throwaway probe from the Phase 4 verification is still live:
-  1. Repo `chrisdevelops/hearthkit-template-probe-80cr2w` (private) — delete via Settings → General
-     → Danger Zone → Delete this repository, or run
-     `gh auth refresh -s delete_repo` then `gh repo delete chrisdevelops/hearthkit-template-probe-80cr2w --yes`.
-  2. GHCR package `hearthkit-template-probe-80cr2w` — **deleting the repository does not always
-     remove a linked container package.** Check https://github.com/users/chrisdevelops/packages and
-     delete it there if it survives.
-- **PR #8 is open with CI green and is not merged.** Phase 4 stays unticked in the checklist until
-  it is, even though its definition of done is now fully verified (see below).
+- **Throwaway probe still live — blocked on a token scope, not on a decision.** The user authorised
+  deletion; the orchestrator's `gh` token cannot perform it. Scopes are
+  `admin:public_key, gist, read:org, repo, workflow`; `gh repo delete` returns
+  `HTTP 403: Must have admin rights to Repository` and asks for `delete_repo`. The refresh is an
+  interactive browser flow, so the user must run it:
+  `gh auth refresh -h github.com -s delete_repo,delete:packages`
+  Then either the user or the orchestrator can run
+  `gh repo delete chrisdevelops/hearthkit-template-probe-80cr2w --yes`.
+  Also check https://github.com/users/chrisdevelops/packages for the GHCR package
+  `hearthkit-template-probe-80cr2w` — deleting a repository does not always remove a linked
+  container package.
 - Deferred, recorded so it is not rediscovered: `@hearthkit/ui` exports only `.` and
   `./hearthkit-theme.css`, and `.` resolves through `.tsx`, so no bare-Node script can import
   anything that imports the ui package. This is what forces `verify:container` to mirror contract
