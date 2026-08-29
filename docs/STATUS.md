@@ -6,9 +6,9 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. Phase 4 complete.
 - Package: `storage`
-- Step: implement
+- Step: commit — PR #10 open, awaiting CI and merge
 - Branch: pkg/storage
-- Last commit: cf0e84d squash-merge of PR #9 (`ui` subpath export, template contract mirror deleted)
+- Last commit: ec228f1 `feat(storage): implement the storage contract` (PR #10, not yet merged)
 
 ## Phase checklist
 
@@ -19,7 +19,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 2: `cli` (merged, PR #3)
 - [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
 - [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (merged, PR #8); DoD verified on a throwaway repo
-- [ ] Phase 5: `storage`, `email`, `auth`, `payments`
+- [ ] Phase 5: `storage` (PR #10 open, not merged), `email`, `auth`, `payments`
 - [ ] Phase 6: `create`
 - [ ] Phase 7: `infra/tofu`, `hearthkit vps bootstrap`, backups
 - [ ] Phase 8: AI tooling, docs
@@ -29,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package   | Step      | Implementor rounds | Notes                                            |
-| --------- | --------- | ------------------ | ------------------------------------------------ |
-| `storage` | implement | 1                  | 21 gates approved, orchestrator-verified failing |
+| Package   | Step   | Implementor rounds | Notes                                           |
+| --------- | ------ | ------------------ | ----------------------------------------------- |
+| `storage` | commit | 1                  | 21/21 green in round 1; PR #10 open, not merged |
 
 ## Open issues
 
@@ -47,6 +47,51 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   confirmed by the orchestrator as a real gap rather than smuggled into this package.
 
 ## Verified facts this session
+
+- **`storage` implemented and VERIFIED GREEN IN ONE IMPLEMENTOR ROUND, 2026-08-29. PR #10, commit
+  `ec228f1`. Not yet merged.** Orchestrator-run, not taken from the subagent's summary:
+  `pnpm --filter @hearthkit/storage test` **8 files, 21/21 passed**, exit 0; `pnpm typecheck` exit 0
+  (7 projects); `pnpm lint` exit 0; `pnpm format:check` exit 0. Gate-runner independently confirmed
+  the same and added the workspace sweep — `pnpm --recursive --if-present run test` gives **39 files,
+  150/150 passed**, so `storage` regressed nothing. Reports in `.reports/storage-*.txt`. MinIO left
+  with zero buckets, checked at three points.
+  - **The gate-writer's satisfiability claim held.** It was the one thing the orchestrator could not
+    verify without doing the implementor's job, and round 1 passing confirms the gates were
+    satisfiable as written.
+  - **The implementor ran the right negative control rather than trusting the recorded spike:**
+    deleting `signableHeaders` from its own upload presign flipped the smuggled-`text/html` PUT from
+    403 back to **200**, failing the gate at `create-presigned-upload-url.test.ts:56`. Restored. The
+    pin is real in the shipped code, and the gate is load-bearing rather than decorative.
+  - Rule scan clean, orchestrator-run: no `export *`, no barrel, no `any`, no bare-role filenames
+    (only `index.ts`, a thin named re-export), and **22 exports across 11 implementation files with
+    22 doc comments** — full coverage. Implementation is ~640 lines excluding the contract and entry.
+  - Load-bearing details confirmed present in the shipped source rather than merely claimed:
+    `signableHeaders` in the upload presign, `forcePathStyle: true` with a per-call `destroy()`, and
+    `safeParse` for both range checks so they run before any client is built.
+  - **`packages/storage/tsconfig.json` sets `noEmit: true` and no `rootDir`, byte-identical to
+    `db`'s.** This does not contradict the standing TS 7 note that emit needs an explicit `rootDir`:
+    these packages do not emit. Verified by comparison rather than argument.
+  - Two SDK error-shape facts the implementor established that go beyond the earlier spikes: the
+    `AggregateError` from a dead port carries `code: 'ECONNREFUSED'` **on the aggregate itself**, not
+    only on its `errors` entries; and a bodyless response yields `name: 'Unknown'` with `Code`
+    undefined, so `HeadObject` against a 500 gives `storageErrorCode: 'Unknown'` while
+    `DeleteObject`/`ListObjectsV2` against the same server give `'InternalError'` from the XML body.
+    A future gate pinning a specific code on the download path would be pinning `'Unknown'`.
+  - **Implementor judgement calls the contract did not settle, all accepted:**
+    1. **Listed keys are branded WITHOUT re-validating the strict key pattern**, using a lax
+       `z.string().brand<'StorageObjectKey'>()` that produces the identical type. `StorageObjectKey`
+       is deliberately stricter than S3, and a bucket can hold keys written by other tools, so strict
+       parsing a listing would either drop those keys silently or fail the whole page. Both are worse
+       than reporting what is there. Self-consistent: the strict schema still guards every key this
+       package _writes_, while a key it merely _reports_ stays actionable — you can delete a file you
+       can see. Reason stated in-file.
+    2. Missing metadata falls back (`?? new Date(0)`, `?? 0`) rather than failing, keeping the result
+       total. A successful HEAD always carries `Last-Modified`, so the fallback is unreachable in
+       practice.
+    3. `IsTruncated` true with no token is reported as page-complete: the token decides, because a
+       truncated page a caller cannot continue is useless.
+    4. `expiresAt` is computed just before signing, so it is at most milliseconds early and never
+       late — the safe direction for a caller deciding whether a URL is still good.
 
 - **`storage` contract correction round 2026-08-29, documentation only — `storage-contract.ts` was
   not touched, so no verified gate work was invalidated.** Two inaccuracies the gate-writer found
