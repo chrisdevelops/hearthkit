@@ -5,11 +5,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 ## Position
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — next, not started. Phase 4 complete.
-- Package: `ui` + `templates/app` — cleanup round, not a new package loop. Adds the JSX-free
-  `@hearthkit/ui/ui-contract` subpath export and deletes the template's contract mirror.
-- Step: commit
-- Branch: pkg/ui-contract-subpath
-- Last commit: fd0850c squash-merge of PR #8 (`templates/app`)
+- Package: none
+- Step: not started
+- Branch: main
+- Last commit: cf0e84d squash-merge of PR #9 (`ui` subpath export, template contract mirror deleted)
 
 ## Phase checklist
 
@@ -30,9 +29,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package                | Step   | Implementor rounds | Notes                                                              |
-| ---------------------- | ------ | ------------------ | ------------------------------------------------------------------ |
-| `ui` + `templates/app` | commit | 1                  | subpath round done; all six commands green, `verify:container` 7/7 |
+| Package | Step | Implementor rounds | Notes                                           |
+| ------- | ---- | ------------------ | ----------------------------------------------- |
+| —       | —    | 0                  | subpath round merged (PR #9); Phase 5 not begun |
 
 ## Open issues
 
@@ -52,7 +51,8 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
-- **`@hearthkit/ui/ui-contract` subpath round complete 2026-08-29; the contract mirror is deleted.**
+- **`@hearthkit/ui/ui-contract` subpath round merged 2026-08-29 (PR #9, cf0e84d); the contract
+  mirror is deleted.**
   `packages/ui/package.json` now publishes a third subpath, `./ui-contract` → `./src/ui-contract.ts`,
   which is JSX-free and imports only zod. `templates/app/src/app-template-contract.ts` takes its two
   theme constants from that subpath instead of the `@hearthkit/ui` entry, so the whole template
