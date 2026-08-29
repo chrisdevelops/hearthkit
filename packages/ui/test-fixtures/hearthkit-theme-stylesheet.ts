@@ -15,8 +15,8 @@ import { darkModeClassName, hearthkitThemeCssFileName } from '../src/ui-contract
 /** Directory holding these fixtures, read from import.meta.url, which Vite leaves alone. */
 const testFixturesDirectoryPath = dirname(fileURLToPath(import.meta.url))
 
-/** Package root of @hearthkit/ui; test-fixtures and src both sit one directory below it. */
-const uiPackageRootPath = resolve(testFixturesDirectoryPath, '..')
+/** Package root of @hearthkit/ui; test-fixtures and src both sit one directory below it, and a bare-node gate runs its child process here. */
+export const uiPackageRootPath = resolve(testFixturesDirectoryPath, '..')
 
 /** Subpath an app imports the stylesheet from, as published in the package.json exports map. */
 export const themeStylesheetExportSubpath = `./${hearthkitThemeCssFileName}`
@@ -38,9 +38,16 @@ export function readUiPackageManifest(): UiPackageManifest {
   return JSON.parse(readFileSync(manifestPath, 'utf8')) as UiPackageManifest
 }
 
-/** The file the exports map publishes for the stylesheet subpath, or undefined when it is unmapped. */
-export function themeStylesheetPathFromExports(manifest: UiPackageManifest): string | undefined {
-  const mapped = manifest.exports?.[themeStylesheetExportSubpath]
+/**
+ * The absolute file one exports-map subpath publishes, or undefined when the manifest does not map
+ * it. A subpath may be a bare string or a conditions object ("types", "default", …); the first
+ * string condition wins, because every condition of one subpath points into the same source file.
+ */
+export function exportedFilePathForUiSubpath(
+  manifest: UiPackageManifest,
+  exportSubpath: string,
+): string | undefined {
+  const mapped = manifest.exports?.[exportSubpath]
   if (typeof mapped === 'string') {
     return resolve(uiPackageRootPath, mapped)
   }
@@ -52,6 +59,11 @@ export function themeStylesheetPathFromExports(manifest: UiPackageManifest): str
     }
   }
   return undefined
+}
+
+/** The file the exports map publishes for the stylesheet subpath, or undefined when it is unmapped. */
+export function themeStylesheetPathFromExports(manifest: UiPackageManifest): string | undefined {
+  return exportedFilePathForUiSubpath(manifest, themeStylesheetExportSubpath)
 }
 
 /** On-disk path the contract pins for the stylesheet, used when the manifest does not publish it yet. */

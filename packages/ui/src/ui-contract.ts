@@ -12,6 +12,16 @@ export const hearthkitThemeCssFileName = 'hearthkit-theme.css'
 /** Exact specifier an app's globals.css must @import for the theme stylesheet; kept in one place so the scaffolder, template, and docs never drift. */
 export const hearthkitThemeCssImportSpecifier = '@hearthkit/ui/hearthkit-theme.css'
 
+/** Every subpath the package manifest must publish in its exports map; ./ui-contract is the JSX-free one Node-executed callers import. */
+export const hearthkitUiPackageExportSubpaths = [
+  '.',
+  './hearthkit-theme.css',
+  './ui-contract',
+] as const
+
+/** Exact specifier a Node-executed caller imports these constants from; kept in one place so the template, the scaffolder, and the docs never drift. */
+export const hearthkitUiContractImportSpecifier = '@hearthkit/ui/ui-contract'
+
 /** Literal @source line an app adds to its globals.css so Tailwind v4 scans this package's class strings. */
 export const tailwindSourceDirectiveForUi = '@source "../node_modules/@hearthkit/ui";'
 
@@ -135,6 +145,7 @@ export const hearthkitUiMinimumExportNames = [
   'useThemeMode',
   'mergeTailwindClasses',
   'hearthkitThemeCssImportSpecifier',
+  'hearthkitUiContractImportSpecifier',
 ] as const
 
 /** Every way this package can fail at runtime; component misuse is otherwise a build-time type error. */

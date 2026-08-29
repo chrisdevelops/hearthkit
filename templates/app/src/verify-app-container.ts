@@ -2,18 +2,17 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  appContainerDefaultPort,
+  appContainerNotHealthyErrorPrefix,
+  appHealthRoutePath,
+  appImageBuildFailedErrorPrefix,
+  appSmokeBaseUrlEnvVariableName,
+  appStartupLogMessage,
+  appVerifyContainerFailedErrorPrefix,
+} from './app-template-contract.ts'
 import { materializeAppTemplateProject } from './materialize-app-template-project.ts'
 import { lastOutputLine, runVerifyCommand } from './run-verify-command.ts'
-import {
-  appVerifyContainerFailedErrorPrefix,
-  assertMirroredContractValues,
-  mirroredContainerDefaultPort,
-  mirroredContainerNotHealthyErrorPrefix,
-  mirroredHealthRoutePath,
-  mirroredImageBuildFailedErrorPrefix,
-  mirroredSmokeBaseUrlEnvVariableName,
-  mirroredStartupLogMessage,
-} from './verify-app-container-contract-mirror.ts'
 
 /**
  * The batched tier of this template's gating: `pnpm --filter @hearthkit/app-template run
@@ -25,6 +24,14 @@ import {
  * Playwright smoke against it, then tear everything down. Exit 0 only when all seven passed.
  *
  * This file is hearthkit-only. It is pruned with the rest of `src/` before a project is generated.
+ *
+ * This script and the materializer it calls read the port, the health route, the startup line, the
+ * error prefixes and the pruning lists straight out of `app-template-contract.ts`, so there is one
+ * source of truth and nothing to keep in step. That import only survives because `node` runs this
+ * script with no bundler: every specifier the contract reaches must stay Node-resolvable, which is
+ * why the contract takes its two theme constants from `@hearthkit/ui/ui-contract` rather than the
+ * `@hearthkit/ui` entry point, whose `.tsx` modules `node` refuses outright
+ * (`ERR_UNKNOWN_FILE_EXTENSION`).
  *
  * `package.json` runs it with `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON`: the manifest has no
  * `"type": "module"` on purpose, because Next's standalone `server.js` is CommonJS, and Node would
@@ -68,7 +75,7 @@ const logStep = (stepNumber: number, description: string): void => {
 async function readPublishedHostPort(run: VerifyContainerRun): Promise<number | undefined> {
   const portResult = await runVerifyCommand({
     command: 'docker',
-    commandArguments: ['port', run.containerName, `${String(mirroredContainerDefaultPort)}/tcp`],
+    commandArguments: ['port', run.containerName, `${String(appContainerDefaultPort)}/tcp`],
     workingDirectoryPath: run.projectDirectoryPath,
   })
 
@@ -95,7 +102,7 @@ async function waitForHealthyContainer(
 
   while (Date.now() - startedAtMs < healthWaitTimeoutMs) {
     try {
-      const response = await fetch(`${baseUrl}${mirroredHealthRoutePath}`, {
+      const response = await fetch(`${baseUrl}${appHealthRoutePath}`, {
         signal: AbortSignal.timeout(healthRequestTimeoutMs),
       })
       lastStatusCode = response.status
@@ -144,7 +151,7 @@ async function verifyAppContainer(run: VerifyContainerRun): Promise<string | und
     streamOutput: true,
   })
   if (buildResult.exitCode !== 0) {
-    return `${mirroredImageBuildFailedErrorPrefix} docker build exited ${String(buildResult.exitCode)}: ${lastOutputLine(buildResult.stderr)}`
+    return `${appImageBuildFailedErrorPrefix} docker build exited ${String(buildResult.exitCode)}: ${lastOutputLine(buildResult.stderr)}`
   }
 
   logStep(4, 'running the container and polling the health route')
@@ -156,7 +163,7 @@ async function verifyAppContainer(run: VerifyContainerRun): Promise<string | und
       '--name',
       run.containerName,
       '--publish',
-      `0:${String(mirroredContainerDefaultPort)}`,
+      `0:${String(appContainerDefaultPort)}`,
       run.containerImageTag,
     ],
     workingDirectoryPath: run.projectDirectoryPath,
@@ -167,7 +174,7 @@ async function verifyAppContainer(run: VerifyContainerRun): Promise<string | und
 
   const publishedHostPort = await readPublishedHostPort(run)
   if (publishedHostPort === undefined) {
-    return `${appVerifyContainerFailedErrorPrefix} docker published no host port for container port ${String(mirroredContainerDefaultPort)}`
+    return `${appVerifyContainerFailedErrorPrefix} docker published no host port for container port ${String(appContainerDefaultPort)}`
   }
 
   const containerBaseUrl = `http://127.0.0.1:${String(publishedHostPort)}`
@@ -178,19 +185,19 @@ async function verifyAppContainer(run: VerifyContainerRun): Promise<string | und
       health.lastStatusCode === undefined
         ? 'no response'
         : `last status ${String(health.lastStatusCode)}`
-    return `${mirroredContainerNotHealthyErrorPrefix} ${mirroredHealthRoutePath} never answered 200 after ${String(health.waitedMs)} ms (${observedStatus})`
+    return `${appContainerNotHealthyErrorPrefix} ${appHealthRoutePath} never answered 200 after ${String(health.waitedMs)} ms (${observedStatus})`
   }
   process.stdout.write(
-    `${mirroredHealthRoutePath} answered 200 after ${String(health.waitedMs)} ms at ${containerBaseUrl}\n`,
+    `${appHealthRoutePath} answered 200 after ${String(health.waitedMs)} ms at ${containerBaseUrl}\n`,
   )
 
   logStep(5, 'asserting the startup line reached the container stdout')
   const containerLogs = await readContainerLogs(run)
-  if (!containerLogs.includes(mirroredStartupLogMessage)) {
+  if (!containerLogs.includes(appStartupLogMessage)) {
     process.stderr.write(`${containerLogs}\n`)
-    return `${appVerifyContainerFailedErrorPrefix} the container logs never contained '${mirroredStartupLogMessage}', so config loading, logging or the standalone server did not run`
+    return `${appVerifyContainerFailedErrorPrefix} the container logs never contained '${appStartupLogMessage}', so config loading, logging or the standalone server did not run`
   }
-  process.stdout.write(`container logged '${mirroredStartupLogMessage}'\n`)
+  process.stdout.write(`container logged '${appStartupLogMessage}'\n`)
 
   logStep(6, 'running the Playwright smoke test against the container')
   const browserInstallResult = await runVerifyCommand({
@@ -207,7 +214,7 @@ async function verifyAppContainer(run: VerifyContainerRun): Promise<string | und
     command: 'pnpm',
     commandArguments: ['exec', 'playwright', 'test'],
     workingDirectoryPath: run.projectDirectoryPath,
-    extraEnvironment: { [mirroredSmokeBaseUrlEnvVariableName]: containerBaseUrl },
+    extraEnvironment: { [appSmokeBaseUrlEnvVariableName]: containerBaseUrl },
     streamOutput: true,
   })
   if (smokeResult.exitCode !== 0) {
@@ -236,8 +243,6 @@ async function tearDownVerifyContainerRun(run: VerifyContainerRun): Promise<void
 
 /** Entry point: exit 0 when all seven steps passed, exit 1 with the failure as the last stderr line. */
 async function main(): Promise<never> {
-  assertMirroredContractValues()
-
   const temporaryDirectoryPath = await mkdtemp(join(tmpdir(), 'hearthkit-app-template-'))
   const runIdentifier = temporaryDirectoryPath.slice(-8).toLowerCase()
   const run: VerifyContainerRun = {

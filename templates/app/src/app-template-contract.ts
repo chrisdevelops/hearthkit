@@ -2,7 +2,10 @@ import { configEnvSchemaFragment, configInvalidErrorPrefix } from '@hearthkit/co
 import type { EnvSource } from '@hearthkit/config'
 import { healthCheckResultSchema, observabilityEnvSchemaFragment } from '@hearthkit/observability'
 import type { HealthCheckName, NamedHealthCheck } from '@hearthkit/observability'
-import { hearthkitThemeCssImportSpecifier, tailwindSourceDirectiveForUi } from '@hearthkit/ui'
+import {
+  hearthkitThemeCssImportSpecifier,
+  tailwindSourceDirectiveForUi,
+} from '@hearthkit/ui/ui-contract'
 import { z } from 'zod'
 
 /** Workspace-only package name of the template; @hearthkit/create rewrites it to the generated project name. */
@@ -265,6 +268,9 @@ export const appHealthDependencyUnavailableErrorPrefix =
 
 /** Unique literal prefix reported when a required workflow line is missing from ci.yml or deploy.yml. */
 export const appWorkflowContentMissingErrorPrefix = 'hearthkit app workflow content missing:'
+
+/** Unique literal prefix verify:container prints for its own failures (a failed pnpm install, docker run or pnpm pack, a missing published port, a nonzero Playwright run); deliberately not an appTemplateFailureSchema variant, because the verification harness failed rather than the template artifact. */
+export const appVerifyContainerFailedErrorPrefix = 'hearthkit app verify container failed:'
 
 /** Every way the template can fail as an artifact; boot rejection keeps config's own message so its prefix stays greppable. */
 export const appTemplateFailureSchema = z.discriminatedUnion('kind', [
