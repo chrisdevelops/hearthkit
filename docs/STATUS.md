@@ -4,12 +4,13 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` merged; `email`, `auth`,
-  `payments` remain. Phase 4 complete.
-- Package: `cli` (re-opened for the local storage bucket, PR #11)
-- Step: commit — PR #11 merging; `storage` merged as `f387155` (PR #10)
-- Branch: pkg/cli-local-storage-bucket
-- Last commit: 8b402c9 `feat(cli): create the local storage bucket in dev infra up` (PR #11)
+- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` done and merged.
+  **Next package: `email`.** Phase 4 complete.
+- Package: none in flight
+- Step: not started
+- Branch: main (both Phase 5 branches merged and deleted; no open PRs)
+- Last commit: 96b5271 squash-merge of PR #11 (`cli` local storage bucket), on top of `f387155`
+  squash-merge of PR #10 (`@hearthkit/storage`)
 
 ## Phase checklist
 
@@ -20,8 +21,8 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 2: `cli` (merged, PR #3)
 - [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
 - [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (merged, PR #8); DoD verified on a throwaway repo
-- [ ] Phase 5: `storage` (merged, PR #10) + `cli` local bucket (PR #11); `email`, `auth`, `payments`
-      still to do
+- [ ] Phase 5: `storage` (merged, PR #10) and the `cli` local bucket (merged, PR #11) done;
+      `email`, `auth`, `payments` still to do
 - [ ] Phase 6: `create`
 - [ ] Phase 7: `infra/tofu`, `hearthkit vps bootstrap`, backups
 - [ ] Phase 8: AI tooling, docs
@@ -31,10 +32,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package   | Step   | Implementor rounds | Notes                                     |
-| --------- | ------ | ------------------ | ----------------------------------------- |
-| `storage` | merged | 1                  | 21/21 green in round 1; PR #10, `f387155` |
-| `cli`     | commit | 2                  | 39/39 green; PR #11 CI green, merging now |
+| Package | Step | Implementor rounds | Notes                                                       |
+| ------- | ---- | ------------------ | ----------------------------------------------------------- |
+| —       | —    | 0                  | `storage` (#10) and `cli` bucket (#11) merged; `email` next |
 
 ## Open issues
 
@@ -44,6 +44,23 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   rather than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **BOTH PHASE 5 BRANCHES MERGED 2026-08-29.** `f387155` (PR #10, `@hearthkit/storage`) then
+  `96b5271` (PR #11, `cli` local storage bucket), both squash-merged, both branches deleted, working
+  tree clean on `main`, no open PRs.
+  - **The combined state was verified before #11 was merged, not after.** #11's earlier green run was
+    against a branch that did not contain `storage`, so `main` was merged into it first and CI re-run:
+    `packages/storage test: 8 files, 21/21` and `packages/cli test: 7 files, 39/39` in the **same**
+    run, plus a local sweep of all seven projects, `pnpm install --frozen-lockfile` exit 0 (the two
+    branches' lockfile edits reconcile), typecheck, lint and format:check all exit 0.
+  - The `docs/STATUS.md` conflict predicted at the start of the `cli` loop happened exactly as
+    written and was resolved as a **union**: both loops' verified facts kept, since discarding either
+    side would have thrown away findings that cost real time. The Position, checklist and loop-state
+    rows were rewritten rather than merged, because those describe a single current state.
+  - **`hearthkit dev infra up` now closes the loop end to end:** a project depending on
+    `@hearthkit/storage` gets MinIO, a healthcheck, and a bucket named `<project>-uploads`, and
+    `@hearthkit/storage` can presign an upload into it. The 404-on-first-upload gap that opened this
+    phase is gone.
 
 - **CI GREEN on PR #11 (run 33274160723, 2m34s), and the new Docker gates really ran on the runner:
   `packages/cli test: Test Files 7 passed (7), Tests 39 passed (39)`.** Notable because this branch is
