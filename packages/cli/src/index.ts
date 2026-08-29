@@ -6,6 +6,12 @@ export { runHearthkitCli } from './run-hearthkit-cli.ts'
 /** Builds the local infra compose file; pure, so the scaffolder can reuse it instead of copying a template. */
 export { generateLocalInfraCompose } from './generate-local-infra-compose.ts'
 
+/** Derives the bucket name the generated compose file creates in MinIO; pure and total, so the scaffolder writes the identical string to STORAGE_BUCKET. */
+export { deriveLocalStorageBucketName } from './derive-local-storage-bucket-name.ts'
+
+/** Turns a package.json name into the project name compose, container, volume, and bucket names are built from; falls back to hearthkit-app. */
+export { deriveHearthkitProjectName } from './derive-hearthkit-project-name.ts'
+
 /** Contract values: the unique literal prefix every failure message starts with. */
 export {
   cliAdminUrlInvalidErrorPrefix,
@@ -49,6 +55,13 @@ export {
   localInfraServiceNameSchema,
 } from './cli-contract.ts'
 
+/** Contract values: the bucket init container's service key and image pin, and the name schema the derived bucket name satisfies. */
+export {
+  localStorageBucketInitImage,
+  localStorageBucketInitServiceName,
+  localStorageBucketNameSchema,
+} from './cli-contract.ts'
+
 /** Contract values: the command registry, result, failure, and doctor schemas gates and consumers parse with. */
 export {
   cliCommandInvocationSchema,
@@ -73,6 +86,7 @@ export type {
   CliExitCode,
   CliFailure,
   CliRunOutcome,
+  DeriveLocalStorageBucketName,
   DoctorCheckName,
   DoctorCheckResult,
   DoctorJsonReport,
@@ -80,6 +94,7 @@ export type {
   GenerateLocalInfraComposeOptions,
   HearthkitProjectName,
   LocalInfraServiceName,
+  LocalStorageBucketName,
   RunHearthkitCli,
   RunHearthkitCliOptions,
 } from './cli-contract.ts'

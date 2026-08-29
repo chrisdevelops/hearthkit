@@ -6,7 +6,7 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress.
 - Package: `cli` (re-opened for the local storage bucket; `storage` itself is on `pkg/storage`, PR #10)
-- Step: gates
+- Step: commit
 - Branch: pkg/cli-local-storage-bucket (cut from main, independent of PR #10)
 - Last commit: 5eea5ed
 
@@ -35,9 +35,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step  | Implementor rounds | Notes                                                      |
-| ------- | ----- | ------------------ | ---------------------------------------------------------- |
-| `cli`   | gates | 0                  | contract approved round 2; `--wait` defect found and fixed |
+| Package | Step      | Implementor rounds | Notes                                      |
+| ------- | --------- | ------------------ | ------------------------------------------ |
+| `cli`   | implement | 1                  | 14 gates approved; 25 existing still green |
 
 ## Open issues
 
