@@ -37,7 +37,9 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await failingServer.closeFailingStorageServer()
+  // Both are still undefined when beforeAll failed — MinIO not running is the usual reason. Teardown
+  // has to no-op there, or its own TypeError replaces the error that explains the run.
+  await failingServer?.closeFailingStorageServer()
   await removeGateBucket(gateBucket)
 })
 

@@ -44,4 +44,15 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm format:check
+      # MinIO cannot be a service container like postgres above: the image needs
+      # `server /data` arguments to start, and a service container has no way to set a
+      # command. Starting it from the repo's own compose file is better than a bespoke
+      # `docker run` anyway, because the image tag, credentials, ports and healthcheck
+      # then have exactly one definition shared by CI and local gates. `--wait` blocks
+      # until the compose healthcheck reports healthy, so the storage gates never race it.
+      - name: Start MinIO for the storage gates
+        run: docker compose up -d --wait minio
       - run: pnpm --recursive --if-present run test
+      - name: Stop MinIO
+        if: always()
+        run: docker compose down -v

@@ -48,6 +48,33 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- **CI FAILED ON PR #10 WHILE EVERY LOCAL COMMAND WAS GREEN, and the cause is a gap in the loop
+  itself rather than in the package.** The repo-root `docker-compose.yml` gained a `minio` service so
+  local gates could run, but `.github/workflows/ci.yml` was never taught about it, so CI ran the
+  storage gates against nothing: 6 files failed, 5 tests passed, 16 skipped. Orchestrator's omission,
+  fixed in this PR.
+  - **The general rule, which every remaining Phase 5 package will hit:** adding a service to
+    `docker-compose.yml` is only half the job. `email` needs Mailpit and will fail exactly the same
+    way. **Local gates passing is not evidence CI will pass when a package introduces a new service.**
+    The loop's step 4 has the orchestrator re-run gates locally, which cannot catch this by
+    construction — the check that matters is whether CI can reach the same services.
+  - **MinIO cannot be a GitHub Actions service container, unlike Postgres.** The image needs
+    `server /data` arguments to start at all, and a service container has no field for a command —
+    `options` maps to `docker create` flags, which cannot supply arguments either. So it starts from
+    the repo's own compose file with `docker compose up -d --wait minio`, which is the better shape
+    regardless: image tag, credentials, ports and healthcheck then have exactly one definition shared
+    by CI and local gates, instead of a bespoke `docker run` line drifting from compose. `--wait`
+    blocks on the compose healthcheck, so the gates cannot race the service. Teardown is
+    `docker compose down -v` guarded with `if: always()`. Postgres stays a service container; it works
+    and mixing the two mechanisms is not worth churning a green setup over.
+  - **The failure output was actively misleading, which is its own defect.** With MinIO absent,
+    `beforeAll` could not create a bucket, the module-level `gateBucket` stayed `undefined`, and
+    `afterAll` then dereferenced it and threw `TypeError: Cannot read properties of undefined
+(reading 'storageConnection')` — burying the real cause and pointing at a teardown helper. Nothing
+    in the output said "MinIO is not running". Same family as the standing silent-`undefined` hazard:
+    a fixture reporting a symptom far from the cause. Sent to gate-writer to fix the diagnostic; no
+    assertion changes.
+
 - **`storage` implemented and VERIFIED GREEN IN ONE IMPLEMENTOR ROUND, 2026-08-29. PR #10, commit
   `ec228f1`. Not yet merged.** Orchestrator-run, not taken from the subagent's summary:
   `pnpm --filter @hearthkit/storage test` **8 files, 21/21 passed**, exit 0; `pnpm typecheck` exit 0
