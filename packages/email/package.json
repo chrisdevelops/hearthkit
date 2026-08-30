@@ -1,0 +1,51 @@
+{
+  "name": "@hearthkit/email",
+  "version": "0.0.0",
+  "description": "Transactional email from React Email templates over a swappable SMTP or Resend transport",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./email-contract": {
+      "types": "./src/email-contract.ts",
+      "default": "./src/email-contract.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-email/render": "2.1.0",
+    "nodemailer": "9.0.6",
+    "react-email": "6.9.3",
+    "resend": "6.25.0",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@hearthkit/config": "workspace:*",
+    "@types/node": "24.13.3",
+    "@types/nodemailer": "8.0.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

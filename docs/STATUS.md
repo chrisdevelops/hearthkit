@@ -5,10 +5,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 ## Position
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` done and merged.
-  **Next package: `email`.** Phase 4 complete.
-- Package: none in flight
-- Step: not started
-- Branch: main (both Phase 5 branches merged and deleted; no open PRs)
+  **`email` in flight.** Phase 4 complete.
+- Package: `email` (depends on `config`, merged in Phase 1)
+- Step: commit
+- Branch: `pkg/email`, cut from `main` at 6a60c80
 - Last commit: 96b5271 squash-merge of PR #11 (`cli` local storage bucket), on top of `f387155`
   squash-merge of PR #10 (`@hearthkit/storage`)
 
@@ -32,9 +32,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes                                                       |
-| ------- | ---- | ------------------ | ----------------------------------------------------------- |
-| —       | —    | 0                  | `storage` (#10) and `cli` bucket (#11) merged; `email` next |
+| Package | Step      | Implementor rounds | Notes                                                  |
+| ------- | --------- | ------------------ | ------------------------------------------------------ |
+| `email` | implement | 1                  | 25 gates approved, orchestrator-verified failing 25/25 |
 
 ## Open issues
 
@@ -44,6 +44,308 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   rather than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **`email` IMPLEMENTED AND GREEN IN ONE IMPLEMENTOR ROUND, 2026-08-30.** Orchestrator-run, not taken
+  from the subagent: `pnpm --filter @hearthkit/email test` **5 files, 25/25 passed**, exit 0;
+  `pnpm run typecheck` exit 0; `pnpm run lint` exit 0; `pnpm run format:check` exit 0;
+  `pnpm install --frozen-lockfile` exit 0. Full sweep `pnpm --recursive --if-present run test`:
+  **all 8 projects green, 189 tests across 46 files** (config 12, ui 27, observability 14, storage
+  21, db 24, email 25, app-template 27, cli 39).
+  - **`packages/email typecheck: Done` now appears in the project list (8 of 9 projects).** Before
+    the manifest existed the same exit 0 checked nothing. That distinction is what makes this run
+    evidence.
+  - Rule scan clean, orchestrator-run: no `export *`, no barrel, no `any`, no bare-role filenames
+    beyond the sanctioned `index.ts`, and **40 exports across 16 implementation files with 40 doc
+    comments** — full coverage.
+  - Implementor judgement calls accepted: `redactEmailSecrets` scrubs the configured password and API
+    key out of **third-party** error text before it is quoted into a failure detail, because the
+    contract's rule is absolute but the words come from a library — no gate forces this, since the
+    sentinel sweep only proves the values the package itself controls are clean; the subject is
+    re-parsed even when the caller supplied a branded one, so a hand-cast value cannot carry a CR
+    into the SMTP headers; `buildEmailSubject` is not called at all when `subject` is supplied;
+    `renderFailureDetail` never echoes a rejected subject, so a control-character subject cannot
+    inject a newline into the message it produced; and generic template copy contains **no digits**,
+    because a render gate asserts `15` is absent when `expiryMinutes` is omitted — an invisible
+    constraint on future copy edits, recorded here so it is not tripped over.
+  - `tsconfig.json` follows `ui` rather than `storage` (`module: preserve`, `moduleResolution:
+bundler`, `jsx: react-jsx`, DOM lib), because this package has `.tsx` and React types.
+
+- **ORCHESTRATOR-CAUSED REGRESSION, found and fixed in the same session: adding Mailpit to the repo
+  compose broke three `cli` gates, and it would have broken CI.** `cli` went 39/39 → 36/39 with
+  `Bind for :::1025 failed: port is already allocated`. The generated compose publishes `1025:1025`
+  and `8025:8025`; the repo's new Mailpit now holds them. **CI would have hit this too**, because
+  `ci.yml` starts Mailpit and then runs the recursive sweep that includes those gates.
+  - **The irony is recorded in `cli`'s own gate file:** `run-hearthkit-cli-dev-infra.test.ts:82` says
+    those gates use `mailpit` rather than `postgres` precisely **because** its ports were free.
+  - **It surfaced only because the orchestrator ran the full workspace sweep.**
+    `pnpm --filter @hearthkit/email test` was green throughout and said nothing about it. This is the
+    same class of gap that failed PR #10, in the opposite direction: that time compose had a service
+    CI lacked, this time compose has a service that collides with another package's gates.
+    **Generalised rule: after touching `docker-compose.yml`, run the recursive sweep, never just the
+    package in flight.**
+  - Fixed by extending the established precedent rather than inventing one:
+    `remapGeneratedMailpitHostPorts` is now a sibling of `remapGeneratedMinioHostPorts`, moving only
+    the **published** host ports onto ports from `reserveFreeHostPort`, leaving `mailpit:1025` inside
+    the compose network untouched. Moving the repo compose to nonstandard ports was **considered and
+    rejected**: 1025/8025 are what every developer, the generated project and the `email` gates
+    expect, and the MinIO precedent already settled that the repo compose keeps the standard ports
+    while the `cli` gates yield.
+
+- **A LATENT DEFECT IN THE EXISTING MINIO GUARD, shipped in PR #11 and described in this very file as
+  the reason the remap is trustworthy. The claim was false for a whole class of inputs.**
+  `docs/STATUS.md` said `remapGeneratedMinioHostPorts` "throws a named error if the generated file
+  ever stops publishing `9000:9000`, so the remap cannot silently no-op and test nothing." It used
+  `String.includes`, and **`'19000:9000'.includes('9000:9000')` is `true`** — so a generated file
+  publishing a different host port passed the guard and the replace silently produced the nonsense
+  `154321:9000`. Verified by the orchestrator directly:
+
+  | input        | old substring guard          | new anchored guard |
+  | ------------ | ---------------------------- | ------------------ |
+  | `9000:9000`  | passes                       | passes             |
+  | `19000:9000` | **passes**, rewrites to junk | **throws**         |
+  | `9000:90001` | **passes**                   | **throws**         |
+
+  Both guards now match with digit lookarounds, `/(?<!\d)9000:9000(?!\d)/`, with the counterexample
+  named in a comment so nobody simplifies it back. The gate-writer fixed the MinIO one unprompted
+  while adding the Mailpit sibling, which was right — leaving a known silent-corruption path in the
+  guard would have been worse than the collision that exposed it.
+
+- **`email` gates APPROVED 2026-08-30 at 25 gates, orchestrator-verified failing 25/25 from the
+  committed files.** The 25th was commissioned after the contract correction: the existing gates all
+  used single-parameter URLs, so the multi-parameter case — the only one `auth` actually depends on —
+  was untested. It asserts both directions against a 90-character two-parameter URL, deliberately
+  longer than the plain-text renderer's 80-column wrap width: the text part carries it verbatim and
+  contains no `&amp;`, the HTML part does **not** contain it verbatim, does contain
+  `href="<escaped>"` and at least two occurrences of the escaped form, and does **not** contain
+  `encodeURIComponent(url)`. The elegant one is the last assertion — undoing the escaping restores
+  the caller's URL byte-for-byte, which rules out any transformation escaping alone would not produce.
+  - **The gate-writer proved it satisfiable AND load-bearing with three mutation states**, which is
+    beyond what was asked: a correct stub passes; a tracking wrapper on both button and text fails on
+    the text assertion; and — the one that matters — **a tracking wrapper on the button only, with the
+    text part left byte-perfect, still fails**, on the `href="<escaped>"` assertion. That third state
+    is exactly what a positive-only gate would have waved through.
+  - A three-parameter case was measured (107 characters, identical behaviour) and deliberately not
+    added, since it would restate the same fact at the cost of another gate.
+  - The gate-writer also corrected a stale comment in the single-parameter gate that still carried the
+    pre-correction claim that `auth` reads the URL from the HTML part — the exact sentence a future
+    reader would have inherited. No assertion changed.
+
+- **`email` gates written 2026-08-30 and ORCHESTRATOR-VERIFIED FAILING: 5 files, 24/24 gates failed,
+  every one with a "not implemented yet" diagnostic, no collection error and no syntax error.** Run
+  against a harness built by copying the committed gate files, fixtures, contract and
+  `vitest.config.ts` into the scratchpad with `node_modules` symlinked to `packages/storage`, because
+  `pnpm --filter @hearthkit/email test` still prints `No projects matched the filters` and exits 0.
+  - **The clean run alone proves almost nothing, and this is the part worth keeping.** All 24 fail
+    because `@hearthkit/email` cannot be resolved at all, which would happen whether the gates were
+    good or garbage. The control that matters: with a resolvable stub `index.ts` exporting one
+    unrelated value **plus** a manifest carrying the correct `./email-contract` subpath, the failures
+    change to `gate expected @hearthkit/email to export resolveEmailTransportConfig, …` — so the
+    gates genuinely exercise the contract and the silent-`undefined` guard fires. **23 failed, 1
+    passed** under that stub; the passing one is the bare-node subpath gate, which is correct
+    behaviour because the control handed it exactly the manifest it tests. The gate-writer's own
+    control was stricter (stub only, no manifest) and reported 24/24, so the two numbers reconcile.
+  - **Import discipline audited by the orchestrator, not taken on trust.** The only route into the
+    package is a single dynamic `import('@hearthkit/email')` in `test-fixtures/hearthkit-email-entry.ts`.
+    Every other specifier across all 12 gate and fixture files is `vitest`, a fixture, the contract,
+    a `node:` builtin, `zod`, or `@hearthkit/config`. No internal implementation module.
+  - **There are NO MOCKS anywhere — `vi.mock`, `vi.fn`, `vi.spyOn` all return zero hits.** Plan
+    section 4.6 explicitly permits a mocked Resend HTTP layer "since it cannot run offline"; that
+    exemption went **unused**, because `EMAIL_RESEND_BASE_URL` points the real SDK at an in-process
+    `node:http` server. The one sanctioned mock in the whole phase was not needed.
+  - 24 gates over 5 files, ~2060 lines including fixtures. In line with the repo (observability 14,
+    storage 21, db 24, cli 25). `vitest.config.ts` sets `fileParallelism: false` because Mailpit is
+    one shared server and its Chaos triggers are **global process state** — one file switching
+    recipient rejection to 100% would fail every other file's send.
+  - Gate-writer judgement calls accepted: dead ports reserved-then-closed rather than hardcoded
+    (better than storage's fixed 59998); gate tokens letters-only, because a hex token can contain
+    `15` and the render gate asserts `15` is absent when `expiryMinutes` is omitted — a real
+    flakiness source it hit, not a hypothetical; `transportMessageId` asserted to _contain_ Mailpit's
+    `MessageID` rather than equal it, since nodemailer's value carries angle brackets; and the
+    `user-agent` assertion pinned to `resend-node` without the version, proving the SDK made the call
+    without pinning a patch release.
+
+- **`email` contract correction round 2 on 2026-08-30, documentation only — `email-contract.ts` was
+  not touched, so no verified gate work was invalidated. The gate-writer found four contract gaps by
+  building against it, and the first was a defect that would have broken the NEXT package in the
+  phase.** `pnpm run format:check` exit 0 afterwards, orchestrator-run.
+  - **THE CONTRACT PROMISED THE ACTION URL APPEARS VERBATIM IN `htmlBody`. IT DOES NOT.** Reproduced
+    independently by the orchestrator against the pinned `react-email@6.9.3` +
+    `@react-email/render@2.1.0`: React escapes `&` to `&amp;` in **both** the `href` attribute and
+    the visible link text.
+
+    | URL                                          | verbatim in `htmlBody` | verbatim in `textBody` |
+    | -------------------------------------------- | ---------------------- | ---------------------- |
+    | `…/sign-in?token=abc123`                     | yes, 3 occurrences     | yes                    |
+    | `…/sign-in?token=abc123&callbackURL=%2Fdash` | **no, 0 occurrences**  | yes                    |
+    | `…/sign-in?a=1&b=2&c=3`                      | **no, 0 occurrences**  | yes                    |
+
+    This is correct HTML — `&amp;` is the proper encoding and a browser decodes it, so the link
+    works. But **a single-parameter URL matches and a multi-parameter one does not**, which is
+    exactly what makes it the sort of assumption that ships. The contract also said `auth`'s gate
+    extracts the link from Mailpit, and **Better Auth magic-link callbacks routinely carry
+    `?token=…&callbackURL=…`** — so plan 4.7's "request magic link, read it from Mailpit, complete
+    sign in" would have failed on a naive HTML substring search. Fixed: `textBody` is now named the
+    reliable extraction point, `htmlBody` is documented as HTML-escaped, and the `auth` bullet under
+    "Out of scope" instructs `auth` to read the text part. **A gate pinning both directions has been
+    commissioned**, because the existing gates deliberately used single-parameter URLs and therefore
+    never exercised the case that matters.
+
+  - **The secret rule forbade the contract's own output.** It said `SmtpPassword` and `ResendApiKey`
+    "never appear in a returned value", but `EmailTransportConfig` — what `resolveEmailTransportConfig`
+    returns — carries exactly those fields. Narrowed to failures, log lines and render/send results,
+    with `EmailTransportConfig` named as the one legitimate carrier. Checked against the gates before
+    ruling: `expectValueCarriesNoSecret` runs inside `expectEmailFailure` only, so they already
+    matched the narrowed rule.
+  - **`EPROTOCOL` keeps its catch-all mapping and the optimistic sentence went instead.** A listener
+    that is not an SMTP server (someone pointing `EMAIL_SMTP_HOST`/`PORT` at a web server) yields
+    `code: 'EPROTOCOL'`, `command: 'CONN'`, `Invalid greeting. response=HTTP/1.1 400 Bad Request`, so
+    "the catch-all should stay empty in practice" was false. Reclassifying it to unreachable — for
+    consistency with the `ETLS` ruling — was **considered and rejected**: it would leave
+    `email-send-failed` with no producer and therefore no gate, and a gated catch-all is worth more
+    than a tidier taxonomy.
+  - Three clauses that no gate can cover are now recorded with their reasons rather than left to look
+    covered: `implicitTlsSmtpPort` (deriving `secure` from port 465 needs a privileged port, so only
+    the negative half is covered — **an implementation that never sets `secure: true` at all passes
+    every gate**), `EAUTH` (not producible against unauthenticated Mailpit), and `smtpSocketTimeoutMs`
+    (needs a server that greets then stalls after `DATA`, plus 20 s of runtime).
+
+- **`email` contract APPROVED 2026-08-29 after one correction round. Both corrections were the
+  orchestrator catching a subagent's reasoning that was wrong on the facts while its conclusion was
+  right — and in both cases the true reason was stronger than the stated one.** Checks run by the
+  orchestrator: `pnpm run format:check` exit 0 (after a Prettier pass on `CONTRACT.md` whose diff was
+  **whitespace only** — one table column a single character too wide, no wording touched, confirmed by
+  diffing with whitespace collapsed); `email-contract.ts` typechecked **in isolation**, `tsc --noEmit`
+  with `strict` and `verbatimModuleSyntax`, zod 4.4.3 and `@types/react` 19.2.18 linked, **exit 0, no
+  diagnostics**, re-run after the schema change.
+  - **`pnpm run typecheck` exits 0 WITHOUT CHECKING THIS PACKAGE**, because `packages/email` has no
+    manifest and is therefore not in the workspace project list. Third time this repo has hit that
+    trap (`templates/app`, `storage`, now `email`). The isolated run above is the only real evidence.
+  - **Correction A — the contract justified its central design decision on two claims about `config`,
+    and both were false.** It said a cross-field refinement on the env fragment was rejected because
+    `config` merges with `.extend` and guards with `instanceof z.ZodObject`. Verified: `config` does
+    **not** use `.extend`, and a refined fragment **passes** `instanceof z.ZodObject` with `.shape`
+    intact. The real reason, found by reading `packages/config/src/compose-env-schema-fragments.ts:18-31`,
+    is worse and therefore decisive: `composeEnvSchemaFragments` iterates `Object.entries(fragment.shape)`
+    and returns a **brand-new `z.object(composedShape)`**, so a refinement attached to a fragment is
+    **silently discarded** — not rejected, not errored, simply never run. `EMAIL_TRANSPORT=resend`
+    with no API key would sail through as if no rule had been written. A silent no-op is worse than a
+    failure, which is what makes `resolveEmailTransportConfig` forced rather than merely preferable.
+    Second independent reason, also verified: a refinement failure arrives as `{code:'custom',path:[]}`
+    with an empty path, so it could not name the offending variable even if it did run.
+  - **Correction B — the contract proposed shipping a TLS security rule with NO GATE, on a premise
+    that was wrong.** It reasoned that gating `requireTLS` needed Mailpit to accept authentication. It
+    needs the opposite: Mailpit not **offering** STARTTLS, which it already does not, since no cert is
+    configured. Orchestrator-run against the repo's own Mailpit, **no compose change needed**:
+    `requireTLS: true` plus credentials fails with `code: 'ETLS'`, `command: 'STARTTLS'`,
+    `502 5.5.1 Command not implemented` — and the **negative control is the load-bearing half**: the
+    identical send with `requireTLS` omitted **succeeds with `250` and the password crosses in clear**.
+    So an implementation that drops the flag fails the gate.
+  - **That correction exposed a real hole rather than just a wording problem:** `ETLS` appeared nowhere
+    in the failure mapping, so a security-relevant failure was landing in the unnamed catch-all — which
+    the contract's own Decision 7 argues against. Ruled: `ETLS` → `email-transport-unreachable` (no
+    message was sent, the transport was unusable, the operator's fix is the same class as a down relay).
+    The contract-author then found the mirror case unprompted and mapped `EAUTH` →
+    `email-transport-rejected` (server reached, answered, refused the session), widening that variant's
+    wording to "the session or the message". Both confirmed. The contract now carries a complete
+    signal-to-failure mapping table, which is the right artefact — the hole was a missing mapping, not
+    a missing sentence.
+  - `transportErrorCode` became **required** on `email-transport-unreachable` (the only schema change
+    this round). Accepted: the variant is recognised _by_ the code, so the code is always in hand, and
+    without it the STARTTLS gate could only assert the outcome — an implementation that failed to
+    connect for an unrelated reason would satisfy it by accident.
+  - Seven of the contract-author's eight first-round questions confirmed as recommended: the extra
+    resolver function and its failure mode; `email-transport-unreachable` plus the `email-send-failed`
+    catch-all (same precedent as `storage-endpoint-unreachable` / `storage-request-failed`); no
+    `EMAIL_SMTP_SECURE` with `secure` derived as `port === 465`; `EMAIL_SMTP_PORT` required with no
+    default; no `re_` prefix pin on the Resend key; and no email-verification or org-invitation
+    templates, to be revisited inside the `auth` loop.
+  - **Every cross-package claim the contract made was checked rather than taken on trust, and all
+    held:** `maximumPresignedUrlExpirySeconds` is 604800, matching the contract's 10080 minutes;
+    `healthCheckNameSchema` in `observability` is byte-identical in shape to `emailTemplateNameSchema`;
+    `config` does treat an empty string as unset; and all five version pins match
+    `packages/storage/package.json` (`zod` 4.4.3, `vitest` 4.1.11, `typescript` 7.0.2,
+    `@types/node` 24.13.3).
+  - Contract shape: three public functions (`resolveEmailTransportConfig`,
+    `renderTransactionalEmail`, `sendTransactionalEmail`), two shipped templates
+    (`magic-link-sign-in`, `password-reset`), six failure variants where the plan names three, and a
+    `./email-contract` subpath mirroring `@hearthkit/ui`'s, because the `.` entry transitively imports
+    `.tsx` that bare Node refuses.
+  - **Process note: the contract-author's first run died mid-response to an API error** (the machine
+    slept). It had written nothing, so resuming it with its reading intact cost one message instead of
+    a full restart. Worth remembering — check the filesystem before assuming a dead agent left a mess.
+
+- **`email` loop opened 2026-08-29 on `pkg/email`. Mailpit is in the repo compose AND in `ci.yml` in
+  the same breath, which is the rule the `storage` loop paid for.** Orchestrator-run, cold:
+  `docker compose up -d --wait minio mailpit` — both **healthy in 6.4 s, exit 0** — and that is now
+  literally the CI step, so the gap that failed PR #10 cannot repeat here. `pnpm format:check` exit 0.
+  Mailpit needs no volume: it stores messages in a temp SQLite file (`/tmp/mailpit-*.db`) and its
+  image already declares a `/mailpit readyz` healthcheck, overridden only to cut the 15 s interval
+  and 10 s start period down to 2 s. Image `axllent/mailpit:v1.31` matches
+  `localInfraServiceImageByName` in the `cli` contract, so repo compose and generated compose agree.
+
+- **Mailpit Chaos is enabled on the repo's Mailpit (`MP_ENABLE_CHAOS: 'true'`), and it is what lets
+  the "transport rejects" failure mode be gated against a REAL server instead of a fake.** Verified
+  end to end: `GET /api/v1/chaos` → `200` with all three triggers at `Probability: 0`;
+  `PUT {"Recipient":{"ErrorCode":451,"Probability":100}}` → 200; a send then fails with
+  `responseCode=451`, `command='RCPT TO'`, `response='451 Chaos recipient error'`,
+  `rejected=['c@d.test']`; reset to 0 and the next send returns `250 2.0.0 Ok: queued as …`.
+  Inert at rest, survives a cold `compose up`. **Gates must reset all three triggers to
+  `Probability: 0` afterwards**, and should leave `Authentication`'s default `ErrorCode` at 535 —
+  the probe overwrote it to 451 by passing it explicitly, which is state left behind.
+
+- **HAZARD for the contract: `EENVELOPE` cannot distinguish an invalid recipient from a transport
+  rejection.** Both nodemailer failures carry `code: 'EENVELOPE'`. They differ only in
+  `responseCode` — `451` with `command: 'RCPT TO'` for a server rejection, **`undefined` with no
+  command** for a bad address. Worse, the bad-address case never reaches the server at all:
+  `to: 'not-an-email'` is silently dropped by nodemailer's address parser and reported as
+  `'No recipients defined'`, with Mailpit's message count still 0. That diagnostic points at the
+  wrong thing, so **the package should validate recipients with Zod before calling nodemailer** and
+  return its own named failure, rather than translating `EENVELOPE` after the fact.
+
+- **nodemailer 9.0.6 against Mailpit, orchestrator-run.** Unauthenticated send on 1025 works
+  (`secure: false`, no `auth`); `verify()` returns `true`. A success returns
+  `250 2.0.0 Ok: queued as <ID>` where **that ID is byte-identical to the Mailpit message `ID`** in
+  `GET /api/v1/messages`, so a gate can correlate directly instead of searching by subject — though
+  that is Mailpit-specific and must not leak into the contract's promises. An unreachable transport
+  throws `ESOCKET` / `errno -61` / `command 'CONN'` / `connect ECONNREFUSED 127.0.0.1:1099` — well
+  named, unlike the empty `AggregateError` the storage loop had to wrap.
+
+- **Resend CAN be gated offline against a real in-process HTTP server, so plan section 4.6's "mocked
+  HTTP layer only, since it cannot run offline" is wrong in a useful direction.** `ResendOptions`
+  publicly types `baseUrl?: string` (`index.d.mts:2691`, `constructor(key?, options?: ResendOptions)`),
+  and `RESEND_BASE_URL` works too — **no `any` cast needed**, so CLAUDE.md's no-`any` rule holds.
+  Verified against a `node:http` server: happy path POSTs `/emails` with `Authorization: Bearer <key>`,
+  `User-Agent: resend-node:6.25.0`, body keys `from,html,subject,text,to`, returning
+  `{data:{id}, error:null}`.
+  - **The SDK returns errors, it does not throw them.** A 422 gives
+    `{data:null, error:{statusCode:422, name:'validation_error', message:…}}`, and an unreachable
+    base URL gives `{data:null, error:{name:'application_error', statusCode:null, message:'Unable to
+fetch data. The request could not be resolved.'}}`. So unreachable and rejected are told apart by
+    `name`/`statusCode`, not by catching. The **constructor throws synchronously** on a missing key.
+  - Nuisance for gate output: `logError` writes to `console.error` whenever `NODE_ENV !== 'production'`.
+
+- **React Email dependency settled by USER DECISION 2026-08-29: unified `react-email@6.9.3` plus
+  `@react-email/render@2.1.0`.** `@react-email/components` and all 20 individual component packages
+  are deprecated (npm's generic message, every version, last publish 2026-04-09); `react-email` 6.9.3
+  (published 2026-08-25) is the maintainers' replacement and exports the components — 67 exports
+  including `Html`, `Body`, `Button`, `Heading`, `Text`, `Container`, `Preview`. `@react-email/render`
+  is **not** deprecated and is the part that actually renders.
+  - **The bundle-size objection was measured and is not real.** Issue resend/react-email#3556 closed
+    2026-07-10. esbuild bundle: **603136 bytes unified vs 601580 bytes components — 1.5 KB apart**.
+    `@vercel/nft`, the tracer Next standalone itself uses: **21 files / 2.0 MB either way**. The cost
+    is install weight only — 75M/101 packages vs 30M/22 — which lands in the Docker build stage.
+    Recorded because "the unified package adds ~80 MB per function" is widely repeated and is false
+    for a bundled app.
+  - `render(el)` → `Promise<string>`, a full XHTML-doctype document. `render(el, {plainText: true})`
+    → readable text with link URLs inlined (`"SIGN IN\n\nClick below.\n\nSign in https://…"`), so one
+    template yields both parts of a multipart message. Verified against the unified import, not just
+    the deprecated one.
+  - A throwing template throws a plain `Error` carrying the original message, at both element
+    construction and render time — **no distinctive shape**, so the render failure mode must be
+    produced by wrapping, not by matching an error type.
+  - Templates are `.tsx`, so bare Node cannot import them (it does not strip JSX). Vitest and Next
+    both transform, so gates and consumers are fine — but this is the same publish-time-build
+    constraint already recorded for `ui`, and it applies to `email` in Phase 6.
 
 - **BOTH PHASE 5 BRANCHES MERGED 2026-08-29.** `f387155` (PR #10, `@hearthkit/storage`) then
   `96b5271` (PR #11, `cli` local storage bucket), both squash-merged, both branches deleted, working
@@ -82,6 +384,10 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   - The Docker gates remap only the _published_ host ports, because the repo's own `hearthkit-minio`
     holds 9000/9001, and `remapGeneratedMinioHostPorts` throws a named error if the generated file
     ever stops publishing `9000:9000` — so the remap cannot silently no-op and test nothing.
+    **CORRECTED 2026-08-30 during the `email` loop: that last clause was FALSE as written.** The
+    guard used `String.includes`, which also matches inside `19000:9000`, so a generated file
+    publishing a different host port passed it and was silently rewritten into a nonsense port. Now
+    anchored with digit lookarounds. See the latent-defect entry near the top of this section.
   - Round 2 existed because the comment emitted into **every generated project's** compose file did
     not parse ("calls a service that has exited a failed startup"). That comment is the only thing
     standing between a future reader and deleting the `tail`, so garbled text there is a real defect,

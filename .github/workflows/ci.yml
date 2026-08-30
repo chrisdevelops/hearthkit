@@ -50,9 +50,13 @@ jobs:
       # `docker run` anyway, because the image tag, credentials, ports and healthcheck
       # then have exactly one definition shared by CI and local gates. `--wait` blocks
       # until the compose healthcheck reports healthy, so the storage gates never race it.
-      - name: Start MinIO for the storage gates
-        run: docker compose up -d --wait minio
+      #
+      # Mailpit joins it here for the email gates. Unlike MinIO it could have been a service
+      # container, but it needs MP_ENABLE_CHAOS and a tightened healthcheck, and compose is
+      # already the one place both are written down. Cold start for both: about 6 seconds.
+      - name: Start MinIO and Mailpit for the storage and email gates
+        run: docker compose up -d --wait minio mailpit
       - run: pnpm --recursive --if-present run test
-      - name: Stop MinIO
+      - name: Stop compose services
         if: always()
         run: docker compose down -v
