@@ -9,8 +9,9 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 - Package: `email` (depends on `config`, merged in Phase 1)
 - Step: commit
 - Branch: `pkg/email`, cut from `main` at 6a60c80
-- Last commit: 96b5271 squash-merge of PR #11 (`cli` local storage bucket), on top of `f387155`
-  squash-merge of PR #10 (`@hearthkit/storage`)
+- Last commit: 3411332 on `pkg/email` (PR #12, CI green, awaiting merge), on top of 96b5271
+  squash-merge of PR #11 (`cli` local storage bucket) and `f387155` squash-merge of PR #10
+  (`@hearthkit/storage`)
 
 ## Phase checklist
 
@@ -44,6 +45,14 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   rather than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **CI GREEN on PR #12 (run 33300843861), and the proof that matters is that the new gates RAN on the
+  runner rather than being skipped: `packages/email test: Test Files 5 passed (5), Tests 25 passed
+(25)`**, against a real Mailpit started from the repo's compose file. `packages/cli test: 39 passed
+(39)` on the same run is the other load-bearing line — that is where the port-collision regression
+  would have surfaced, so it confirms the remap works on a runner and not just locally.
+  `packages/storage test: 21 passed (21)`, unregressed. Commit `3411332`, branch `pkg/email`, not yet
+  merged.
 
 - **`email` IMPLEMENTED AND GREEN IN ONE IMPLEMENTOR ROUND, 2026-08-30.** Orchestrator-run, not taken
   from the subagent: `pnpm --filter @hearthkit/email test` **5 files, 25/25 passed**, exit 0;
