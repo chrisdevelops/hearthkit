@@ -1,6 +1,6 @@
 # Local infrastructure for package gates (CLAUDE.md: gates run against real services).
-# Services appear here only when a package needs them: Postgres 17 (db), MinIO (storage);
-# Mailpit arrives with email later in Phase 5.
+# Services appear here only when a package needs them: Postgres 17 (db), MinIO (storage),
+# Mailpit (email).
 #
 # Image tags and credentials must match packages/cli/src/cli-contract.ts
 # (localInfraServiceImageByName) so this file and a generated project's compose agree.
@@ -38,6 +38,29 @@ services:
       test: ['CMD-SHELL', 'mc ready local || exit 1']
       interval: 5s
       timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: 'axllent/mailpit:v1.31'
+    container_name: hearthkit-mailpit
+    environment:
+      # Chaos is failure injection built into Mailpit. It lets the email gates make a REAL
+      # SMTP server reject a real message, instead of asserting against a fake server that
+      # only proves the fake works. It is inert until a gate sets a trigger probability
+      # above zero through /api/v1/chaos, and every gate resets it afterwards.
+      # Gates-only: the compose file `hearthkit dev` generates for a project does not set it.
+      MP_ENABLE_CHAOS: 'true'
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    # The image already declares this healthcheck, but with a 15s interval and a 10s start
+    # period, which makes `docker compose up -d --wait mailpit` slow in CI for no reason.
+    # No volume on purpose: Mailpit stores messages in a throwaway SQLite file under /tmp,
+    # and gates want an empty inbox on every start rather than yesterday's mail.
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 2s
+      timeout: 2s
       retries: 20
 
 volumes:

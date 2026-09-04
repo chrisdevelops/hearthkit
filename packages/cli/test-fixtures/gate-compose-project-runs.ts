@@ -58,8 +58,9 @@ export async function removeGateComposeProject(composeFilePath: string): Promise
 
 /**
  * A host port nothing is listening on right now, taken by binding port 0 and releasing it. Fixed
- * ports cannot be used here: the repo's own MinIO holds 9000 and 9001, and two gate runs at once
- * would collide on any other guess.
+ * ports cannot be used here: the repo's own compose holds every host port the generated file
+ * publishes — 9000 and 9001 for MinIO, 1025 and 8025 for Mailpit — and two gate runs at once would
+ * collide on any other guess.
  */
 export async function reserveFreeHostPort(): Promise<number> {
   return new Promise<number>((resolve, reject) => {
@@ -69,7 +70,7 @@ export async function reserveFreeHostPort(): Promise<number> {
       const address = probeServer.address()
       if (address === null || typeof address === 'string') {
         probeServer.close(() =>
-          reject(new Error('gate could not reserve a free host port for a MinIO gate stack')),
+          reject(new Error('gate could not reserve a free host port for a compose gate stack')),
         )
         return
       }
@@ -91,19 +92,57 @@ export function remapGeneratedMinioHostPorts(options: {
   consoleHostPort: number
 }): string {
   const portRemappings = [
-    { containerPort: 9000, hostPort: options.s3HostPort },
-    { containerPort: 9001, hostPort: options.consoleHostPort },
+    // The digit guards are not decoration. A bare '9000:9000' search also matches inside
+    // '19000:9000', so a generated file that published a different host port would pass the check
+    // and be rewritten into the nonsense '1<port>:9000' instead of throwing.
+    { publishedPortPattern: /(?<!\d)9000:9000(?!\d)/, port: 9000, hostPort: options.s3HostPort },
+    {
+      publishedPortPattern: /(?<!\d)9001:9001(?!\d)/,
+      port: 9001,
+      hostPort: options.consoleHostPort,
+    },
   ] as const
 
   let remapped = options.composeFileContent
-  for (const { containerPort, hostPort } of portRemappings) {
-    const generatedPublishedPort = `${containerPort}:${containerPort}`
-    if (!remapped.includes(generatedPublishedPort)) {
+  for (const { publishedPortPattern, port, hostPort } of portRemappings) {
+    if (!publishedPortPattern.test(remapped)) {
       throw new Error(
-        `gate expected the generated compose file to publish minio port ${generatedPublishedPort} before remapping it onto a free host port`,
+        `gate expected the generated compose file to publish minio port ${port}:${port} before remapping it onto a free host port`,
       )
     }
-    remapped = remapped.replace(generatedPublishedPort, `${hostPort}:${containerPort}`)
+    remapped = remapped.replace(publishedPortPattern, `${hostPort}:${port}`)
+  }
+  return remapped
+}
+
+/**
+ * Moves the generated mailpit host ports onto ports this gate reserved, leaving every other byte of
+ * the generated file exactly as emitted. The contract fixes the published ports at 1025 and 8025,
+ * which the repo's own Mailpit already holds, so this is the only edit a gate makes to the file it
+ * is testing; the 1025 and 8025 mailpit itself listens on inside the compose network are untouched,
+ * which is what a generated project's own services address as mailpit:1025.
+ */
+export function remapGeneratedMailpitHostPorts(options: {
+  composeFileContent: string
+  smtpHostPort: number
+  webHostPort: number
+}): string {
+  const portRemappings = [
+    // The digit guards are not decoration. A bare '8025:8025' search also matches inside
+    // '18025:8025', so a generated file that published a different host port would pass the check
+    // and be rewritten into the nonsense '1<port>:8025' instead of throwing.
+    { publishedPortPattern: /(?<!\d)1025:1025(?!\d)/, port: 1025, hostPort: options.smtpHostPort },
+    { publishedPortPattern: /(?<!\d)8025:8025(?!\d)/, port: 8025, hostPort: options.webHostPort },
+  ] as const
+
+  let remapped = options.composeFileContent
+  for (const { publishedPortPattern, port, hostPort } of portRemappings) {
+    if (!publishedPortPattern.test(remapped)) {
+      throw new Error(
+        `gate expected the generated compose file to publish mailpit port ${port}:${port} before remapping it onto a free host port`,
+      )
+    }
+    remapped = remapped.replace(publishedPortPattern, `${hostPort}:${port}`)
   }
   return remapped
 }

@@ -14,6 +14,10 @@ import {
   removeGateContainer,
 } from '../test-fixtures/docker-gate-containers.ts'
 import {
+  remapGeneratedMailpitHostPorts,
+  reserveFreeHostPort,
+} from '../test-fixtures/gate-compose-project-runs.ts'
+import {
   createEmptyPathDirectory,
   createGateDirectory,
   existingComposeFileContent,
@@ -27,6 +31,7 @@ import {
   writeGateComposeFile,
   writeGateProjectManifest,
 } from '../test-fixtures/gate-project-directories.ts'
+import { loadHearthkitCliEntry } from '../test-fixtures/hearthkit-cli-entry.ts'
 import {
   cliComposeFileUnwritableErrorPrefix,
   cliDevInfraDownCompleteLinePrefix,
@@ -35,6 +40,7 @@ import {
   cliInfraComposeFailedErrorPrefix,
   cliNextDevUnavailableErrorPrefix,
   cliProjectManifestMissingErrorPrefix,
+  generateLocalInfraComposeOptionsSchema,
   localInfraServiceImageByName,
 } from './cli-contract.ts'
 
@@ -66,6 +72,44 @@ function gateComposeProjectName(purpose: string): string {
   return hearthkitProjectName
 }
 
+/**
+ * One compose file with only its published mailpit host ports moved onto ports this run reserved.
+ * Nothing else in the file changes: mailpit still listens on 1025 and 8025 inside the compose
+ * network, so anything addressing it as mailpit:1025 is unaffected, and only the host side moves.
+ */
+async function remapMailpitHostPortsOntoFreePorts(composeFileContent: string): Promise<string> {
+  const [smtpHostPort, webHostPort] = await Promise.all([
+    reserveFreeHostPort(),
+    reserveFreeHostPort(),
+  ])
+  if (smtpHostPort === webHostPort) {
+    throw new Error('gate reserved the same host port twice for one Mailpit stack')
+  }
+  return remapGeneratedMailpitHostPorts({ composeFileContent, smtpHostPort, webHostPort })
+}
+
+/**
+ * Writes the real generated mailpit compose file into a gate's project directory, published on
+ * reserved ports. dev infra up never overwrites a compose file it finds, so these are exactly the
+ * bytes it starts. Gates that claim the CLI writes this file generate it with the CLI instead.
+ */
+async function writeRemappedMailpitComposeFile(options: {
+  directoryPath: string
+  hearthkitProjectName: string
+}): Promise<string> {
+  const { generateLocalInfraCompose } = await loadHearthkitCliEntry()
+  const generatedComposeFileContent = generateLocalInfraCompose(
+    generateLocalInfraComposeOptionsSchema.parse({
+      hearthkitProjectName: options.hearthkitProjectName,
+      infraServices: ['mailpit'],
+    }),
+  )
+  return writeGateComposeFile(
+    options.directoryPath,
+    await remapMailpitHostPortsOntoFreePorts(generatedComposeFileContent),
+  )
+}
+
 afterAll(async () => {
   for (const containerName of containersToRemove) {
     await removeGateContainer(containerName)
@@ -79,8 +123,12 @@ afterAll(async () => {
   }
 })
 
-// Every gate here uses mailpit rather than postgres: the generated compose publishes fixed host
-// ports, and the repo-root compose already holds 5432.
+// Every gate here uses mailpit rather than postgres, and every gate that needs a started service
+// publishes it on a host port this run reserved. The generated compose file publishes fixed host
+// ports for all three services, and the repo-root compose holds every one of them: 5432 for
+// postgres, 9000 and 9001 for minio, and 1025 and 8025 for mailpit since the email package's gates
+// arrived. Only the published host ports move; the ports the services listen on inside the compose
+// network are the generated ones, so mailpit:1025 keeps meaning what it means in a real project.
 describe('hearthkit dev and dev infra', () => {
   it('generates docker-compose.yml from the manifest and starts the services it names', async () => {
     const directoryPath = await gateProjectDirectory('infra-up')
@@ -91,8 +139,44 @@ describe('hearthkit dev and dev infra', () => {
       hearthkitDependencies: ['@hearthkit/email'],
     })
     const containerName = gateContainerName(`${hearthkitProjectName}-mailpit`)
+    const composeFilePath = join(directoryPath, 'docker-compose.yml')
+    const { generateLocalInfraCompose } = await loadHearthkitCliEntry()
 
     try {
+      // The generating half. This run writes docker-compose.yml from the manifest and then asks
+      // compose to start it on the generated host ports 1025 and 8025, which the repo's own Mailpit
+      // holds — so whether compose can bind them depends on what else is running, and the exit code
+      // is not this gate's claim. The bytes the CLI wrote do not depend on that, and they are
+      // asserted in full below; a run that failed any earlier would leave no file to read.
+      const generatingRun = await runHearthkitCliGate({
+        argv: ['dev', 'infra', 'up'],
+        cwd: directoryPath,
+        env: gateEnvironment(),
+      })
+      expect(['dev-infra-up-succeeded', 'infra-compose-failed']).toContain(
+        generatingRun.outcome.result.kind,
+      )
+
+      const composeFileContent = await readFile(composeFilePath, 'utf8')
+      expect(composeFileContent).toContain(localInfraServiceImageByName.mailpit)
+      expect(composeFileContent).not.toContain(localInfraServiceImageByName.postgres)
+      // Byte for byte what the public generator emits for the one service @hearthkit/email selects,
+      // under the project name the scoped manifest name @gate/<name> derives to.
+      expect(composeFileContent).toBe(
+        generateLocalInfraCompose(
+          generateLocalInfraComposeOptionsSchema.parse({
+            hearthkitProjectName,
+            infraServices: ['mailpit'],
+          }),
+        ),
+      )
+
+      // The starting half. dev infra up never overwrites a compose file it finds, so the second run
+      // starts exactly the file the first run generated, with only its published ports moved.
+      await writeGateComposeFile(
+        directoryPath,
+        await remapMailpitHostPortsOntoFreePorts(composeFileContent),
+      )
       const run = await runHearthkitCliGate({
         argv: ['dev', 'infra', 'up'],
         cwd: directoryPath,
@@ -101,9 +185,6 @@ describe('hearthkit dev and dev infra', () => {
 
       const success = expectCliSuccess(run, 'dev-infra-up-succeeded', 0)
       expect(success.startedInfraServices).toEqual(['mailpit'])
-      const composeFileContent = await readFile(join(directoryPath, 'docker-compose.yml'), 'utf8')
-      expect(composeFileContent).toContain(localInfraServiceImageByName.mailpit)
-      expect(composeFileContent).not.toContain(localInfraServiceImageByName.postgres)
       expect(await gateContainerIsRunning(containerName)).toBe(true)
       const line = singleStandardOutputLine(run)
       expect(line.startsWith(cliDevInfraUpCompleteLinePrefix)).toBe(true)
@@ -151,6 +232,9 @@ describe('hearthkit dev and dev infra', () => {
       manifestName: hearthkitProjectName,
       hearthkitDependencies: ['@hearthkit/email'],
     })
+    // The generated file with only its published mailpit ports moved: what dev infra up starts here
+    // is the real generated service, and what dev infra down has to remove.
+    await writeRemappedMailpitComposeFile({ directoryPath, hearthkitProjectName })
     const containerName = gateContainerName(`${hearthkitProjectName}-mailpit`)
 
     try {
@@ -200,6 +284,9 @@ describe('hearthkit dev and dev infra', () => {
       manifestName: hearthkitProjectName,
       hearthkitDependencies: ['@hearthkit/email'],
     })
+    // The generated file with only its published mailpit ports moved, so dev brings up the real
+    // generated service before it reaches the next binary.
+    await writeRemappedMailpitComposeFile({ directoryPath, hearthkitProjectName })
     // A stand-in binary, not a mock of hearthkit code: it proves the exec happened and the exit code
     // travelled back without installing Next.js into a gate fixture.
     const { markerFilePath } = await writeFakeNextBinary({ directoryPath, exitCode: 7 })
