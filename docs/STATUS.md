@@ -7,9 +7,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` and `email` done and
   merged. **`auth` in flight.** Phase 4 complete.
 - Package: `auth` (depends on `config` and `db`, merged in Phase 1, and `email`, merged in Phase 5)
-- Step: contract
+- Step: commit
 - Branch: `pkg/auth`, cut from `main` at 6a8dbb5
-- Last commit: 6a8dbb5 on `main`, the squash-merge of PR #12 (`@hearthkit/email`), on top of
+- Last commit: 59949e0 on `pkg/auth` (PR #13, CI green, awaiting merge), on top of 6a8dbb5, the squash-merge of PR #12
+  (`@hearthkit/email`), itself on top of
   96b5271 squash-merge of PR #11 (`cli` local storage bucket) and `f387155` squash-merge of PR #10
   (`@hearthkit/storage`)
 
@@ -33,9 +34,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                |
-| ------- | ------ | ------------------ | ---------------------------------------------------- |
-| `auth`  | verify | 2                  | 40/40 pass; round 2 was one missing doc comment only |
+| Package | Step   | Implementor rounds | Notes                                                   |
+| ------- | ------ | ------------------ | ------------------------------------------------------- |
+| `auth`  | commit | 2                  | PR #13 open, CI GREEN (run 33835915997), awaiting merge |
 
 ## Open issues
 
@@ -45,6 +46,22 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   rather than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **CI GREEN ON PR #13 (run 33835915997), and the proof that matters is that the new gates RAN on the
+  runner rather than being skipped: `packages/auth test: Test Files 12 passed (12), Tests 40 passed
+(40)`.** All nine projects green in the same run — config 12, ui 27, observability 14, storage 21,
+  db 24, email 25, app-template 27, **auth 40**, cli 39 = **229 tests, zero failed, zero skipped** —
+  and `packages/auth typecheck: Done` on the runner too.
+  - **`packages/email test: 25 passed (25)` in the SAME CI run as auth's 40 is the load-bearing line.**
+    It proves the own-Mailpit-container decision holds on a runner and not merely on this machine,
+    which is the half that local runs cannot establish. `packages/cli test: 39 passed (39)` confirms no
+    port regression from the container the auth suite starts.
+  - The auth gates start a Docker container on the runner successfully with **no change to `ci.yml`**,
+    which was the design goal: self-sufficient on any runner that has Docker.
+  - **Reading the CI log needs ANSI stripped first.** `gh run view --log` embeds escape sequences
+    _between_ `Tests` and the count, so a plain `rg "Tests +[0-9]+ passed"` matches nothing and looks
+    exactly like a suite that never ran. Pipe through `perl -pe 's/\e\[[0-9;]*m//g'` first. Recorded
+    because the false negative is indistinguishable from the real failure it would be reporting.
 
 - **`auth` IMPLEMENTED AND GREEN IN ONE IMPLEMENTOR ROUND, 2026-09-03.** Orchestrator-run, not taken
   from the subagent: `pnpm --filter @hearthkit/auth test` **12 files, 40/40 passed**, exit 0;
