@@ -165,11 +165,16 @@ This is the same reasoning `email`'s STARTTLS gate and `storage`'s presign gates
 negative control is what stops the positive assertion being satisfiable by an unrelated mistake.
 
 The failure arrives as the client's ordinary `{ data: null, error }` arm rather than as a thrown
-value, because that is how every browser client call reports a non-2xx — **that last step is
-documented behaviour rather than a measurement**, since both statuses were produced by handing a POST
-to `authServerInstance.handler(request)` directly, and it is on Still not verified with what each gate
-shape buys. **Both bodies are empty**, so the status is the whole of what a gate can match on and
-there is nothing further to assert. The two
+value, because that is how every browser client call reports a non-2xx — and **that last step is now
+measured through the real client, not taken from the documentation**. The gate points one client,
+built with `organizationsEnabled: false`, at a loopback listener carrying each server instance in
+turn, and reads `{ data: null, error: { status: 404 } }` from the flag-off server and
+`{ status: 401 }` from the flag-on control, with the listener recording
+`POST /api/auth/organization/create` both times. **Both bodies are empty**, so the status is the
+whole of what a gate can match on and there is nothing further to assert. **`statusText` is not one
+of the things to assert**: the same 401 reads `UNAUTHORIZED` handed straight to a fetch stub and
+`Unauthorized` once Node's HTTP server has written it out, so it varies with how the response was
+delivered rather than with what happened. The two
 statuses are exported as `organizationRouteAbsentHttpStatus` and
 `organizationRouteUnauthorizedHttpStatus`, so a gate names them instead of writing two bare numbers
 whose relationship to each other is invisible. What stays ungated is the positive arm —
@@ -470,20 +475,33 @@ Recorded so a future reader does not assume coverage exists. Everything else in 
 - Runtime libraries (implementor adds, exact pins): `better-auth@1.7.2`, `@better-auth/drizzle-adapter@1.7.2`, `drizzle-orm@0.45.2`, `zod@4.4.3`. `react` and `react-dom` are **peer** dependencies, matching `@hearthkit/ui` and `@hearthkit/email`. `next` is an **optional peer** dependency, matching how `better-auth` itself declares it, because only the route handler and `nextCookies` touch it.
 - Dev dependencies (implementor adds, exact pins to match the rest of the workspace): `@types/node@24.13.3`, `typescript@7.0.2`, `vitest@4.1.11`, `react@19.2.8`, `react-dom@19.2.8`, `@types/react@19.2.18`, `pg@8.23.0`, `@types/pg@8.23.1`, `next@16.3.3`, `@hearthkit/config` (workspace).
 - **`@types/pg@8.23.1` is there to pin a resolution, not for type convenience, and pruning it as an
-  unused `@types` package breaks the build.** `drizzle-orm` declares `pg` **and** `@types/pg` as
-  optional peer dependencies, and pnpm writes the resolved peer set into the resolution key. The
-  workspace lock holds exactly one `drizzle-orm@0.45.2` entry —
-  `drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)` — because
-  `@hearthkit/db` declares both halves. Declare `pg` here **without** `@types/pg` and this package
-  resolves a **different peer suffix**, pnpm materialises a **second physical copy** of the same
-  version, and `@hearthkit/db`'s client stops being assignable to this package's `drizzleClient`
-  parameter. That is not a soft mismatch a cast can paper over: `PgSession.dialect` is `protected`,
+  unused `@types` package breaks the build.** `drizzle-orm` declares `pg` **and** `@types/pg` among
+  its optional peer dependencies, and pnpm writes the resolved peer set into the resolution key, so
+  two packages share one physical `drizzle-orm` only if they declare the same halves of that pair.
+  `@hearthkit/db` declares both, which is why this package declares both. Declare `pg` here
+  **without** `@types/pg` and this package resolves a **different peer set**, pnpm materialises a
+  **second physical copy** of the same version, and `@hearthkit/db`'s client stops being assignable
+  to this package's `drizzleClient` parameter. That is not a soft mismatch a cast can paper over:
+  `PgSession.dialect` is `protected`,
   so two copies of one class declaration are nominally incompatible and TypeScript refuses the
   assignment outright, with
   `TS2322 … Property 'dialect' is protected but type 'PgSession<…>' is not a class derived from 'PgSession<…>'`.
   The symptom reads like a Drizzle bug; the cause is a missing `@types` package. That is why the
   reason is written here and not left to the manifest — an `@types` entry with no `import` to justify
   it is exactly what a later reader deletes.
+- **Check that by resolving the two paths, never by comparing a peer-suffix string.** The check that
+  means something is that `packages/auth/node_modules/drizzle-orm` and
+  `packages/db/node_modules/drizzle-orm` resolve to the **same real path** — verified after this
+  package was installed, and they do — with `pnpm-lock.yaml` holding exactly one peer-suffixed
+  `drizzle-orm@0.45.2` snapshot as the supporting evidence. **An exact suffix is not a fact a
+  contract can hold, and this one held a suffix that went stale inside a single loop.** It read
+  `…(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)`; installing this package added
+  `kysely@0.29.5` to the set, because `better-auth` brings `kysely` and `drizzle-orm` lists it as an
+  optional peer, so today the key reads `…(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)`. That string
+  is quoted only as an example that will drift again — `@hearthkit/payments` is the next package into
+  this workspace, and anything it brings that `drizzle-orm` lists as an optional peer changes the key
+  a third time. **A reader who finds a suffix here that no longer matches the lock has found a stale
+  sentence, not a split copy.** Resolve the two paths and compare those.
 - **`next@16.3.3` is load-bearing for the gates, not a convenience.** It is the same version
   `templates/app` pins. Without it installed in this package, `nextCookies()` rethrows the module
   resolution error out of its `after` hook and every call that sets a cookie fails — measured, and
@@ -509,12 +527,12 @@ Recorded so a future reader does not assume coverage exists. Everything else in 
     `authServerInstance.handler` behind a listener, as What the organizations flag does and does not
     change on the browser client explains. **A stub only works if it is installed before the client is
     constructed**, because `createAuthClient` captures `fetch` at construction time; the listener has
-    no such ordering hazard. **Two questions about that gate are still not measured**,
-    and both have the same answer if either goes the wrong way. Whether the 404 half needs a reachable
-    database depends on whether a request for a route the server does not have is answered before the
-    adapter is touched. Whether the 401 half needs one depends on whether session resolution queries
-    the database for a request that carries no session cookie at all. If either does, use the scratch
-    project database the other gates already create rather than inventing a second fixture.
+    no such ordering hazard. **And no database — that was an open question in this list and it is now
+    measured.** Both halves run against server instances built over a Drizzle client aimed at a
+    **closed port**, and both still answer their pinned status, so a route the server does not have is
+    answered, and a request carrying no session cookie is rejected, before the adapter is ever
+    touched. The closed port is deliberate rather than incidental: a gate that started needing a
+    database fails there loudly instead of passing quietly against a fixture it should not need.
 - No new service is introduced, so the trap that failed PR #10 — a compose service `ci.yml` was never taught about — has nothing to bite on here.
 
 ## Out of scope
@@ -748,8 +766,13 @@ re-checked against this repo's own files by this agent; the third and fourth are
 command output, recorded with that provenance rather than restated as first-hand.
 
 - **The workspace has exactly one peer-suffixed `drizzle-orm` resolution.** `pnpm-lock.yaml` holds
-  `drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)` and no other
-  `drizzle-orm@0.45.2` entry. Read directly in the lock file.
+  one `drizzle-orm@0.45.2` snapshot and no second one. Read directly in the lock file, and still one
+  entry when the lock was re-read on 2026-09-04 after this package was installed — but **the suffix
+  on it has changed since this round measured it**, from
+  `(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)` to
+  `(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)`, because `better-auth`
+  brings `kysely`. The count is the durable half of this measurement and the suffix is not; see
+  Dependencies.
 - **`@hearthkit/db` declares both halves of the peer pair.** `packages/db/package.json` has
   `pg@8.23.0` under `dependencies` and `@types/pg@8.23.1` under `devDependencies`. Read directly in
   the manifest. Together with the bullet above, this is why the dev list for this package must name
@@ -766,47 +789,58 @@ command output, recorded with that provenance rather than restated as first-hand
 
 ### Still not verified
 
-- **This package still has no manifest**, so `pnpm --filter @hearthkit/auth typecheck` would report
-  no matching project and its exit 0 would be evidence of nothing — the same trap this repo has hit
-  four times. Unchecked: that `auth-contract.ts` typechecks with `strict` and
-  `verbatimModuleSyntax`, and that `@hearthkit/email/email-contract` resolves for a type-only import
-  under this package's `tsconfig.json`.
-- **Prettier is no longer on this list for the file as it stood**: the orchestrator ran
-  `prettier --write` on `CONTRACT.md` and `pnpm run format:check` exits 0. The tables and prose added
-  since were padded and wrapped by hand against that same rule, so run `pnpm run format` once before
-  committing rather than assuming. Both tables touched in round three — the signal mapping table and
-  the guard table above — had every row width checked by regex against what Prettier's padding
-  produces, which is evidence but not the same evidence as running it. The one table added in round
-  five was copied cell for cell from the already-formatted table in `docs/STATUS.md` and de-indented;
-  the cell contents are identical and Prettier's padding depends on cell content alone, so its widths
-  carry over. Comment blocks in `auth-contract.ts` are a different matter: Prettier does not reflow
-  comments at all, so the hand-wrapping there is house style rather than something a check enforces.
-  **Round six added prose and one short `const`, and no table.** `proseWrap` is `preserve`, so the
-  prose is not reflowed; the added statement is 63 characters, well inside `printWidth: 100`. Neither
-  is the same evidence as running the check, so the instruction stands unchanged: run
-  `pnpm run format` once before committing.
+Four items sat here through the contract rounds and are now closed by the implementation and its
+gates. They are closed **in place**, with the evidence attached, rather than deleted: this is the
+section a reader checks to see what is **not** covered, and an item that silently vanishes reads the
+same as one that was never raised.
 
-- **The corrected `authBrowserClientSchema` has not itself been re-run against a real client.** That
-  it now passes follows from the measurement `typeof authBrowserClient === 'function'`, which is a
-  deduction from evidence rather than the evidence itself. The gate that parses a real client with it
-  settles this.
-- **The 404 and the 401 were measured at the handler, not through the browser client.** Both came
-  from handing a POST to `authServerInstance.handler(request)` directly. That the browser client,
-  routed to that same handler, surfaces those statuses on its `{ data: null, error }` arm rather than
-  throwing is Better Auth's documented client behaviour and is **not** itself measured here. That
-  changes what each gate shape buys: a gate posting to the handler directly asserts the pinned pair
-  and leaves this open, while a gate driving the real client through the handler asserts the pair and
-  settles it as well.
+- **Closed: the manifest, and with it the typecheck.** `packages/auth/package.json` exists, and
+  `packages/auth typecheck: Done` appears explicitly in the project list — locally and on CI run
+  33835915997, **checked by grep rather than inferred from exit 0**. So `auth-contract.ts` really is
+  checked with `strict`, `verbatimModuleSyntax`, `noUncheckedIndexedAccess`, `erasableSyntaxOnly` and
+  `isolatedModules` from `tsconfig.base.json`, and its type-only `@hearthkit/email/email-contract`
+  import really does resolve under this package's own `tsconfig.json`. The isolated-typecheck harness
+  that stood in for this while there was no manifest is no longer needed here. **The trap it guarded
+  against is still live and has caught this repo six times**: `pnpm --filter` against a package with
+  no manifest reports no matching project and exits 0, so the green is evidence of nothing. It is
+  closed **for this package** by the manifest; the next package into this workspace has to close it
+  again.
+- **Closed: Prettier.** `pnpm run format:check` exits 0 across the repo with this file and
+  `auth-contract.ts` exactly as committed, orchestrator-run — every hand-padded table and hand-wrapped
+  line held, so the instruction that used to stand here, to run `pnpm run format` once before
+  committing rather than assuming, has been replaced by the run itself. **What the check still does
+  not cover is the comment blocks in `auth-contract.ts`**: Prettier does not reflow comment interiors
+  at all, so the wrapping there is house style a reader maintains by hand, and `format:check` passing
+  says nothing about it. That holds for every later edit too — the check is the evidence, and
+  reasoning about `proseWrap` and column counts is not the same evidence.
+- **Closed: `authBrowserClientSchema` parsed against a real client.** It used to be a deduction from
+  `typeof authBrowserClient === 'function'` rather than the evidence itself. A gate now parses a real
+  client with it, in all four combinations of the flag and the optional `baseUrl` —
+  `create-auth-browser-client.test.ts`, "returns a client `authBrowserClientSchema` accepts, in both
+  modes and with or without a baseUrl".
+- **Closed: the 404 and the 401 through the browser client, not only at the handler.** The same gate
+  file drives the **real** browser client over a loopback listener carrying a server instance, and
+  reads `{ data: null, error: { status: 404 } }` from the flag-off server and `{ status: 401 }` from
+  the flag-on control, with the listener recording `POST /api/auth/organization/create` both times.
+  That the client surfaces both on its `{ data, error }` arm rather than throwing was the one part
+  previously taken from documentation rather than measured; it is measured now.
 
-Resolved and struck from this list: whether the thrown 302 `Error` carries the redirect `location` —
-it does, at `error.headers.get('location')`; and what the organizations flag's effect at the network
-boundary actually is — 404 from the flag-off instance against 401 from the flag-on one, both with
-empty bodies. Both are measured above, and all that survives of the second is the narrower bullet
-immediately before this paragraph.
+What is still not covered are the three clauses under Clauses no gate covers — `nextCookies()`'s
+effect, which needs a running Next app rather than Vitest; the Google and GitHub sign-in redirect,
+which needs a real client ID at a real provider; and `sendResetPassword`, which is wired but reachable
+only through the route handler, for which this package exposes no wrapper. Add to those the positive
+arm of the organization route: `organization.create` actually creating an organization through the
+route handler is session-scoped by construction, which is why the server-side provisioning pair
+exists.
+
+Resolved earlier and struck from this list: whether the thrown 302 `Error` carries the redirect
+`location` — it does, at `error.headers.get('location')`; and what the organizations flag's effect at
+the network boundary actually is — 404 from the flag-off instance against 401 from the flag-on one,
+both with empty bodies. Both are measured above.
 
 ## Rulings and corrections
 
-Five rounds. Every question raised in any of them has been ruled on and folded into the body above.
+Seven rounds. Every question raised in any of them has been ruled on and folded into the body above.
 The corrections are recorded here rather than silently absorbed, because in each case a future reader
 should see what was wrong and not only the conclusion.
 
@@ -983,5 +1017,27 @@ three are documentation of facts that already held, which is why none of them re
    being spent. The rule it restores is worth more than the export costs: **every HTTP status this
    contract pins has a name**, so a number in a gate is always traceable to the measurement that
    produced it.
+
+**Round seven — the contract reconciled against a green implementation, 2026-09-04. Documentation
+only: no schema, no signature and no failure mode changed, so nothing already verified was
+invalidated.** The package is implemented, with 40 of 40 gates passing and CI green on run 33835915997. That turned four Still not verified items into measurements, answered one open question
+in the services list, and made one Dependencies fact stale.
+
+1. **Four items closed on Still not verified, in place rather than deleted.** The manifest and the
+   typecheck it makes real; Prettier; `authBrowserClientSchema` parsed against a real client; and the
+   404/401 pair observed through the real browser client rather than at the handler. Each carries the
+   evidence that closed it, because a section that only ever loses lines stops being readable as a
+   map of what is not covered — and what genuinely remains uncovered is now stated there too.
+2. **The exact drizzle peer suffix is no longer named as the check.** Installing this package added
+   `kysely@0.29.5` to the resolved peer set — `better-auth` brings it and `drizzle-orm` lists it as an
+   optional peer — so the literal string this contract pinned went stale inside one loop. Swapping in
+   the new string was **rejected**: `@hearthkit/payments` is next into this workspace and may change
+   it again. The durable statements are that `@types/pg` must be declared here, and that the check is
+   `packages/auth/node_modules/drizzle-orm` and `packages/db/node_modules/drizzle-orm` resolving to
+   the same real path, which they do. The suffix is quoted only as an example that will drift.
+3. **The browser-client gate needs no database, which was an open question in the services list.**
+   Both halves run against instances built over a Drizzle client aimed at a closed port and still
+   answer their pinned statuses, so route resolution and the no-session rejection both happen before
+   the adapter is touched.
 
 No question is open. Nothing in this contract is waiting on an answer.

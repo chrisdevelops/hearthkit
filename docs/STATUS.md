@@ -47,6 +47,58 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- **POST-AUTH AUDIT FOUND A REAL GAP OF THE SAME CLASS AS THE STORAGE-BUCKET ONE: a project depending
+  on `@hearthkit/auth` gets ZERO local infra services.** Found by auditing for unfinished work after
+  PR #13 went green, not by a failing test. `localInfraServiceByHearthkitPackage` in the `cli`
+  contract mapped `db`→postgres, `storage`→minio, `email`→mailpit and **had no `auth` entry**, while
+  `readInfraServicesFromDependencies` reads the project's **direct** dependencies only and never walks
+  transitive ones (`read-project-infra-manifest.ts:83-95`). So `hearthkit dev infra up` starts nothing
+  for such a project, succeeds with an empty service list, and auth then fails at runtime with a
+  connection error that points nowhere near the manifest.
+  - **The plan is incomplete here, not just the code.** `docs/PLAN.md` section 6's table has three
+    rows and **no `auth` row**. Its implicit model is that leaf packages pull services and that Phase
+    6's `create` does "dependency resolution", which would add `db` and `email` to a project selecting
+    `auth`. That may be the intent, but nothing enforces it today. **Raised with the user; `PLAN.md`
+    deliberately not edited by the orchestrator.**
+  - Fixed by making the map **one-to-many** and renaming it to `localInfraServicesByHearthkitPackage`:
+    `auth` → `['postgres', 'mailpit']`. Robust either way — if `create` does add the leaf packages
+    directly the entry is redundant and harmless, because duplicates collapse.
+  - **Three alternatives run down and rejected by the contract-author**, recorded so nobody re-derives
+    them: a second key for `auth` is impossible (object keys are unique); making `create` add the
+    leaf packages fixes only manifests `create` wrote, does not exist yet, and puts the knowledge in
+    something that runs once at scaffold time rather than on every `dev infra up`; and walking
+    transitive dependencies is correct in principle but would make a pure derivation depend on an
+    installed `node_modules`, so `dev infra up` would behave differently before and after
+    `pnpm install`. Left open as a resolver that could replace the map without changing a signature.
+  - **The rename was an orchestrator override.** The contract-author wanted to keep the singular name,
+    arguing a rename turns one breaking change into two. It does not: every consumer must already
+    adapt to `'postgres'` → `['postgres']`, so updating the identifier on the same line is free, while
+    a public name saying _one service per package_ when it means several is a permanent inaccuracy.
+    Blast radius verified first — two readers, `index.ts:53` and `read-project-infra-manifest.ts`,
+    and **no cli gate asserts the export list by name**, unlike `storage` and `email`.
+  - **The shape change was confirmed to bite before any gate was written:**
+    `pnpm --filter @hearthkit/cli run typecheck` now fails at `read-project-infra-manifest.ts:92` with
+    `TS2345: Argument of type 'string' is not assignable to …`. The repo is knowingly broken there
+    until the implementor lands the `flatMap`.
+
+- **The `auth` contract's "Still not verified" section had gone STALE IN FIVE PLACES, describing the
+  pre-implementation state after the package shipped.** A reader — most likely the `payments`
+  contract-author — would have inherited all five as current. Rewritten in place with evidence rather
+  than shrunk, because the section's value is that it is where a reader looks for what is _not_
+  covered. Closed: the no-manifest claim (`packages/auth typecheck: Done` now grep-checked locally and
+  on CI), the run-Prettier instruction (`format:check` exit 0), `authBrowserClientSchema` never parsed
+  against a real client (a gate now does), the 404/401 measured only at the handler (a gate now drives
+  the real client through a loopback listener), and — found by the contract-author, not the audit —
+  whether either half of that gate needs a reachable database (it does not; both instances use a
+  Drizzle client aimed at a closed port). `auth-contract.ts` was **not** touched, so nothing verified
+  was invalidated.
+  - **The drizzle peer-suffix pin was rewritten rather than corrected.** It named the literal
+    `…(@types/pg@8.23.1)(pg@8.23.0)`, which installing `auth` changed to
+    `…(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)` because `better-auth` brings `kysely`. **Naming an
+    exact peer suffix in a contract is fragile by construction** — `payments` will change it again —
+    so the durable facts now carry the weight: `@types/pg` must be declared, and the check is that the
+    two packages' `drizzle-orm` resolve to the same real path.
+
 - **CI GREEN ON PR #13 (run 33835915997), and the proof that matters is that the new gates RAN on the
   runner rather than being skipped: `packages/auth test: Test Files 12 passed (12), Tests 40 passed
 (40)`.** All nine projects green in the same run — config 12, ui 27, observability 14, storage 21,
