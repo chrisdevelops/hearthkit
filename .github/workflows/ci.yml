@@ -56,7 +56,18 @@ jobs:
       # already the one place both are written down. Cold start for both: about 6 seconds.
       - name: Start MinIO and Mailpit for the storage and email gates
         run: docker compose up -d --wait minio mailpit
+      # The payments gates are the first in this repo to need a credential a runner cannot
+      # synthesise. 37 of its 45 gates are offline by design and run without this; the other 8
+      # talk to Stripe test mode and are tagged to skip when the key is absent, so a repo without
+      # the secret set reports "37 passed | 8 skipped" rather than failing. That is the state to
+      # watch for: a skipped gate is not a passing gate, so check the count, not just the exit code.
+      #
+      # Only the secret key comes from here. STRIPE_WEBHOOK_SECRET is deliberately not wired up:
+      # webhook signatures are verified by a local HMAC, so the gates generate and verify their own
+      # header with a value they choose, and Stripe never issues one for them.
       - run: pnpm --recursive --if-present run test
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       - name: Stop compose services
         if: always()
         run: docker compose down -v
