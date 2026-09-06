@@ -104,12 +104,27 @@ Items that blocked a loop and need a human decision. Remove when resolved.
     complete test checkout. **`email` has no flow of its own** — the plan names three flows for four
     packages, so email is presumably exercised through auth's magic-link sign-in. That reading is
     inference, not something the plan states, and it needs settling.
-  - **USER DECISION 2026-09-06: deferred until after `payments`, then done as one piece of work across
-    all four packages.** Reason: building them one package at a time means four rounds touching the
-    same `page.tsx`, `.env.example` and Playwright config. Also note the DoD is **partly unverifiable
-    inside Phase 5** — proving sections render _conditionally_ needs the pruner, which is `create` in
-    Phase 6. Whether this work formally stays in Phase 5's DoD or moves to Phase 6 is still open;
-    what is settled is that it happens after `payments`.
+  - **UNBLOCKED 2026-09-06. `payments` is merged and all three blocking decisions are settled.** The
+    working plan is **`docs/phase-5-template-sections.md`** (PR #15) — read it before starting, it
+    carries the measured current state and the per-package breakdown. Delete it when Phase 5 is ticked.
+  - **USER DECISIONS 2026-09-06, all three as recommended:**
+    1. **`email` gets its own flow** — a "send a test email" action in its section, asserted against
+       Mailpit, independent of `auth`. Chosen over covering it via auth's magic link because `email`
+       depends only on `config`, so a project may select it **without** auth and would otherwise get a
+       section nothing exercises.
+    2. **Phase 5's DoD narrows to the superset** — the template must carry and exercise a section per
+       package; proving they render _conditionally_ moves to Phase 6, where `create` already owes three
+       scaffold variants that install, boot and pass Playwright. **This implies an edit to
+       `docs/PLAN.md` section 11 that has NOT been made** — the orchestrator does not edit the plan.
+    3. **The payments flow never automates Stripe's hosted UI** — assert the redirect reaches a
+       `checkout.stripe.com` URL carrying the right session, then post a signed
+       `checkout.session.completed` to the webhook route, which is how the package's own gates already
+       prove that transition.
+  - Orchestrator default, not asked: **`.env.example` gets one block per optional package**, pruned
+    with that package's section, because pruning is subtractive.
+  - The original deferral reason still governs the sequencing: build all four sections in one pass,
+    because doing them per-package means four rounds touching the same `page.tsx`, `.env.example` and
+    Playwright config.
 
 - **`docs/PLAN.md` section 6's table has no `auth` row**, so the plan and the code disagree. The code
   is correct — `localInfraServicesByHearthkitPackage` maps `@hearthkit/auth` to `postgres` and
