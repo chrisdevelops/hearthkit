@@ -123,8 +123,24 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
-- **CI IS GREEN ON PR #14 (run 34055706857, head `aac3087`) AND THAT GREEN IS NOT PROOF. The runner
-  reports `packages/payments test: Tests 37 passed | 8 skipped (45)`.** Exit 0, every other project
+- **CI GREEN ON PR #14 WITH THE PROOF THAT MATTERS: `packages/payments test: Tests 45 passed (45)`,
+  NO SKIP SEGMENT, on the branch head `3b5b7ed` (run 34055944950), after the repo secret was set.**
+  All ten projects green in the same run — auth 40, cli 42, config 12, db 24, email 25,
+  observability 14, storage 21, ui 27, app-template 27, **payments 45** = **277 tests, zero failed,
+  zero skipped** — and `packages/payments typecheck: Done` on the runner. **PR #14 is ready to
+  merge.**
+  - **A RERUN LANDED ON THE WRONG COMMIT FIRST, and this is the `email` loop's trap repeating exactly.**
+    The user set the secret at 19:57:56Z and reran **34055706857**, whose head is `aac3087`. But two
+    docs commits sit on top of the implementation commit, so the branch head is `3b5b7ed`, covered by
+    a **different** run (34055944950) that had completed at 19:46:42Z — eleven minutes **before** the
+    secret existed, therefore skipping. **Rerunning a run does not move it to the head.** Fixed by
+    rerunning 34055944950 specifically.
+  - **Generalised, because this has now cost time twice: after any docs commit, identify the run by
+    `headSha` matching `git rev-parse HEAD`, never by "the latest run" or by the run you looked at
+    before.** `gh run list --json databaseId,headSha,status` is the query that answers it.
+
+- **SUPERSEDED, kept because the failure shape is the point: the FIRST CI run was green with
+  `packages/payments test: Tests 37 passed | 8 skipped (45)`.** Exit 0, every other project
   green — auth 40, cli 42, config 12, db 24, email 25, observability 14, storage 21, ui 27,
   app-template 27 — and `packages/payments typecheck: Done` confirmed on the runner. **But the 8
   live-Stripe gates skipped, because `gh secret set STRIPE_SECRET_KEY` has not been run.**
@@ -132,7 +148,7 @@ Items that blocked a loop and need a human decision. Remove when resolved.
     hypothesised: a passing CI run that has not exercised the package's Stripe surface at all.** The
     workflow wiring is correct and in place; `secrets.STRIPE_SECRET_KEY` simply resolves to an empty
     string, and the contract counts empty as unset.
-  - **DO NOT MERGE PR #14 ON THIS RUN.** Set the secret, re-run CI, and require
+  - **(Resolved — see the entry above. Kept for the reasoning.)** DO NOT MERGE ON _THAT_ RUN: Set the secret, re-run CI, and require
     `packages/payments test: Tests 45 passed (45)` with **no skip segment** before merging. That line
     is the merge criterion for this PR.
   - Locally the same suite is **45/45 with 0 skipped**, so the gates and the implementation are known
