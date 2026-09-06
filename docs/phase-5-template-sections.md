@@ -4,6 +4,24 @@ The outstanding half of Phase 5's definition of done. `docs/PLAN.md` is the auth
 is building; this file is a working plan for one deferred piece of it, and it should be deleted once
 the work lands and Phase 5 is ticked.
 
+## Decisions settled, 2026-09-06
+
+All three taken as recommended. The reasoning is kept below; this is the ruling.
+
+| Decision                 | Ruling                                                                                                                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. `email`'s flow**    | **Option B.** The email section carries a "send a test email" action; the flow triggers it and asserts the message in Mailpit. Independent of `auth`.                                                                              |
+| **2. Phase 5's DoD**     | **Option A.** Phase 5 requires the **superset** to carry and exercise a section per package. Conditionality moves to Phase 6, proven by `create`'s three scaffold variants.                                                        |
+| **3. The payments flow** | **Redirect plus signed webhook.** Assert the redirect reaches a `checkout.stripe.com` URL carrying the right session, then post a signed `checkout.session.completed` to the webhook route. Stripe's hosted UI is never automated. |
+
+Also settled without a question, as a safe default: **`.env.example` gets one block per optional
+package**, which the pruner removes along with that package's section. Consistent with "pruning is
+subtractive"; say so if a single always-complete file would read better.
+
+**Decision 2 implies an edit to `docs/PLAN.md` section 11 that has not been made.** The orchestrator
+does not edit the plan. It batches naturally with the two disagreements under "Open" below, all three
+of which are pinned pending an independent cross-check.
+
 ## What is required
 
 Plan section 11, Phase 5, definition of done, in full:
