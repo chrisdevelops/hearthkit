@@ -12,6 +12,11 @@ Updated by the orchestrator after every commit. A fresh session reads this first
   Contract approved after two correction rounds; gates approved at 45 and orchestrator-verified
   failing before implementation.
 - Branch: `pkg/payments`, cut from `main` at 570b456 with a clean working tree.
+- **PR #14 open: <https://github.com/chrisdevelops/hearthkit/pull/14>**, branch `pkg/payments`,
+  implementation commit `2ab1003` (61 files, 9947 insertions). **Not merged.** Before merging, check
+  CI on the branch's **actual head**, not on `2ab1003` — a docs commit sits on top of it and it is the
+  head that CI's rollup reports, which is the trap the `email` loop recorded. **And check the payments
+  test COUNT, not the exit code:** `37 passed | 8 skipped` means the repo secret is still missing.
 - Last commit: 570b456 on `main` (the STATUS update after the auth merge), on top of c0ecb6d the
   squash-merge of PR #13 (`@hearthkit/auth` plus the `cli` infra-service fix), 6a8dbb5 of PR #12
   (`@hearthkit/email`), 96b5271 of PR #11 (`cli` local storage bucket) and `f387155` of PR #10
