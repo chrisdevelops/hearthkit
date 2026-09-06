@@ -5,19 +5,54 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 ## Position
 
 - Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage`, `email` and `auth` done
-  and merged. **`payments` is next and has not started.** Phase 4 complete.
+  and merged. **`payments` in flight.** Phase 4 complete.
 - Package: `payments` (depends on `config` and `db`, merged in Phase 1, and `auth`, merged in Phase 5
   — all three dependencies are on `main`)
-- Step: not started. No `pkg/payments` branch exists yet; cut one from `main` to begin.
-- Branch: none in flight. Working tree clean on `main`.
-- Last commit: c0ecb6d on `main`, the squash-merge of PR #13 (`@hearthkit/auth` plus the `cli`
-  infra-service fix), on top of 6a8dbb5 squash-merge of PR #12 (`@hearthkit/email`), 96b5271 of
-  PR #11 (`cli` local storage bucket) and `f387155` of PR #10 (`@hearthkit/storage`)
+- Step: `commit`. **All 45 gates pass with the live key, 0 skipped**, in one implementor round.
+  Contract approved after two correction rounds; gates approved at 45 and orchestrator-verified
+  failing before implementation.
+- Branch: `pkg/payments`, cut from `main` at 570b456 with a clean working tree.
+- **PR #14 open: <https://github.com/chrisdevelops/hearthkit/pull/14>**, branch `pkg/payments`,
+  implementation commit `2ab1003` (61 files, 9947 insertions). **Not merged.** Before merging, check
+  CI on the branch's **actual head**, not on `2ab1003` — a docs commit sits on top of it and it is the
+  head that CI's rollup reports, which is the trap the `email` loop recorded. **And check the payments
+  test COUNT, not the exit code:** `37 passed | 8 skipped` means the repo secret is still missing.
+- Last commit: 570b456 on `main` (the STATUS update after the auth merge), on top of c0ecb6d the
+  squash-merge of PR #13 (`@hearthkit/auth` plus the `cli` infra-service fix), 6a8dbb5 of PR #12
+  (`@hearthkit/email`), 96b5271 of PR #11 (`cli` local storage bucket) and `f387155` of PR #10
+  (`@hearthkit/storage`)
 
-**Read before starting `payments`:** its gates need Stripe test mode through the Stripe CLI — the
-first external service in this phase that cannot run offline. Plan 4.8 tags those gates so they skip
-when no key is present, so a run without `STRIPE_SECRET_KEY` will report skips rather than failures.
-**A skipped gate is not a passing gate**; say so plainly in any report rather than counting it green.
+**Read before working on `payments`:** its gates are the first in this phase to need a service that
+cannot run offline. Plan 4.8 tags them to skip when no key is present, so a run without
+`STRIPE_SECRET_KEY` reports skips rather than failures. **A skipped gate is not a passing gate**; say
+so plainly in any report rather than counting it green.
+
+**THE TEST KEY IS NOW IN PLACE LOCALLY.** `/Users/cal/Projects/lab/hearthkit/.env` carries a real
+`sk_test_` key, confirmed git-ignored by `git check-ignore` (`.gitignore:5`). Verified before any gate
+touched Stripe, without printing the key: account `acct_1AUMcqLSC1xluFh7`, **`livemode: false`**.
+`STRIPE_WEBHOOK_SECRET` in that file is a locally chosen placeholder, which is correct — webhook
+signatures are verified by local HMAC, so Stripe never issues it. **The GitHub repo secret is still
+NOT set**, so CI will still skip the 8 live gates until `gh secret set STRIPE_SECRET_KEY` is run.
+
+**SAFETY NOTE, worth keeping: the user first supplied LIVE keys (`sk_live_`/`pk_live_`) pasted into
+the chat, and they were refused rather than used.** Running the gates with them would have created
+real products, prices and customers in a production Stripe catalog, which has no sweep-up undo because
+Stripe keeps live and test data entirely separate. The user was told to roll the live secret key
+(Dashboard → API keys → ⋯ → Roll key, expire now) since it is now in a transcript. **The contract's
+`stripeLivemode` guard would have failed closed anyway** — a gate asserts `livemode === false` before
+creating anything — but the key was never run. Also recorded because the cause was a real UI change:
+**Stripe has replaced the test-mode toggle with Sandboxes**, reachable from the Dashboard account
+picker, so a user looking for "Test mode" on the API keys page finds nothing.
+
+**USER DECISION 2026-09-06 — live Stripe test mode locally AND on CI.** The user supplies
+`STRIPE_SECRET_KEY` (test mode) in a git-ignored `.env` locally and as a GitHub repo secret, so the
+live gates run on the runner too. Reason: this repo's evidentiary standard is that gates _ran_ on the
+runner — every prior package's proof line is of the form `packages/<name> test: N passed, 0 skipped`
+in CI — and `payments` would otherwise be the first package to merge without it. Two alternatives
+were offered and rejected: local key only with CI skipping, and offline-only gates.
+**`gh secret list` was empty before this, so `payments` is the first secret this repo has ever needed
+and `ci.yml` has no existing secret wiring to crib from — that is a new-service-class trap of the
+same shape as the one that cost PR #10 a red CI.**
 
 ## Phase checklist
 
@@ -41,9 +76,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package    | Step        | Implementor rounds | Notes                                                   |
-| ---------- | ----------- | ------------------ | ------------------------------------------------------- |
-| `payments` | not started | 0                  | dependencies all merged; cut `pkg/payments` from `main` |
+| Package    | Step     | Implementor rounds | Notes                                                           |
+| ---------- | -------- | ------------------ | --------------------------------------------------------------- |
+| `payments` | `commit` | 1                  | 45/45 gates green, 0 skipped; changeset written, `ci.yml` wired |
 
 ## Open issues
 
@@ -87,6 +122,322 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **CI GREEN ON PR #14 WITH THE PROOF THAT MATTERS: `packages/payments test: Tests 45 passed (45)`,
+  NO SKIP SEGMENT, on the branch head `3b5b7ed` (run 34055944950), after the repo secret was set.**
+  All ten projects green in the same run — auth 40, cli 42, config 12, db 24, email 25,
+  observability 14, storage 21, ui 27, app-template 27, **payments 45** = **277 tests, zero failed,
+  zero skipped** — and `packages/payments typecheck: Done` on the runner. **PR #14 is ready to
+  merge.**
+  - **A RERUN LANDED ON THE WRONG COMMIT FIRST, and this is the `email` loop's trap repeating exactly.**
+    The user set the secret at 19:57:56Z and reran **34055706857**, whose head is `aac3087`. But two
+    docs commits sit on top of the implementation commit, so the branch head is `3b5b7ed`, covered by
+    a **different** run (34055944950) that had completed at 19:46:42Z — eleven minutes **before** the
+    secret existed, therefore skipping. **Rerunning a run does not move it to the head.** Fixed by
+    rerunning 34055944950 specifically.
+  - **Generalised, because this has now cost time twice: after any docs commit, identify the run by
+    `headSha` matching `git rev-parse HEAD`, never by "the latest run" or by the run you looked at
+    before.** `gh run list --json databaseId,headSha,status` is the query that answers it.
+
+- **SUPERSEDED, kept because the failure shape is the point: the FIRST CI run was green with
+  `packages/payments test: Tests 37 passed | 8 skipped (45)`.** Exit 0, every other project
+  green — auth 40, cli 42, config 12, db 24, email 25, observability 14, storage 21, ui 27,
+  app-template 27 — and `packages/payments typecheck: Done` confirmed on the runner. **But the 8
+  live-Stripe gates skipped, because `gh secret set STRIPE_SECRET_KEY` has not been run.**
+  - **This is the exact failure shape the top of this file warns about, now observed rather than
+    hypothesised: a passing CI run that has not exercised the package's Stripe surface at all.** The
+    workflow wiring is correct and in place; `secrets.STRIPE_SECRET_KEY` simply resolves to an empty
+    string, and the contract counts empty as unset.
+  - **(Resolved — see the entry above. Kept for the reasoning.)** DO NOT MERGE ON _THAT_ RUN: Set the secret, re-run CI, and require
+    `packages/payments test: Tests 45 passed (45)` with **no skip segment** before merging. That line
+    is the merge criterion for this PR.
+  - Locally the same suite is **45/45 with 0 skipped**, so the gates and the implementation are known
+    good; what is unproven is only that they run on a runner.
+  - **Reading this log needed ANSI stripped first** (`perl -pe 's/\e\[[0-9;]*m//g'`), per the trap
+    already recorded here — without it the `Tests` counts match nothing and a skipping suite is
+    indistinguishable from one that never ran.
+
+- **`payments` GREEN IN ONE IMPLEMENTOR ROUND, 2026-09-06. 45/45 GATES PASS WITH ZERO SKIPPED, and
+  both the orchestrator's own run and the gate-runner's independent run agree.** Orchestrator-run:
+  `pnpm --filter @hearthkit/payments test` **16 files, 45/45**, exit 0; `pnpm run typecheck` exit 0
+  with **`packages/payments typecheck: Done` grep-confirmed** in the project list and zero `error TS`;
+  `pnpm run lint` exit 0; `pnpm run format:check` exit 0; full sweep
+  `pnpm --recursive --if-present run test` **exit 0, 10 projects, zero failures**.
+  - Gate-runner's independent table, written to `.reports/`: **45/45 payments, 277/277 workspace-wide,
+    74 test files, 0 failed, 0 skipped**, all five commands exit 0.
+  - **Zero skipped is the number that matters, and it is the first time this phase has been able to
+    claim it.** The gate-runner corroborated the key loaded by the skip count itself rather than by a
+    printed boolean — 0 of 8 live gates skipping is only possible if the key took effect.
+  - **The only implementor round needed was one.** A second was spent on nothing; the two failures
+    that appeared when the key landed were a gate fixture, not the implementation.
+  - Rule scan clean, orchestrator-run: **28 implementation files, zero `export *`, zero TypeScript
+    `any`, 80 exports with 103 doc comments, no `console` call anywhere in the implementation**, and
+    the only bare-role filename is the sanctioned `index.ts`, which is a thin named re-export.
+
+- **`ci.yml` NOW PASSES `STRIPE_SECRET_KEY` THROUGH FROM REPO SECRETS, closing the new-service-class
+  trap before it could bite.** Added to the `pnpm --recursive --if-present run test` step, with a
+  comment naming the failure shape to watch for: `37 passed | 8 skipped` is a **green exit code that
+  is not a passing run**. `STRIPE_WEBHOOK_SECRET` is deliberately **not** wired up, confirmed by grep
+  that the gates read only `STRIPE_SECRET_KEY` from the environment
+  (`test-fixtures/payments-gate-values.ts`) — signatures are verified by local HMAC, so the gates
+  choose that value themselves.
+  - **THE REPO SECRET IS STILL NOT SET.** Until the user runs `gh secret set STRIPE_SECRET_KEY`,
+    `secrets.STRIPE_SECRET_KEY` resolves to an empty string on the runner and those 8 gates skip.
+    **Check the CI count, not the exit code, on the first run of this PR.**
+
+- **`stripe@22.6.1` WRITES AN AGENT-DIRECTED TAG TO STDERR WHEN IT DETECTS CLAUDE CODE, and it is
+  benign.** `esm/stripe.core.js:137-140` tests `env?.CLAUDECODE || env?.CLAUDE_CODE_CHILD_SESSION` and
+  emits `<claude-code-hint v="1" type="plugin" value="stripe@claude-plugins-official" />`, once per
+  file that constructs a client — 16 lines in a local payments run. It carries no imperative content,
+  appears in **zero** of this repo's own source, and will not appear on CI, which sets no such
+  variable. Recorded only so a future reader does not mistake it for something this repo emits or for
+  injected content in a test log.
+
+- **THE LIVE GATES RAN FOR THE FIRST TIME AND CLOSED FIVE OF THE CONTRACT'S "STILL NOT VERIFIED"
+  ITEMS BY MEASUREMENT. 43 passed / 2 failed (45), and both failures are a GATE-FIXTURE BUG, not an
+  implementation bug.** Only `create-checkout-session.test.ts` failed, 2 of its 5;
+  `sync-payments-catalog.test.ts` (4 live gates) and `create-customer-portal-session.test.ts` (1)
+  passed outright.
+  - **Settled by a passing gate rather than by argument:** Stripe **accepts a lowercase kebab-case
+    custom product id**, which the contract called the one part of sync no offline measurement could
+    settle and told the gate-writer to test first; `prices.list({ lookup_keys, active: true })` really
+    does return an **empty list** rather than an error for an unknown key, so the `'absent-from-stripe'`
+    arm is sound; **`billing_portal.sessions.create` works on this account with no saved test-mode
+    portal configuration**, so the feared one-off dashboard step is not needed; a wrong-but-well-formed
+    key really does answer **401**, so `payments-stripe-unauthorized` has a producer; and the
+    `'replaced'` path — `prices.create({ transfer_lookup_key: true })` then archiving the old price —
+    works end to end. `stripeLivemode` observed `false`.
+  - **The two failures are an UNBOUND METHOD in the gate's own fixture**, at
+    `test-fixtures/payments-gate-stripe-account.ts:108-114`: it extracts
+    `client.checkout?.sessions?.retrieve` into a local and then calls `retrieve(id)` with no receiver,
+    so `this` is `undefined` inside the SDK and it throws
+    `TypeError: Cannot read properties of undefined (reading '_makeRequest')`.
+  - **This is the same shape as every other trap this file collects — the obvious spelling fails in a
+    way that points at the wrong thing — and it was INVISIBLE UNTIL A LIVE KEY EXISTED.** The
+    `typeof retrieve !== 'function'` guard one line above passes happily, because the method does
+    exist; only calling it unbound breaks. It is the strongest argument yet for the user's ruling that
+    the live gates must actually run rather than be allowed to skip.
+  - **It also retroactively justifies the skipped-gate warning at the top of this file.** Had the key
+    never arrived, this package would have merged with two gates permanently skipped and a broken
+    fixture nobody had executed.
+
+- **CONTRACT CORRECTION ROUND 2 CLOSED BOTH GAPS WITHOUT CHANGING A SINGLE EXPORTED VALUE, so the gate
+  verification survived rather than needing a re-run from scratch.** Orchestrator-checked afterwards:
+  still **183 exports / 183 doc comments**, the six `ignoredReason` values unchanged, all 20 `kind`
+  literals unchanged. Gates re-run against the edited contract: **37 failed / 8 skipped, exit 1**, no
+  setup errors — identical to before. Every edit was prose or a comment block.
+
+- **THE CONTRACT-AUTHOR TRIED TO OVERTURN AN ORCHESTRATOR RULING, READ THE GATES, FOUND ITS OWN
+  ARGUMENT UNSATISFIABLE, AND REVERSED ITSELF — which is the behaviour this loop is supposed to
+  produce.** It wanted the customer-linked webhook path to be **update-only**, making the insert branch
+  unreachable and giving `billingContactEmail` exactly one writer. `handle-stripe-webhook-subscription.test.ts:111-143`
+  hands a synthesised `checkout.session.completed` to the handler **with no prior
+  `createCheckoutSession` call** and asserts `'a subscription checkout must leave a customer row for
+its reference'`. Update-only would write nothing and fail it. Verified by the orchestrator at those
+  exact lines. **That is a change to asserted behaviour, not to a label**, which is why it was dropped.
+
+- **ORCHESTRATOR PROCESS NOTE, SECOND OF ITS KIND: the orchestrator quoted a truncated documentation
+  string and the subagent caught it.** In correction round 2 the orchestrator quoted
+  `CustomerDetails.email`'s doc as "The email associated with the Customer, if one exists, on the
+  Checkout Session after a completed Checkout Session or at time of session expiry" and stopped there.
+  **The doc has a second sentence** (`Sessions.d.ts:489`): "Otherwise, if the customer has consented to
+  promotional content, this value is the most recent valid email provided by the customer on the
+  Checkout form."
+  - So the field is **not unconditionally a billing address** — it can be a marketing-consent address.
+    Stopping after the first sentence is exactly what makes a quoted fragment look authoritative.
+  - It changed the outcome rather than being a footnote: it is why the surviving rule is that the
+    webhook may **seed** `billingContactEmail` on insert and **never overwrite** it on update. Both
+    Stripe email fields are buyer-influenced on a page the app does not control, so an update would let
+    a buyer silently redirect receipts and dunning. **No gate forces this** — the gate's row did not
+    previously exist — so it is recorded in the contract's "Still not verified" as a rule the text pins
+    and no test does.
+  - Generalises with the earlier invented-100-character-limit note: **the orchestrator's own quoted
+    evidence needs the same scrutiny it demands of subagents.** Both times the subagent was right.
+
+- **Gap 2 settled as a RULE rather than an exception, which is the better outcome:** a default is
+  allowed where absence has a **defined meaning**, and forbidden where absence means the data is
+  **untrustworthy**. `SubscriptionItem.quantity` is Stripe's own optional field where absence means the
+  item has no explicit quantity, so `payments_subscription.quantity` defaults to 1. `hearthkit_quantity`
+  is a string this package wrote and read back, where a bad value means something went wrong in
+  transit, so it counts as missing metadata and is never defaulted. Stated in both files so the next
+  reader sees one rule instead of two contradictory precedents.
+
+- **Both-null-on-insert for `billingContactEmail` lands in `payments-request-failed`**, so a completed
+  checkout this package cannot record does not vanish quietly — Stripe's bounded retry then gives an
+  operator a signal. **The contract-author flagged that a new `ignoredReason` would read better and did
+  not take it**, per the orchestrator's instruction not to add exported values in that round. Worth
+  revisiting if the branch ever acquires a gate; no gate covers it today, and it is in Still not
+  verified.
+
+- **`payments` GATES WRITTEN 2026-09-06: 45 gates in 16 files, 37 offline and 8 live-Stripe, and the
+  ORCHESTRATOR RAN ALL THREE VERIFICATION RUNS ITSELF against a harness byte-identical to the
+  committed files (`diff -r` clean, no implementation, no manifest — the repo's actual state).**
+
+  | Run                                                 | Result                                | What it establishes                                           |
+  | --------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------- |
+  | Repo state, no `STRIPE_SECRET_KEY`                  | **37 failed, 8 skipped (45)**, exit 1 | every offline gate fails for lack of implementation           |
+  | Dummy `STRIPE_SECRET_KEY`                           | **45 failed, 0 skipped**, exit 1      | the 8 live gates skip **only** for the key, not a setup fault |
+  | Distinguishing control (stub `index.ts` + manifest) | **44 failed, 1 passed**, exit 1       | the gates exercise the **contract**                           |
+  - **The control run is the load-bearing one.** `could not load the public entry point` goes from 17
+    blocks to **zero**, and the text becomes `gate expected @hearthkit/payments to export …` (34) and
+    `must re-export these by name` (2). An all-fail run alone would look identical whether the gates
+    were good or garbage, since nothing resolves. The single pass is the bare-node subpath gate, correct
+    because the control supplies exactly the manifest it tests.
+  - **The middle run is the one this repo has never done before, and it closes the skip hazard by
+    measurement.** STATUS has warned since the phase opened that a skipped gate is not a passing gate.
+    Running with a dummy key drives the skip count to **0**, proving the 8 skips are keyed on the
+    environment variable alone rather than masking a broken fixture.
+  - Zero `TypeError`, `ReferenceError`, `SyntaxError` or unhandled errors in any run — every failure is
+    a deliberate gate diagnostic, not a collection or setup error.
+  - Structural audit, orchestrator-run: **zero mocks** (`vi.mock`/`vi.fn`/`vi.spyOn`/`vi.stubGlobal`
+    all absent from gates _and_ fixtures), **zero `beforeAll` and zero `beforeEach`** — so the no-skip
+    property is structural rather than incidental — 45 `it()` blocks, 8 `skipIf`, and **exactly one**
+    dynamic `import('@hearthkit/payments')`, in the entry fixture. No gate imports an implementation
+    module.
+  - Coverage mapped by the orchestrator rather than taken from the report: **all 9 failure kinds, all 6
+    `ignoredReason` values, all 3 `webhookOutcome` values and all 3 `syncAction` values** are asserted.
+  - **`pnpm --filter @hearthkit/payments test` printed `No projects matched the filters` and exited 0 —
+    the SEVENTH time this repo has hit that trap.** That exit 0 is evidence of nothing, which is why
+    every number above comes from the harness.
+
+- **SATISFIABILITY IS THE ONE THING NOT ESTABLISHED, and it is a tooling limitation rather than a
+  judgement call.** The `auth` gate-writer proved its gates satisfiable with a throwaway reference
+  implementation; this one could not, because the ownership hook blocks `Write`/`Edit` on any path that
+  is not `*.test.ts`, `test-fixtures/**` or `vitest.config.ts` — **including scratchpad paths outside
+  the repo**. It reported this rather than routing around it, which was right. Consequence: the gate
+  assertions have not been shown to be passable by any implementation, so an unsatisfiable gate would
+  surface as an implementor round rather than here. The fixtures themselves were exercised directly
+  against real Postgres, which covers the riskiest part. **Worth loosening the hook's path check to the
+  repo boundary before the next package.**
+
+- **TWO CONTRACT GAPS FOUND BY THE GATE-WRITER BUILDING AGAINST THE CONTRACT — both `NOT NULL` columns
+  with no stated source, both verified by the orchestrator before being sent back.** Third loop running
+  where the gate step earns its place this way (`email` four, `auth` three, now `payments` two).
+  1. **`payments_customer.billingContactEmail` has no source on the webhook path.** The contract gives a
+     complete column-to-source table for the purchase path and none for the customer-linked path, yet a
+     subscription-mode `checkout.session.completed` upserts a row whose email column is `text NOT NULL`.
+     **`customer_email` and `customer_details` appear nowhere in `CONTRACT.md`** — confirmed by grep.
+     Measured and handed over: `customer_email: string | null` (`Sessions.d.ts:154`) is documented as a
+     **prefill** field, while `customer_details.email` (`:146`, `:489`) is documented as populated
+     "after a completed Checkout Session" — the webhook case. Both nullable, so a null rule is needed.
+     Underneath it sits a second unstated question: whether that event ever **inserts** the row or only
+     updates it, given `createCheckoutSession` already wrote it.
+  2. **`payments_subscription.quantity` has no source**, and the only candidate is typed **optional** —
+     `SubscriptionItem.quantity?: number` at `SubscriptionItems.d.ts:94`. Flagged to the contract-author
+     that its earlier "a bad quantity counts as missing, never defaults to 1" ruling must **not** be
+     reflexively reapplied: that rule governs caller-supplied metadata that could be wrong, whereas this
+     is Stripe's own object where absence genuinely means no explicit quantity.
+
+- **`payments` CONTRACT APPROVED 2026-09-06 after ONE correction round, at 1166 lines of `CONTRACT.md`
+  and 1007 of `payments-contract.ts`, 183 exports / 183 doc comments.** Orchestrator rule scan clean:
+  zero TypeScript `any` (all six `\bany\b` hits are the English word in prose), no `export *`, no
+  barrel, nine unique literal error prefixes — one per failure kind. Nine failure variants where plan
+  4.8 names three, the plan's three marked as such.
+
+- **THE CONTRACT'S DECISIVE CLAIM IS THAT `@better-auth/stripe` CANNOT BE ADOPTED AT ALL, AND IT IS A
+  BETTER REASON THAN THE ONE PLAN 4.8 ANTICIPATED. Verified by the orchestrator, and it is STRONGER
+  than the contract-author first stated.** In `getSchema` (`dist/index.mjs:1664-1688`), `...user` is
+  spread in **both** the `if (options.subscription?.enabled)` branch **and** the `else` branch, so a
+  `stripeCustomerId` column lands on the `user` model **whatever options are passed** — there is no
+  configuration that avoids it, which the word "unconditionally" alone did not convey.
+  - `packages/auth/src` contains **zero** occurrences of `stripeCustomerId`, and
+    `@better-auth/drizzle-adapter` throws `The field "<field>" does not exist in the schema for the
+model "<model>". Please update your schema.` at `dist/index.mjs:124`, `:509` and `:517`.
+  - So adopting the plugin means editing `@hearthkit/auth`'s tables — a package `payments` may not
+    edit, whose contract forbids Stripe knowledge — plus a migration for anything deployed. **The
+    one-time-purchase gap the plan asked about is real but not the load-bearing reason.**
+
+- **ORCHESTRATOR FOUND A REAL CONTRACT DEFECT THE CONTRACT-AUTHOR MISSED: `handleStripeWebhook` read a
+  field that is NEVER in a webhook payload.** The first draft resolved the purchase price from
+  `Checkout.Session.line_items`. Measured at `stripe@22.6.1`,
+  `esm/resources/Checkout/Sessions.d.ts:182` declares `line_items?: ApiList<LineItem>` — an **optional
+  property**, and the comment at `:44` says "When **retrieving** a Checkout Session, there is an
+  **includable** `line_items` property". Includable means expanded on a retrieve; a delivery does not
+  carry it. `payments_purchase` requires `priceName`, `stripePriceId` and `quantity`, so the purchase
+  path was unimplementable as written.
+  - **Corroborated by the plugin hitting the same wall and paying the price we refused.**
+    `onCheckoutSessionCompleted` calls `await client.subscriptions.retrieve(...)` at
+    `dist/index.mjs:186` and resolves the plan from `subscription.items.data`, never from
+    `checkoutSession.line_items`. That is the **only** `retrieve` in any of its four webhook handlers.
+  - **Fixed with metadata rather than a retrieve, to protect a property worth protecting.** Three keys
+    — `hearthkit_price_name`, `hearthkit_stripe_price_id`, `hearthkit_quantity` — written by
+    `createCheckoutSession` on the **session**. A retrieve would have dragged every webhook gate behind
+    a live Stripe key; the webhook handler is the one part of `payments` that gates fully offline.
+  - **The subscription half was correct and was left alone**, and the reason it is offline **by
+    construction rather than by luck** is that `SubscriptionItem.price` is typed `Price`, not
+    `string | Price` (`SubscriptionItems.d.ts:90`, the only `price:` declaration in the file). So the
+    full price object with its `lookup_key` is always inline. `onSubscriptionUpdated` reads
+    `event.data.object.items.data` directly with no retrieve, confirming it independently.
+  - **A staleness rule the contract-author derived unprompted, and no gate would have forced it:** the
+    price metadata goes on the session and **never** on `subscription_data.metadata`, because a portal
+    upgrade changes a subscription's price without touching metadata stamped at creation — a stamped
+    `hearthkit_price_name` would go stale and then be reported as fact. The subscription path reads
+    `lookup_key` live, which cannot go stale.
+
+- **PLAN 4.8's GATE WORDING CANNOT PASS AGAINST THIS CONTRACT, and the deviation is now recorded in
+  the contract rather than left for the gate-writer to trip over.** The plan says "replay a
+  `checkout.session.completed` event through the webhook handler, confirm the subscription row exists".
+  Under this routing that event upserts the **customer** row; subscription rows come only from
+  `customer.subscription.*`. The plan's line was written before anyone measured the payload — doing
+  what it literally says requires the `subscriptions.retrieve` call above. **The replacement is a
+  three-event sequence** (`checkout.session.completed` → assert customer row;
+  `customer.subscription.created` → assert subscription row; deliver it again → assert still exactly
+  one row), all synthesised locally and signed with `generateTestHeaderString`, so it needs no key.
+  **`docs/PLAN.md` is not edited by the orchestrator; this is a plan-versus-code disagreement for the
+  user, like the missing `auth` row in section 6.**
+
+- **Four contract questions ruled, and one was an ORCHESTRATOR OVERRULE OF THE SUBAGENT'S OWN
+  RECOMMENDATION.** The contract-author flagged `stripeApiBaseUrl` as "the one addition most worth
+  vetoing". Kept instead: `@hearthkit/storage` already makes the endpoint a first-class **environment
+  variable** (`STORAGE_ENDPOINT`) so MinIO and R2 are the same code, which makes a constructor option
+  strictly _less_ surface than existing precedent. Dropping it would have cost the
+  `payments-stripe-unreachable` variant, which is a real first-run and outage state. The other three
+  accepted as recommended: keep the SDK route, keep both env vars required, keep both read functions
+  (`readPaymentsSubscription` is what plan 4.8's own gate uses to "confirm the subscription row
+  exists", so it is not an addition on that line at all).
+
+- **PLAN 4.8's BUILD-TIME QUESTION IS ANSWERED, MEASURED AGAINST A REAL INSTALL RATHER THAN DOCS: the
+  Better Auth Stripe plugin covers SUBSCRIPTIONS ONLY, so one-time purchases fall to the Stripe SDK.**
+  Plan section 14 lists "Better Auth 1.7 … Stripe plugin scope (subscriptions only or one-time too)"
+  as a fact to confirm when the phase starts. Confirmed 2026-09-06 by installing
+  `@better-auth/stripe@1.7.2` in the scratchpad and reading its `dist`.
+  - **The decisive measurement is a literal count: exactly one checkout mode appears in the dist,
+    `mode: "subscription"`, and there are ZERO occurrences of `mode: "payment"` or `payment_intent`.**
+  - Endpoints registered: `/stripe/webhook`, `/subscription/billing-portal`, `/subscription/cancel`,
+    `/subscription/list`, `/subscription/restore`, `/subscription/success`, `/subscription/upgrade`.
+  - Webhook events handled, and nothing else: `checkout.session.completed`,
+    `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`.
+  - One model, `subscription`, 17 fields, `referenceId` required.
+  - **It has NO catalog sync of any kind**, so `syncPaymentsCatalog` and `hearthkit payments sync` are
+    entirely ours on the Stripe SDK. Plan 4.8 pre-authorized the fallback, so this needs no ruling.
+  - **Org-scoped billing IS supported by the plugin** via the required `referenceId` field plus an
+    `authorizeReference` option hook. That is the mechanism by which billing scope follows auth's
+    `organizations` flag, so plan 4.8's note holds without inventing anything.
+
+- **THE VERSION THAT MATCHES OUR PIN IS `@better-auth/stripe@1.7.2`, AND `latest` WOULD SILENTLY NOT
+  FIT.** `latest` is 1.7.3 and peers on `better-auth: ^1.7.3`, against our `better-auth@1.7.2` pin.
+  1.7.2's peer set is `stripe: ^18 || ^19 || ^20 || ^21 || ^22`, `better-auth: ^1.7.2`,
+  `@better-auth/core: ^1.7.2`, and **`better-call: 1.4.0` — an EXACT pin**, which is a live conflict
+  hazard with whatever `better-auth` itself resolves for `better-call`. Also confirmed:
+  **`better-auth@1.7.2` ships no stripe plugin at all** — its `exports` map has no `./plugins/stripe`,
+  so the separate package is not optional indirection the way `@better-auth/drizzle-adapter` was.
+  `stripe` SDK latest is `22.6.1`, inside the peer range.
+
+- **WEBHOOK SIGNATURE VERIFICATION IS FULLY OFFLINE, so the whole "webhook signature mismatch" failure
+  mode of plan 4.8 is gateable with no network and no Stripe account.** Measured against
+  `stripe@22.6.1`: `stripe.webhooks.generateTestHeaderString({payload, secret})` and
+  `stripe.webhooks.constructEvent(payload, header, secret)` complete a round trip with a
+  **gate-chosen** secret, and a wrong secret throws `StripeSignatureVerificationError`, message
+  beginning `No signatures found matching the expected signature for payload`.
+  - **Consequence worth more than the fix: `STRIPE_WEBHOOK_SECRET` is a value the gates pick, not one
+    Stripe issues.** So the user only ever needs to supply `STRIPE_SECRET_KEY`, and the webhook gates
+    are deterministic rather than dependent on a `stripe listen` session.
+
+- **Local environment measured before the loop started:** `STRIPE_SECRET_KEY` **not set**, no `.env`
+  at the repo root, and **`gh secret list` empty**. The Stripe CLI **is** installed (1.50.10) and
+  authenticated to a real account (`acct_1AUMcqLSC1xluFh7`). `.gitignore` already covers `.env` and
+  `.env.local`, so there is a safe local home for the key. `ci.yml` currently uses `env:` only for the
+  Postgres service container and references no secret.
 
 - **POST-AUTH AUDIT FOUND A REAL GAP OF THE SAME CLASS AS THE STORAGE-BUCKET ONE: a project depending
   on `@hearthkit/auth` gets ZERO local infra services.** Found by auditing for unfinished work after
