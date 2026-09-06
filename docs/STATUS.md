@@ -123,6 +123,24 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 
 ## Verified facts this session
 
+- **CI IS GREEN ON PR #14 (run 34055706857, head `aac3087`) AND THAT GREEN IS NOT PROOF. The runner
+  reports `packages/payments test: Tests 37 passed | 8 skipped (45)`.** Exit 0, every other project
+  green — auth 40, cli 42, config 12, db 24, email 25, observability 14, storage 21, ui 27,
+  app-template 27 — and `packages/payments typecheck: Done` confirmed on the runner. **But the 8
+  live-Stripe gates skipped, because `gh secret set STRIPE_SECRET_KEY` has not been run.**
+  - **This is the exact failure shape the top of this file warns about, now observed rather than
+    hypothesised: a passing CI run that has not exercised the package's Stripe surface at all.** The
+    workflow wiring is correct and in place; `secrets.STRIPE_SECRET_KEY` simply resolves to an empty
+    string, and the contract counts empty as unset.
+  - **DO NOT MERGE PR #14 ON THIS RUN.** Set the secret, re-run CI, and require
+    `packages/payments test: Tests 45 passed (45)` with **no skip segment** before merging. That line
+    is the merge criterion for this PR.
+  - Locally the same suite is **45/45 with 0 skipped**, so the gates and the implementation are known
+    good; what is unproven is only that they run on a runner.
+  - **Reading this log needed ANSI stripped first** (`perl -pe 's/\e\[[0-9;]*m//g'`), per the trap
+    already recorded here — without it the `Tests` counts match nothing and a skipping suite is
+    indistinguishable from one that never ran.
+
 - **`payments` GREEN IN ONE IMPLEMENTOR ROUND, 2026-09-06. 45/45 GATES PASS WITH ZERO SKIPPED, and
   both the orchestrator's own run and the gate-runner's independent run agree.** Orchestrator-run:
   `pnpm --filter @hearthkit/payments test` **16 files, 45/45**, exit 0; `pnpm run typecheck` exit 0
