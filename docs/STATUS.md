@@ -4,15 +4,20 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` and `email` done and
-  merged. **`auth` in flight.** Phase 4 complete.
-- Package: `auth` (depends on `config` and `db`, merged in Phase 1, and `email`, merged in Phase 5)
-- Step: commit
-- Branch: `pkg/auth`, cut from `main` at 6a8dbb5
-- Last commit: 59949e0 on `pkg/auth` (PR #13, CI green, awaiting merge), on top of 6a8dbb5, the squash-merge of PR #12
-  (`@hearthkit/email`), itself on top of
-  96b5271 squash-merge of PR #11 (`cli` local storage bucket) and `f387155` squash-merge of PR #10
-  (`@hearthkit/storage`)
+- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage`, `email` and `auth` done
+  and merged. **`payments` is next and has not started.** Phase 4 complete.
+- Package: `payments` (depends on `config` and `db`, merged in Phase 1, and `auth`, merged in Phase 5
+  — all three dependencies are on `main`)
+- Step: not started. No `pkg/payments` branch exists yet; cut one from `main` to begin.
+- Branch: none in flight. Working tree clean on `main`.
+- Last commit: c0ecb6d on `main`, the squash-merge of PR #13 (`@hearthkit/auth` plus the `cli`
+  infra-service fix), on top of 6a8dbb5 squash-merge of PR #12 (`@hearthkit/email`), 96b5271 of
+  PR #11 (`cli` local storage bucket) and `f387155` of PR #10 (`@hearthkit/storage`)
+
+**Read before starting `payments`:** its gates need Stripe test mode through the Stripe CLI — the
+first external service in this phase that cannot run offline. Plan 4.8 tags those gates so they skip
+when no key is present, so a run without `STRIPE_SECRET_KEY` will report skips rather than failures.
+**A skipped gate is not a passing gate**; say so plainly in any report rather than counting it green.
 
 ## Phase checklist
 
@@ -23,8 +28,10 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 2: `cli` (merged, PR #3)
 - [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
 - [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (merged, PR #8); DoD verified on a throwaway repo
-- [ ] Phase 5: `storage` (merged, PR #10), the `cli` local bucket (merged, PR #11) and `email`
-      (merged, PR #12) done; `auth`, `payments` still to do
+- [ ] Phase 5: `storage` (merged, PR #10), the `cli` local bucket (merged, PR #11), `email` (merged,
+      PR #12) and `auth` (merged, PR #13) done; **`payments` still to do**, and the template's
+      conditional sections are outstanding for all four — see Open issues, they are deliberately
+      deferred until after `payments` and Phase 5 cannot be ticked without them
 - [ ] Phase 6: `create`
 - [ ] Phase 7: `infra/tofu`, `hearthkit vps bootstrap`, backups
 - [ ] Phase 8: AI tooling, docs
@@ -34,16 +41,50 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                   |
-| ------- | ------ | ------------------ | ------------------------------------------------------- |
-| `auth`  | commit | 2                  | PR #13 open, CI GREEN (run 33835915997), awaiting merge |
+| Package    | Step        | Implementor rounds | Notes                                                   |
+| ---------- | ----------- | ------------------ | ------------------------------------------------------- |
+| `payments` | not started | 0                  | dependencies all merged; cut `pkg/payments` from `main` |
 
 ## Open issues
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- None. The "nothing creates a local storage bucket" item raised during the `storage` loop was fixed
-  rather than left open: `hearthkit dev infra up` now creates it (PR #11).
+- **PHASE 5 CANNOT BE TICKED WHEN `payments` MERGES. Its definition of done has two halves and only
+  one is being met.** Plan section 11: "each package's gates pass against compose (Stripe against test
+  mode) **and the template's conditional sections render for each**." The gates half is done for
+  `storage`, `email` and `auth`. **The template half has zero coverage — not partial, none.**
+  - What "conditional sections" means, from plan section 5: `templates/app` carries a section for
+    **every** optional package, and plan 4.10 step 4 has `create` "prune files for packages not
+    chosen". The template is the superset; pruning is subtractive. Section 5 also requires "one flow
+    per optional package (sign in, upload a file, complete test checkout)" on top of the always-on
+    smoke test.
+  - Measured state of `templates/app` as of 2026-09-06: `appTemplateRequiredPackageNames` is
+    `config`/`observability`/`ui` only; `app/page.tsx` references no optional package; `.env.example`
+    carries only `NODE_ENV`, `GLITCHTIP_DSN`, `LOG_LEVEL`; `e2e/app-smoke.spec.ts` has exactly two
+    tests (home page renders, health returns 200); and the pruning in
+    `materialize-app-template-project.ts` drops only hearthkit-repo-only files (`src`,
+    `test-fixtures`, `CONTRACT.md`, `vitest.config.mts`) — **it has no concept of optional packages**.
+  - Missing per package: env vars, a section, and a Playwright flow. `storage` → upload a file.
+    `auth` → sign in, plus `app/api/auth/[...all]/route.ts` and a sign-in page. `payments` →
+    complete test checkout. **`email` has no flow of its own** — the plan names three flows for four
+    packages, so email is presumably exercised through auth's magic-link sign-in. That reading is
+    inference, not something the plan states, and it needs settling.
+  - **USER DECISION 2026-09-06: deferred until after `payments`, then done as one piece of work across
+    all four packages.** Reason: building them one package at a time means four rounds touching the
+    same `page.tsx`, `.env.example` and Playwright config. Also note the DoD is **partly unverifiable
+    inside Phase 5** — proving sections render _conditionally_ needs the pruner, which is `create` in
+    Phase 6. Whether this work formally stays in Phase 5's DoD or moves to Phase 6 is still open;
+    what is settled is that it happens after `payments`.
+
+- **`docs/PLAN.md` section 6's table has no `auth` row**, so the plan and the code disagree. The code
+  is correct — `localInfraServicesByHearthkitPackage` maps `@hearthkit/auth` to `postgres` and
+  `mailpit` (PR #13) — but the plan's table still lists only three rows and its implicit model is that
+  leaf packages pull services and Phase 6's `create` resolves dependencies. Needs one row:
+  Postgres + Mailpit, included when `auth`. **The orchestrator does not edit `docs/PLAN.md`; this is
+  the user's call.**
+
+- The "nothing creates a local storage bucket" item raised during the `storage` loop was fixed rather
+  than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
 
