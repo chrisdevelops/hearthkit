@@ -116,6 +116,32 @@ export function remapGeneratedMinioHostPorts(options: {
 }
 
 /**
+ * Moves the generated postgres host port onto a port this gate reserved, leaving every other byte of
+ * the generated file exactly as emitted. The contract fixes the published port at 5432, which the
+ * repo's own Postgres holds for every db gate in this package, so a generated postgres service can
+ * only be started on a port that moved; the 5432 the server listens on inside the compose network is
+ * untouched, which is what a generated project's own services address as postgres:5432.
+ */
+export function remapGeneratedPostgresHostPort(options: {
+  composeFileContent: string
+  postgresHostPort: number
+}): string {
+  // The digit guards are not decoration. A bare '5432:5432' search also matches inside
+  // '15432:5432', so a generated file that published a different host port would pass the check and
+  // be rewritten into the nonsense '1<port>:5432' instead of throwing.
+  const publishedPortPattern = /(?<!\d)5432:5432(?!\d)/
+  if (!publishedPortPattern.test(options.composeFileContent)) {
+    throw new Error(
+      'gate expected the generated compose file to publish postgres port 5432:5432 before remapping it onto a free host port',
+    )
+  }
+  return options.composeFileContent.replace(
+    publishedPortPattern,
+    `${options.postgresHostPort}:5432`,
+  )
+}
+
+/**
  * Moves the generated mailpit host ports onto ports this gate reserved, leaving every other byte of
  * the generated file exactly as emitted. The contract fixes the published ports at 1025 and 8025,
  * which the repo's own Mailpit already holds, so this is the only edit a gate makes to the file it

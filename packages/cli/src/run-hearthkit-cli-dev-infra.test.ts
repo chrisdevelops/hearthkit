@@ -15,6 +15,8 @@ import {
 } from '../test-fixtures/docker-gate-containers.ts'
 import {
   remapGeneratedMailpitHostPorts,
+  remapGeneratedPostgresHostPort,
+  removeGateComposeProject,
   reserveFreeHostPort,
 } from '../test-fixtures/gate-compose-project-runs.ts'
 import {
@@ -32,6 +34,7 @@ import {
   writeGateProjectManifest,
 } from '../test-fixtures/gate-project-directories.ts'
 import { loadHearthkitCliEntry } from '../test-fixtures/hearthkit-cli-entry.ts'
+import { loadHearthkitCliInfraServiceMap } from '../test-fixtures/hearthkit-cli-infra-service-map.ts'
 import {
   cliComposeFileUnwritableErrorPrefix,
   cliDevInfraDownCompleteLinePrefix,
@@ -42,6 +45,8 @@ import {
   cliProjectManifestMissingErrorPrefix,
   generateLocalInfraComposeOptionsSchema,
   localInfraServiceImageByName,
+  localInfraServiceNameSchema,
+  type LocalInfraServiceName,
 } from './cli-contract.ts'
 
 const directoriesToRemove: string[] = []
@@ -406,5 +411,206 @@ describe('hearthkit dev and dev infra', () => {
     const failure = expectCliFailure(run, 'next-dev-unavailable', 1)
     expect(failure.message.startsWith(cliNextDevUnavailableErrorPrefix)).toBe(true)
     expect(run.standardError).toContain(failure.message)
+  })
+})
+
+/** Starting a generated postgres means initdb plus a healthcheck compose waits on, after a first compose run that has to fail on the fixed host ports; the file-wide 120s covers one of those, not both. */
+const startedPostgresGateTimeoutMilliseconds = 180_000
+
+/**
+ * The known local infra services the generated compose file declares, in the order the text declares
+ * them and with repeats kept, so one list answers both what the emission order is and whether a
+ * service asked for twice was emitted twice. The bucket init container and the named volumes are
+ * excluded by the same rule startedInfraServices uses: only localInfraServiceName values count.
+ */
+function generatedInfraServiceOrder(composeFileContent: string): LocalInfraServiceName[] {
+  const knownServiceNames = localInfraServiceNameSchema.options as readonly string[]
+  return composeFileContent
+    .split('\n')
+    .map((line) => /^ {2}([a-z0-9-]+):$/.exec(line)?.[1])
+    .filter(
+      (serviceName): serviceName is LocalInfraServiceName =>
+        serviceName !== undefined && knownServiceNames.includes(serviceName),
+    )
+}
+
+// Which services a manifest pulls in, through localInfraServicesByHearthkitPackage. None of these
+// gates writes a compose file of its own: dev infra up has to derive the services and generate the
+// file, which is the whole path under test. Only the first starts containers, on postgres and
+// mailpit host ports this run reserved. The other two let compose fail on the generated fixed ports
+// — 5432, 9000, 9001, 1025 and 8025, every one of them held by the repo's own stack — so they cost
+// one compose invocation and start nothing, and the file dev infra up wrote is their claim. Each
+// tears its compose project down with volumes, because a generated postgres or minio service keeps
+// a named volume that dev infra down deliberately leaves behind.
+describe('hearthkit dev infra up services derived from the project manifest', () => {
+  it(
+    'derives both postgres and mailpit from a manifest that lists @hearthkit/auth and nothing else',
+    async () => {
+      const directoryPath = await gateProjectDirectory('infra-auth')
+      const hearthkitProjectName = gateComposeProjectName('auth')
+      // A hand-written manifest naming auth alone, which is the defect this closes: only direct
+      // dependencies are read, so the db and email packages auth uses internally are not in this
+      // file and cannot help. It derived zero services, dev infra up succeeded having started
+      // nothing, and auth cannot be constructed without Postgres for its seven tables and Mailpit
+      // for its magic-link mail.
+      await writeGateProjectManifest({
+        directoryPath,
+        manifestName: hearthkitProjectName,
+        hearthkitDependencies: ['@hearthkit/auth'],
+      })
+      const postgresContainerName = gateContainerName(`${hearthkitProjectName}-postgres`)
+      const mailpitContainerName = gateContainerName(`${hearthkitProjectName}-mailpit`)
+      const composeFilePath = join(directoryPath, 'docker-compose.yml')
+      const { generateLocalInfraCompose } = await loadHearthkitCliEntry()
+
+      try {
+        // The generating half, as in the manifest gate above. This run writes docker-compose.yml
+        // and then asks compose to start it on the generated host ports 5432, 1025 and 8025, which
+        // the repo's own Postgres and Mailpit hold, so the exit code is not this gate's claim. The
+        // bytes it wrote do not depend on that, and a run that failed any earlier would leave no
+        // file to read.
+        const generatingRun = await runHearthkitCliGate({
+          argv: ['dev', 'infra', 'up'],
+          cwd: directoryPath,
+          env: gateEnvironment(),
+        })
+        expect(['dev-infra-up-succeeded', 'infra-compose-failed']).toContain(
+          generatingRun.outcome.result.kind,
+        )
+
+        // Byte for byte what the public generator emits for the two services @hearthkit/auth
+        // selects, and no third: auth pulls in no storage.
+        const composeFileContent = await readFile(composeFilePath, 'utf8')
+        expect(composeFileContent).toBe(
+          generateLocalInfraCompose(
+            generateLocalInfraComposeOptionsSchema.parse({
+              hearthkitProjectName,
+              infraServices: ['postgres', 'mailpit'],
+            }),
+          ),
+        )
+        expect(composeFileContent).toContain(localInfraServiceImageByName.postgres)
+        expect(composeFileContent).toContain(localInfraServiceImageByName.mailpit)
+        expect(composeFileContent).not.toContain(localInfraServiceImageByName.minio)
+
+        // The starting half. dev infra up never overwrites a compose file it finds, so the second
+        // run starts exactly the file the first run generated, with only its published ports moved.
+        await writeGateComposeFile(
+          directoryPath,
+          remapGeneratedPostgresHostPort({
+            composeFileContent: await remapMailpitHostPortsOntoFreePorts(composeFileContent),
+            postgresHostPort: await reserveFreeHostPort(),
+          }),
+        )
+        const run = await runHearthkitCliGate({
+          argv: ['dev', 'infra', 'up'],
+          cwd: directoryPath,
+          env: gateEnvironment(),
+        })
+
+        const success = expectCliSuccess(run, 'dev-infra-up-succeeded', 0)
+        expect(success.startedInfraServices).toEqual(['postgres', 'mailpit'])
+        expect(await gateContainerIsRunning(postgresContainerName)).toBe(true)
+        expect(await gateContainerIsRunning(mailpitContainerName)).toBe(true)
+        const line = singleStandardOutputLine(run)
+        expect(line.startsWith(cliDevInfraUpCompleteLinePrefix)).toBe(true)
+        expect(line).toContain('postgres')
+        expect(line).toContain('mailpit')
+      } finally {
+        await removeGateComposeProject(composeFilePath)
+        await removeGateContainer(postgresContainerName)
+        await removeGateContainer(mailpitContainerName)
+      }
+    },
+    startedPostgresGateTimeoutMilliseconds,
+  )
+
+  it('asks for postgres once when the manifest lists both @hearthkit/auth and @hearthkit/db', async () => {
+    const directoryPath = await gateProjectDirectory('infra-auth-db')
+    const hearthkitProjectName = gateComposeProjectName('authdb')
+    // Two rows of a one-to-many map that both name postgres, so the derivation is asked for it
+    // twice and must emit it once. Registered for the afterAll safety net: compose can leave a
+    // created container behind when it fails to publish a port.
+    await writeGateProjectManifest({
+      directoryPath,
+      manifestName: hearthkitProjectName,
+      hearthkitDependencies: ['@hearthkit/auth', '@hearthkit/db'],
+    })
+    gateContainerName(`${hearthkitProjectName}-postgres`)
+    gateContainerName(`${hearthkitProjectName}-mailpit`)
+    const composeFilePath = join(directoryPath, 'docker-compose.yml')
+
+    try {
+      const run = await runHearthkitCliGate({
+        argv: ['dev', 'infra', 'up'],
+        cwd: directoryPath,
+        env: gateEnvironment(),
+      })
+      // Either outcome proves the run reached generation; the file it wrote is the claim.
+      expect(['dev-infra-up-succeeded', 'infra-compose-failed']).toContain(run.outcome.result.kind)
+
+      const composeFileContent = await readFile(composeFilePath, 'utf8')
+      // postgres once, not twice. Both packages asked for it and the derived list collapsed them.
+      expect(generatedInfraServiceOrder(composeFileContent)).toEqual(['postgres', 'mailpit'])
+      expect(composeFileContent).not.toContain(localInfraServiceImageByName.minio)
+    } finally {
+      await removeGateComposeProject(composeFilePath)
+    }
+  })
+
+  it('emits derived services in localInfraServiceNameSchema option order, not the order localInfraServicesByHearthkitPackage writes them', async () => {
+    const localInfraServicesByHearthkitPackage = await loadHearthkitCliInfraServiceMap()
+    const directoryPath = await gateProjectDirectory('infra-service-order')
+    const hearthkitProjectName = gateComposeProjectName('order')
+    // This pair discriminates where @hearthkit/auth alone cannot: auth's own list is written
+    // postgres, mailpit, which is already schema order, so a manifest naming only auth cannot tell
+    // the two orders apart. Read through the map, storage's row comes before auth's and asks for
+    // minio first and postgres last; the manifest lists them in that same order, so one expectation
+    // rules out both a map-key order and a manifest-key order reaching the output.
+    const manifestPackageNames = ['@hearthkit/storage', '@hearthkit/auth']
+    await writeGateProjectManifest({
+      directoryPath,
+      manifestName: hearthkitProjectName,
+      hearthkitDependencies: manifestPackageNames,
+    })
+    gateContainerName(`${hearthkitProjectName}-postgres`)
+    gateContainerName(`${hearthkitProjectName}-minio`)
+    gateContainerName(`${hearthkitProjectName}-mailpit`)
+    const composeFilePath = join(directoryPath, 'docker-compose.yml')
+
+    const mapWrittenServiceOrder = [
+      ...new Set(
+        Object.entries(localInfraServicesByHearthkitPackage)
+          .filter(([packageName]) => manifestPackageNames.includes(packageName))
+          .flatMap(([, serviceNames]) => serviceNames),
+      ),
+    ]
+    const schemaOptionServiceOrder = localInfraServiceNameSchema.options.filter((serviceName) =>
+      mapWrittenServiceOrder.includes(serviceName),
+    )
+    if (mapWrittenServiceOrder.join(',') === schemaOptionServiceOrder.join(',')) {
+      throw new Error(
+        `gate needs two packages whose map-written service order differs from localInfraServiceNameSchema option order; ${manifestPackageNames.join(' and ')} no longer tell the two apart`,
+      )
+    }
+
+    try {
+      const run = await runHearthkitCliGate({
+        argv: ['dev', 'infra', 'up'],
+        cwd: directoryPath,
+        env: gateEnvironment(),
+      })
+      expect(['dev-infra-up-succeeded', 'infra-compose-failed']).toContain(run.outcome.result.kind)
+
+      const composeFileContent = await readFile(composeFilePath, 'utf8')
+      expect(generatedInfraServiceOrder(composeFileContent)).toEqual(schemaOptionServiceOrder)
+      expect(generatedInfraServiceOrder(composeFileContent)).toEqual([
+        'postgres',
+        'minio',
+        'mailpit',
+      ])
+    } finally {
+      await removeGateComposeProject(composeFilePath)
+    }
   })
 })

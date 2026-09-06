@@ -4,13 +4,14 @@ Updated by the orchestrator after every commit. A fresh session reads this first
 
 ## Position
 
-- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` done and merged.
-  **`email` in flight.** Phase 4 complete.
-- Package: `email` (depends on `config`, merged in Phase 1)
+- Phase: 5 (`storage`, `email`, `auth`, `payments`) — in progress. `storage` and `email` done and
+  merged. **`auth` in flight.** Phase 4 complete.
+- Package: `auth` (depends on `config` and `db`, merged in Phase 1, and `email`, merged in Phase 5)
 - Step: commit
-- Branch: `pkg/email`, cut from `main` at 6a60c80
-- Last commit: 3411332 on `pkg/email` (PR #12, CI green, awaiting merge), on top of 96b5271
-  squash-merge of PR #11 (`cli` local storage bucket) and `f387155` squash-merge of PR #10
+- Branch: `pkg/auth`, cut from `main` at 6a8dbb5
+- Last commit: 59949e0 on `pkg/auth` (PR #13, CI green, awaiting merge), on top of 6a8dbb5, the squash-merge of PR #12
+  (`@hearthkit/email`), itself on top of
+  96b5271 squash-merge of PR #11 (`cli` local storage bucket) and `f387155` squash-merge of PR #10
   (`@hearthkit/storage`)
 
 ## Phase checklist
@@ -22,8 +23,8 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 2: `cli` (merged, PR #3)
 - [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
 - [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (merged, PR #8); DoD verified on a throwaway repo
-- [ ] Phase 5: `storage` (merged, PR #10) and the `cli` local bucket (merged, PR #11) done;
-      `email`, `auth`, `payments` still to do
+- [ ] Phase 5: `storage` (merged, PR #10), the `cli` local bucket (merged, PR #11) and `email`
+      (merged, PR #12) done; `auth`, `payments` still to do
 - [ ] Phase 6: `create`
 - [ ] Phase 7: `infra/tofu`, `hearthkit vps bootstrap`, backups
 - [ ] Phase 8: AI tooling, docs
@@ -33,9 +34,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review, implement, verify, commit.
 
-| Package | Step      | Implementor rounds | Notes                                                  |
-| ------- | --------- | ------------------ | ------------------------------------------------------ |
-| `email` | implement | 1                  | 25 gates approved, orchestrator-verified failing 25/25 |
+| Package | Step   | Implementor rounds | Notes                                                   |
+| ------- | ------ | ------------------ | ------------------------------------------------------- |
+| `auth`  | commit | 2                  | PR #13 open, CI GREEN (run 33835915997), awaiting merge |
 
 ## Open issues
 
@@ -45,6 +46,482 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   rather than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **POST-AUTH AUDIT FOUND A REAL GAP OF THE SAME CLASS AS THE STORAGE-BUCKET ONE: a project depending
+  on `@hearthkit/auth` gets ZERO local infra services.** Found by auditing for unfinished work after
+  PR #13 went green, not by a failing test. `localInfraServiceByHearthkitPackage` in the `cli`
+  contract mapped `db`→postgres, `storage`→minio, `email`→mailpit and **had no `auth` entry**, while
+  `readInfraServicesFromDependencies` reads the project's **direct** dependencies only and never walks
+  transitive ones (`read-project-infra-manifest.ts:83-95`). So `hearthkit dev infra up` starts nothing
+  for such a project, succeeds with an empty service list, and auth then fails at runtime with a
+  connection error that points nowhere near the manifest.
+  - **The plan is incomplete here, not just the code.** `docs/PLAN.md` section 6's table has three
+    rows and **no `auth` row**. Its implicit model is that leaf packages pull services and that Phase
+    6's `create` does "dependency resolution", which would add `db` and `email` to a project selecting
+    `auth`. That may be the intent, but nothing enforces it today. **Raised with the user; `PLAN.md`
+    deliberately not edited by the orchestrator.**
+  - Fixed by making the map **one-to-many** and renaming it to `localInfraServicesByHearthkitPackage`:
+    `auth` → `['postgres', 'mailpit']`. Robust either way — if `create` does add the leaf packages
+    directly the entry is redundant and harmless, because duplicates collapse.
+  - **Three alternatives run down and rejected by the contract-author**, recorded so nobody re-derives
+    them: a second key for `auth` is impossible (object keys are unique); making `create` add the
+    leaf packages fixes only manifests `create` wrote, does not exist yet, and puts the knowledge in
+    something that runs once at scaffold time rather than on every `dev infra up`; and walking
+    transitive dependencies is correct in principle but would make a pure derivation depend on an
+    installed `node_modules`, so `dev infra up` would behave differently before and after
+    `pnpm install`. Left open as a resolver that could replace the map without changing a signature.
+  - **The rename was an orchestrator override.** The contract-author wanted to keep the singular name,
+    arguing a rename turns one breaking change into two. It does not: every consumer must already
+    adapt to `'postgres'` → `['postgres']`, so updating the identifier on the same line is free, while
+    a public name saying _one service per package_ when it means several is a permanent inaccuracy.
+    Blast radius verified first — two readers, `index.ts:53` and `read-project-infra-manifest.ts`,
+    and **no cli gate asserts the export list by name**, unlike `storage` and `email`.
+  - **The shape change was confirmed to bite before any gate was written:**
+    `pnpm --filter @hearthkit/cli run typecheck` now fails at `read-project-infra-manifest.ts:92` with
+    `TS2345: Argument of type 'string' is not assignable to …`. The repo is knowingly broken there
+    until the implementor lands the `flatMap`.
+
+- **The `auth` contract's "Still not verified" section had gone STALE IN FIVE PLACES, describing the
+  pre-implementation state after the package shipped.** A reader — most likely the `payments`
+  contract-author — would have inherited all five as current. Rewritten in place with evidence rather
+  than shrunk, because the section's value is that it is where a reader looks for what is _not_
+  covered. Closed: the no-manifest claim (`packages/auth typecheck: Done` now grep-checked locally and
+  on CI), the run-Prettier instruction (`format:check` exit 0), `authBrowserClientSchema` never parsed
+  against a real client (a gate now does), the 404/401 measured only at the handler (a gate now drives
+  the real client through a loopback listener), and — found by the contract-author, not the audit —
+  whether either half of that gate needs a reachable database (it does not; both instances use a
+  Drizzle client aimed at a closed port). `auth-contract.ts` was **not** touched, so nothing verified
+  was invalidated.
+  - **The drizzle peer-suffix pin was rewritten rather than corrected.** It named the literal
+    `…(@types/pg@8.23.1)(pg@8.23.0)`, which installing `auth` changed to
+    `…(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)` because `better-auth` brings `kysely`. **Naming an
+    exact peer suffix in a contract is fragile by construction** — `payments` will change it again —
+    so the durable facts now carry the weight: `@types/pg` must be declared, and the check is that the
+    two packages' `drizzle-orm` resolve to the same real path.
+
+- **CI GREEN ON PR #13 (run 33835915997), and the proof that matters is that the new gates RAN on the
+  runner rather than being skipped: `packages/auth test: Test Files 12 passed (12), Tests 40 passed
+(40)`.** All nine projects green in the same run — config 12, ui 27, observability 14, storage 21,
+  db 24, email 25, app-template 27, **auth 40**, cli 39 = **229 tests, zero failed, zero skipped** —
+  and `packages/auth typecheck: Done` on the runner too.
+  - **`packages/email test: 25 passed (25)` in the SAME CI run as auth's 40 is the load-bearing line.**
+    It proves the own-Mailpit-container decision holds on a runner and not merely on this machine,
+    which is the half that local runs cannot establish. `packages/cli test: 39 passed (39)` confirms no
+    port regression from the container the auth suite starts.
+  - The auth gates start a Docker container on the runner successfully with **no change to `ci.yml`**,
+    which was the design goal: self-sufficient on any runner that has Docker.
+  - **Reading the CI log needs ANSI stripped first.** `gh run view --log` embeds escape sequences
+    _between_ `Tests` and the count, so a plain `rg "Tests +[0-9]+ passed"` matches nothing and looks
+    exactly like a suite that never ran. Pipe through `perl -pe 's/\e\[[0-9;]*m//g'` first. Recorded
+    because the false negative is indistinguishable from the real failure it would be reporting.
+
+- **`auth` IMPLEMENTED AND GREEN IN ONE IMPLEMENTOR ROUND, 2026-09-03.** Orchestrator-run, not taken
+  from the subagent: `pnpm --filter @hearthkit/auth test` **12 files, 40/40 passed**, exit 0;
+  `pnpm --recursive --if-present run test` exit 0 — **9 projects, 229 tests, 0 skipped** (config 12,
+  ui 27, observability 14, storage 21, db 24, email 25, app-template 27, **auth 40**, cli 39);
+  `pnpm run typecheck`, `pnpm install --frozen-lockfile` and `pnpm run format:check` all exit 0.
+  A second implementor round was spent on one missing doc comment only.
+  - **`packages/auth typecheck: Done` genuinely appears in the project list, checked by grep rather
+    than inferred from exit 0.** That trap has now caught this repo six times; the manifest closes it.
+  - **`email` is 25/25 in the SAME sweep as `auth` 40/40, which is the proof the Mailpit isolation
+    decision was right.** The two suites run in parallel against different containers and neither
+    disturbs the other — exactly the collision measured earlier in this loop.
+  - **The drizzle single-copy risk is closed and verified:** both `packages/auth/node_modules/
+drizzle-orm` and `packages/db/node_modules/drizzle-orm` resolve to the identical real path. The
+    peer suffix has **changed** from what the contract records, to
+    `…(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)` — `better-auth` brings `kysely`, which drizzle
+    declares an optional peer. **The contract's literal suffix string is therefore stale, though its
+    conclusion is not.** The lesson is not to update the string: naming an exact peer suffix in a
+    contract is fragile by construction, because the next package added to the workspace will change
+    it again. `@types/pg` being load-bearing is the durable fact; the suffix is not.
+  - Rule scan clean, orchestrator-run: no `export *`, no barrel, no `any`, no bare-role filenames
+    beyond the sanctioned `index.ts`, 23 implementation files. **Exactly one lint warning in the whole
+    implementation** — a documented `as unknown as AuthBrowserClient` — against a 72-warning
+    pre-existing repo baseline.
+  - **Best judgement call of the round, and no gate forced it:** `databaseFailureDetail` is built from
+    the `.cause`, not from the `DrizzleQueryError` wrapper, because the wrapper's message repeats the
+    failing SQL **and its bound parameters** — which would put caller-supplied values into a returned
+    failure that the gates sweep for secrets. Reasoned from the contract's rule rather than from a
+    failing test.
+  - Other implementor judgement calls accepted: `returnHeaders: true` over `asResponse: true`
+    uniformly, because it keeps failures _thrown_, which is what the `error.body?.code` and
+    `error.headers.get('location')` access paths are specified against; a `WeakMap` keyed on the
+    instance to carry the magic-link send outcome, since Better Auth answers `{status: true}`
+    regardless of what `sendMagicLink` did (`AsyncLocalStorage` rejected to keep `node:async_hooks`
+    out of an entry point a client component imports) — **consequence: an instance not built by
+    `createAuthServerInstance` gets `auth-request-failed` from `requestMagicLinkSignIn`, and no gate
+    covers that path**; nameless Drizzle columns so every SQL name equals its Better Auth field name;
+    and the organizations-disabled check running before input validation, because telling a caller
+    their slug is malformed when the instance has no organization endpoints is the worse diagnostic.
+
+- **`auth` GATES APPROVED 2026-09-03 at 40 gates, ORCHESTRATOR-VERIFIED FAILING 40/40 FROM THE
+  COMMITTED FILES, with the distinguishing control run separately.** Harness rebuilt by copying the
+  final committed files (`diff -r` clean, byte-identical), no implementation, no manifest.
+  - Repo state: **12 files failed, 40/40 gates failed, 0 skipped**, exit 1. No `AssertionError`,
+    `TypeError`, `ReferenceError` or `SyntaxError` from setup — every failure a gate diagnostic
+    (34 "could not load the public entry point", 2 "expected a package manifest").
+  - **Distinguishing control** (stub `index.ts` exporting one unrelated value, plus a manifest):
+    **39 failed, 1 passed, 0 skipped**, and the failure text _changed_ to
+    `gate expected @hearthkit/auth to export …` (32) and `must re-export these by name` (2). **This is
+    the run that proves the gates exercise the contract**; the all-fail run alone would look identical
+    whether the gates were good or garbage, since nothing resolves. The single pass is the
+    manifest/subpath gate, correct because the control supplies exactly the manifest it tests.
+  - The re-export list reads **100** contract values, up one from 99 — matching the
+    `betterAuthOrganizationAlreadyExistsHttpStatus` added in the last contract round, so the derived
+    list tracks the contract rather than being hand-maintained.
+  - Contract final at **166 exports / 166 doc comments**, isolated typecheck exit 0, `format:check`
+    exit 0. Five correction rounds total, every one driven by a measurement rather than an opinion.
+
+- **A MISSING `@types/pg` WOULD HAVE BROKEN THE IMPLEMENTOR, and it is invisible in the dependency
+  list it is missing from.** Found by the gate-writer typechecking the gates, confirmed by the
+  orchestrator in the repo: `packages/db` devDepends on **both** `pg@8.23.0` and `@types/pg@8.23.1`,
+  and `pnpm-lock.yaml` holds exactly **one** peer-suffixed resolution,
+  `drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)`. The contract's dev list
+  for `auth` named `pg` and **not** `@types/pg`.
+  - Written verbatim, `auth` resolves a drizzle-orm with a **different peer suffix**, pnpm materialises
+    a **second physical copy**, and `@hearthkit/db`'s client stops being assignable to
+    `@hearthkit/auth`'s `drizzleClient`. **Not a soft mismatch a cast could hide**: `PgSession.dialect`
+    is `protected`, so the declarations are structurally incompatible and TypeScript refuses outright —
+    `TS2322 … Property 'dialect' is protected but type 'PgSession<…>' is not a class derived from
+'PgSession<…>'`, reproduced.
+  - **The diagnostic points at Drizzle, not at the dependency list**, which is what makes it expensive:
+    an implementor would debug the client type rather than the manifest. The contract now says why the
+    `@types` package is there, so nobody prunes it later as unused.
+
+- **FOURTH INSTANCE OF THIS PACKAGE'S RECURRING SHAPE — the obvious spelling returns a WRONG ANSWER
+  rather than an error.** `createAuthClient` binds its fetch implementation at **construction time**
+  (`customFetchImpl: fetch` into `createFetch`), so a gate that assigns `globalThis.fetch` _after_
+  building its client silently keeps the real one and makes real network requests. The gate-writer's
+  first probe did exactly that, and something on the machine answered `http://localhost:3000` with a
+  full Next.js page — **the gate would have been asserting against a stranger**, and on CI it would
+  have been `ECONNREFUSED` instead. Joins `error.code`, `error.headers.location` and the decoy error
+  constants. The gates use a real loopback listener, which has no ordering hazard.
+  - Trap recorded in the gate: **never assert `statusText` here.** The same 401 reads `UNAUTHORIZED`
+    from a fetch stub and `Unauthorized` once Node's HTTP server has written it. Only `status` is
+    stable.
+
+- **`auth` GATES WRITTEN 2026-09-03: 40 gates in 12 files (was 38; the browser-client file went 1 → 3
+  after the Proxy finding), ORCHESTRATOR-VERIFIED FAILING with
+  ZERO SKIPPED**, against a harness built by copying the committed files (`diff -r` clean, no
+  implementation, no manifest — the repo's actual state). No `AssertionError`, `TypeError`,
+  `ReferenceError` or `SyntaxError` anywhere in the output, so no collection or setup errors: every
+  failure is a deliberate gate diagnostic (34 "could not load the public entry point", 2 "expected a
+  package manifest").
+  - **The old single browser-client gate held six assertions and EVERY ONE WAS VACUOUS** under the
+    Proxy finding — zero coverage in the shape of coverage. Replaced by three: one non-vacuous root
+    check, one that **pins the vacuity itself** (it fails if a release stops proxying or if anyone
+    wraps the client), and the relocated network-boundary pair. Structurally audited by the
+    orchestrator afterwards: 40 `it()` blocks across 12 files, 0 mocks, exactly one dynamic
+    `import('@hearthkit/auth')`, and **zero `beforeAll` in any gate file**, which is what keeps the
+    no-skip property structural rather than incidental.
+  - **`pnpm --filter @hearthkit/auth test` prints `No projects matched the filters` and exits 0 — the
+    SIXTH time this repo has hit that trap.** That exit 0 is evidence of nothing.
+  - **The distinguishing control was run by the orchestrator, because an all-fail run proves almost
+    nothing on its own.** With a resolvable stub `index.ts` exporting one unrelated value plus a
+    manifest: **37 failed, 1 passed**, and the failure text _changed_ from "could not load the public
+    entry point" to `gate expected @hearthkit/auth to export resolveAuthRuntimeConfig` and `src/index.ts
+must re-export these by name`. So the gates exercise the contract rather than merely failing to
+    resolve it. The single pass is the bare-node subpath gate, which is correct — the control handed it
+    exactly the manifest it tests. Reconciles with 38/38 in the repo, where no manifest exists.
+  - Import discipline audited, not taken on trust: the only route into the package is one dynamic
+    `import('@hearthkit/auth')` in `test-fixtures/hearthkit-auth-entry.ts`. Gate files import only
+    `./auth-contract.ts`, `../test-fixtures/*`, `vitest`, node builtins, `zod`, `pg`, `drizzle-orm`,
+    `@hearthkit/db`, `@hearthkit/config`, `@hearthkit/email/email-contract`, and `better-auth/db` +
+    `better-auth/plugins` for the conformance gate. **No implementation module.**
+  - **Zero mocks** — `vi.mock`, `vi.fn`, `vi.spyOn` all return 0 hits. The sanctioned Resend-style
+    exemption went unused again.
+  - Gate-writer judgement calls accepted: Mailpit via bare `docker run --rm` on the default bridge
+    rather than a compose project, because `cli`'s fixtures show the compose _network_ is the part that
+    leaks; DDL built from `hearthkitAuthDrizzleSchema` via `getTableConfig` with columns, not-null,
+    primary and unique but deliberately **no** foreign keys, indexes or defaults (measured sufficient);
+    rows read through Drizzle rather than raw SQL, since the contract leaves SQL column naming to the
+    app — the reference run used snake_case on purpose to prove it; and **a lazy per-file context
+    instead of `beforeAll`, because a throwing `beforeAll` makes Vitest report every test in the file
+    as SKIPPED, and a skipped gate is not a failing gate** (the first draft reported "12 files failed,
+    29 skipped").
+  - It also proved the gates _satisfiable_, beyond what was asked: a throwaway reference implementation
+    in the harness only reached **38/38 passing in ~20 s**. And it proved the Mailpit isolation works —
+    auth and `email` suites started two seconds apart both went green, 38/38 and 25/25.
+
+- **THREE CONTRACT DEFECTS FOUND BY BUILDING AGAINST IT, all measured by the orchestrator rather than
+  taken from the report, and ONE IS A HARD BLOCKER.** This is the gate step doing its job — the same
+  pattern as the `email` loop, where the gate-writer found four contract gaps.
+  1. **`authBrowserClientSchema` REJECTS THE VALUE ITS OWN FUNCTION IS SPECIFIED TO RETURN.**
+     `createAuthClient` returns a **Proxy whose target is a function**, so measured against the real
+     client: `typeof client` is `'function'` not `'object'` (fails the schema's first check),
+     `typeof client.signIn` is `'function'` not `'object'`, and `typeof client.signUp` likewise.
+     **`authBrowserClientSchema.safeParse(realClient).success` is `false`**; only the `useSession`
+     check passes. The implementor cannot both return a Better Auth client and satisfy the schema.
+     **The gate-writer reported this as one wrong check; it is three** — it missed the root
+     `typeof value === 'object'`.
+  2. **The browser client cannot observe the organizations flag at all.** The contract says
+     `organization` is present only when the flag is on and "that presence-or-absence is the flag's
+     observable effect on the client and it is what a gate asserts". Measured: the client is a blanket
+     Proxy — with the plugin **absent**, `typeof client.organization` is `'function'`,
+     `typeof client.organization.create` is `'function'`, and even
+     `typeof client.definitelyNotAPlugin` is `'function'`. `'organization' in client` is **`false` in
+     both** configurations. There is no client-side distinction to assert.
+     - **USER DECISION 2026-09-03: keep the contract's intent and relocate where the effect is
+       observed — assert it at the NETWORK BOUNDARY.** Building the browser client with the flag off
+       and routing its `organization` call through a server instance built with the flag off fails,
+       because the server has no such endpoint. The client carries `organization` in both modes and
+       that cannot be changed; the failure surfaces when the call reaches a server with no such route,
+       not when the property is read.
+     - Two alternatives were put to the user and rejected: narrowing the promise and deleting the gate
+       (loses a real assertion, makes the client-side flag decorative), and wrapping the client so
+       `organization` is genuinely absent (adds public surface and the returned value stops being a
+       plain Better Auth client, which would surprise app authors).
+     - **Corollary worth more than the fix: every property check on this Proxy is vacuous.**
+       `typeof client.useSession === 'function'` would pass against a client with no `useSession` at
+       all, because `typeof client.definitelyNotAPlugin` is also `'function'`. The only non-vacuous
+       assertion is on the root value. Recorded in the contract so nobody "hardens"
+       `authBrowserClientSchema` with checks that assert nothing.
+  3. **`SLUG_TAKEN` DOES NOT EXIST.** The contract illustrates `auth-request-failed` with
+     `authErrorCode: 'SLUG_TAKEN'`. It appears **zero times** in `better-auth`'s dist. The real code
+     for a slug collision is `ORGANIZATION_ALREADY_EXISTS` at HTTP 400, which the orchestrator had
+     already seen in `$ERROR_CODES` during the earlier probe. A gate asserting the contract's value
+     would have failed against every correct implementation.
+
+- **The network-boundary gate needs NO reachable database, measured.** With the Drizzle adapter
+  pointed at a dead port, the flag-off instance still returns **404** and the flag-on instance still
+  returns **401** — route resolution and the session check both happen before any query. So that gate
+  is database-free: faster, and it cannot flake on database setup. Answers the contract-author's two
+  open questions in one probe.
+
+- **THE NETWORK-BOUNDARY MEASUREMENT THAT MAKES THE USER'S RULING GATEABLE, and it comes with its own
+  negative control.** Same POST to `/api/auth/organization/create` handed to
+  `authServerInstance.handler(request)`:
+
+  | Server instance                          | Status  | Body  |
+  | ---------------------------------------- | ------- | ----- |
+  | built with `organizationsEnabled: false` | **404** | empty |
+  | built with `organizationsEnabled: true`  | **401** | empty |
+
+  **The 401 is the load-bearing half.** The same request with no session on it returns 401 from the
+  flag-on instance, which proves the route _exists_ and was rejected for want of a session rather than
+  for want of a route — so the 404 means "no such endpoint" and not "typo in the path". A gate
+  asserting only the 404 could be satisfied by a misspelled URL. Same argument as the STARTTLS and
+  presign gates.
+
+- **`ORGANIZATION_ALREADY_EXISTS` CONFIRMED AS THE SLUG-COLLISION CODE (HTTP 400, message
+  `Organization already exists`, `body` present) — AND THE DECOY IS ONE LINE AWAY.** Both
+  `ORGANIZATION_ALREADY_EXISTS` and `ORGANIZATION_SLUG_ALREADY_TAKEN` exist at the tag as adjacent
+  `$ERROR_CODES` entries; only the first is thrown. **Third time this package has been bitten by that
+  shape** — `USER_ALREADY_EXISTS` vs `USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL`, the fabricated
+  `SLUG_TAKEN`, and now this. Naming the decoy in the contract is what stops the fourth. **Generalised
+  rule for this library: never take an error-code constant from documentation or memory — read it off
+  a thrown error, because the enum reliably contains a plausible near-miss.**
+
+- **`error.body` IS `undefined` ON AT LEAST ONE PATH, so `error.body?.code` is required rather than
+  stylistic — a correction ON THE ORCHESTRATOR'S OWN TEXT, caught by the contract-author.** Correction
+  round 1 said `error.body` "carries exactly `{ message, code }`". Measured on more paths since: the
+  `createOrganization`-with-headers 401 carries `body === undefined`, so `error.body.code` throws a
+  `TypeError` and breaks the package's "never throws" promise on that path. The original claim was
+  measured only on the cases probed at the time and is false in general.
+
+- **IMPLEMENTOR INSTRUCTION, measured, that no contract sentence implies: `packages/auth/package.json`
+  must carry `next@16.3.3` in devDependencies or the gates cannot pass.** The contract lists `next` as
+  an optional peer and claims `nextCookies()` "swallows the failure when `cookies()` is called outside
+  a request scope". At the pin the plugin's hook swallows only errors whose message starts with
+  `` `cookies` was called outside a request scope. `` or includes `Cannot find module`. With `next`
+  absent, Node's ESM resolver says `Cannot find package 'next' imported from …`, which matches
+  **neither**, so the error is rethrown and every cookie-setting call fails. Sign-up, sign-in and
+  magic-link verification all returned `auth-request-failed` until `next@16.3.3` was installed. It
+  stays an optional peer for consumers.
+
+- **Two measured hazards for the implementor, neither a contract defect.** Server-side `api` calls
+  disagree about `headers`: `signInMagicLink` and `magicLinkVerify` **require** one (`APIError` 400
+  `VALIDATION_ERROR`, `Headers is required`, without it — the orchestrator hit this too), while
+  `createOrganization` must be called **without** one (passing `new Headers()` gives `UNAUTHORIZED`
+  401 with `body: undefined` and an empty message, which reads like a bug in your own code).
+  `addMember` tolerates either. And **verifying a magic link for a user who already has a password
+  deletes that user's `account` rows** at this pin, so password sign-in for them fails afterwards;
+  reproduced twice. The gates never mix the two paths on one user.
+
+- **`auth` GATES MUST NOT SHARE THE REPO'S MAILPIT, AND THIS WAS PROVEN BEFORE THE GATES WERE
+  COMMISSIONED RATHER THAN DISCOVERED IN CI.** `email`'s gates call `clearMailpitInbox()` —
+  `DELETE /api/v1/messages`, which wipes **every** message in the container, not just its own — in a
+  `beforeEach`, and make **nine** assertions on the exact total message count. The recursive sweep
+  runs projects **in parallel** (measured: storage, email, observability and db all started within
+  one second of each other). `auth` would be sending magic-link mail into the same container.
+  - **Demonstrated, not reasoned about.** With a second process sending one message into Mailpit
+    every 250 ms — exactly what an `auth` suite looks like from outside —
+    `pnpm --filter @hearthkit/email test` went **25/25 → 23/25, two failures, exit 1**:
+    `delivers the magic link to Mailpit with the same subject and both body parts` and
+    `returns email-transport-rejected … when the server refuses the recipient`.
+  - **Negative control run immediately after, same command, intruder stopped: 25/25, exit 0.** So the
+    failures were caused by the second suite and nothing else. It breaks in **both** directions —
+    `email`'s `beforeEach` DELETE would equally wipe an `auth` message before `auth` could read it.
+  - **Same class as the port collision one loop ago**, and the third shared-resource collision in this
+    phase: compose lacked a service CI needed (PR #10), then compose held ports another package's
+    gates published (`email` loop), now a container's _contents_ are shared mutable state across
+    packages. **Generalised: a service in the repo compose is shared mutable state, and any gate that
+    clears or counts its whole contents cannot coexist with another package's gates.**
+  - **Ruled: `auth` gates start their own Mailpit on reserved ports**, following the precedent this
+    file already endorses for the `cli` bucket gates — "they start their own compose stack on reserved
+    ports rather than borrowing the repo's MinIO, so they are self-sufficient on a runner that only
+    has Docker". Helpers exist: `reserveFreeHostPort` and `gate-compose-project-runs.ts` in
+    `packages/cli/test-fixtures/`. Postgres is still borrowed from compose, which is safe because
+    `auth` creates its own scratch **database** per run — isolation is already per-database there.
+  - Bonus: this touches neither `docker-compose.yml` nor `ci.yml`, so the new-service trap that failed
+    PR #10 has nothing to bite on.
+
+- **ORCHESTRATOR PROCESS NOTE: an invented constraint made a file worse, and the subagent was right to
+  push back rather than comply.** While closing two doc comments the orchestrator told the
+  contract-author to "keep them under 100 characters". That ceiling exists nowhere in the repo.
+  Measured after the subagent challenged it: `auth-contract.ts` doc comments run 38 to 135 characters
+  with a **median of 114, and 120 of 162 exceed 100**; the eight sibling prefix constants run 111 to
+  129; `email-contract.ts` has **67 of 84** over 100 and `storage-contract.ts` **51 of 67**. Prettier
+  passes all of them because it does not reflow comments.
+  - The cost was real: to fit 100 characters the agent had to drop "of the failure message" from the
+    stem, making line 30 **the only one of nine prefix constants** not matching the shared phrasing —
+    breaking a grep target that `CLAUDE.md`'s discoverability rule exists to protect. Reversed.
+  - **The generalisable rule: check the file before imposing a style number on it.** `format:check`
+    passing is not evidence a self-imposed limit is the convention, because Prettier never touches
+    comment interiors. Two of the three ruling errors this session were the orchestrator asserting a
+    norm it had not measured; the other was rewrapping, caught the same way.
+
+- **THE SHARPEST EDGE IN THE `auth` CONTRACT, found by the contract-author reading upstream source
+  and then MEASURED at the 1.7.2 pin by the orchestrator: `auth-email-already-registered` has a
+  producer ONLY because of two defaults this package happens to keep.** Upstream `sign-up.ts`
+  computes `shouldReturnGenericDuplicateResponse = requireEmailVerification || autoSignIn === false`
+  and returns a generic success instead of throwing when it holds. All three configurations run:
+
+  | `emailAndPassword` config         | Duplicate sign-up                                    |
+  | --------------------------------- | ---------------------------------------------------- |
+  | default (what this package ships) | **THREW** `USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL`    |
+  | `autoSignIn: false`               | **NO THROW** — returned `{token: null, user: {...}}` |
+  | `requireEmailVerification: true`  | **NO THROW** — returned `{token: null, user: {...}}` |
+  - **The generic response is indistinguishable from a real sign-up** — same shape, populated `user`,
+    `token: null`. The duplicate is not reported differently, it is not reported at all.
+  - **Enabling `requireEmailVerification` deletes the variant's only producer and breaks its gate**,
+    and so does `autoSignIn: false` — the one nobody would think to check. Both are named in the
+    contract's out-of-scope bullet.
+  - Upstream does this deliberately: suppressing the throw stops the sign-up endpoint being a
+    user-enumeration oracle. So enabling verification trades a named failure for a security property.
+    Recorded so nobody "fixes" it back.
+
+- **The magic-link 302 throw DOES carry the location header, so `asResponse: true` is a choice rather
+  than a requirement.** Caught from `magicLinkVerify` with a bad token and no `asResponse`: a plain
+  `Error`, `isAPIError: false`, `statusCode: 302`, own keys `[status, body, headers, statusCode,
+name]`, `headers` a real `Headers` instance, and **`e.headers.get('location')` returns
+  `http://localhost:3000/dash?error=INVALID_TOKEN`** while **`e.headers.location` is `undefined`**.
+  Same shape of trap as `error.code` vs `error.body.code` — the value is only reachable through the
+  accessor. Closed a gap the contract-author flagged as possibly costing an implementor round.
+
+- **`auth-database-unavailable` WIDENED from two Postgres codes to four, because the contract-author's
+  rule was right but the fact under it had stopped being true.** It had limited the variant to
+  `42P01` and `ECONNREFUSED` on the stated grounds that no gate could produce another code. Both of
+  these were then produced with nothing but a different connection string: a database that does not
+  exist gives `DatabaseError` `code: '3D000'`, and a wrong password gives `code: '28P01'`. Both are
+  the same operator-fix class, both are ordinary wrong-`DATABASE_URL` first-run states, and both are
+  **cheaper to gate than either original producer** — no dead port, no dropped table.
+  - Ruled an **explicit four-code allowlist** (`ECONNREFUSED`, `42P01`, `3D000`, `28P01`), not "any
+    cause carrying a code": the general form would swallow a `23505` unique violation, which is a
+    caller error rather than an unavailable database, and the organization slug path can produce one
+    under a race. Everything outside the four stays in `auth-request-failed`.
+
+- **BETTER AUTH 1.7.2 PROBED DIRECTLY BY THE ORCHESTRATOR, 2026-09-03, against a real install plus
+  real Postgres and real Drizzle tables. Most of the contract held; FIVE claims did not, and TWO of
+  the contract-author's questions rested on a false premise.** Probe lives in the scratchpad, not the
+  repo. Sent back as correction round 1.
+
+  **Confirmed, so nobody re-derives them:**
+  - The magic-link failure signal **is** a redirect. Bad token with a `callbackURL` → **302**,
+    `location: …/dash?error=INVALID_TOKEN`. It throws an `Error` with `statusCode: 302`, empty
+    message, `instanceof APIError === false`, **no code anywhere**.
+  - **Unknown, consumed and expired tokens are genuinely indistinguishable** — all three give the
+    identical 302/no-code/empty-message. So one variant covering all three is honest, not lazy.
+    `TOKEN_EXPIRED` exists in `$ERROR_CODES` but magic-link never emits it.
+  - Valid verify with no `callbackURL` → 200 JSON `{token, user, session}` plus a `set-cookie`.
+  - `INVALID_EMAIL_OR_PASSWORD` / HTTP 401 for **both** a wrong password and an unknown email.
+  - Org endpoints are structurally absent without the plugin: `typeof api.createOrganization` is
+    `'function'` with it, `'undefined'` without. Structural detection works.
+  - `getAuthTables()` for the pinned version returns exactly seven tables — `user, session, account,
+verification, organization, member, invitation` — with `session.activeOrganizationId` present and
+    **`account.issuer` required**.
+  - `autoSignIn` is **on by default**: `signUpEmail` returned a token and a `set-cookie`.
+
+  **Wrong, and the first is a live defect:**
+  - **THE SIGN-UP ERROR CODE IS `USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL` (HTTP 422), NOT
+    `USER_ALREADY_EXISTS`.** The contract encoded the wrong one at `auth-contract.ts:55`. **Both
+    constants exist in `$ERROR_CODES` as distinct entries**, so a reader checking the library would
+    have confirmed the wrong answer. An exact match never fires and every duplicate sign-up would
+    land in the catch-all with its own gate failing. **Mirror of the `19000:9000` `String.includes`
+    defect already recorded below**, in the opposite direction: here a sloppy _substring_ match would
+    accidentally work and an exact one fails. The contract now pins the exact code and says the match
+    is equality, so nobody "fixes" it into a substring test.
+  - **The magic link URL ALWAYS carries two parameters.** With no `callbackUrl` supplied the link is
+    `…/magic-link/verify?token=<…>&callbackURL=%2F` — `callbackURL` is always appended, defaulting to
+    `%2F`. The contract said "plus `&callbackURL=…` when supplied". **This makes the repo's existing
+    `textBody`-extraction rule unconditional rather than a precaution**, which is why it matters: as
+    written it implied a single-parameter link exists, and a single-parameter URL _does_ survive
+    React Email's escaping verbatim in `htmlBody`. A gate written against the old sentence would have
+    passed for the wrong reason and rotted.
+  - **The error code lives at `error.body.code`. `error.code` is `undefined`.** `error.body` is
+    exactly `{message, code}`; `error.statusCode` is the number and `error.status` the string name
+    (`'UNAUTHORIZED'`, `'UNPROCESSABLE_ENTITY'`). An implementation reading `error.code` gets
+    `undefined` for every case and routes everything to the catch-all — total and invisible.
+  - **Database failures arrive as raw Drizzle errors with the code exactly one `.cause` hop down**,
+    never as an `APIError`. Dead port → `DrizzleQueryError` (**no code**) → cause `AggregateError`
+    `code: 'ECONNREFUSED'`. Tables absent → `DrizzleQueryError` (**no code**) → cause `DatabaseError`
+    `code: '42P01'`, `relation "user" does not exist`. So the implementation must handle two
+    unrelated error families from one call, and a top-level code check finds nothing.
+  - `activeTeamId` is added **only when teams are enabled**; with the shipped configuration `session`
+    gains `activeOrganizationId` alone. Also: **`drizzleAdapter` requires the `schema` option** —
+    omitting it throws `BetterAuthError: … The model "user" was not found in the schema object.`
+
+  **BOTH TOOLING QUESTIONS REJECTED ON MEASURED FACTS, and the replacement is better than either
+  option offered.**
+  - **`npx @better-auth/cli generate` CANNOT RUN AT OUR PIN.** `npx @better-auth/cli@1.7.2` fails
+    `ETARGET: No matching version found`. **`@better-auth/cli`'s latest is 1.4.21** — three minors
+    behind `better-auth@1.7.2` — and **`better-auth@1.7.2` ships no `bin` at all**. A 1.4.21 CLI is
+    precisely what would miss the 1.7 `issuer` column the suggestion existed to protect against.
+  - **`drizzle-kit` is not needed either.** `getTableConfig` from `drizzle-orm/pg-core` is public and
+    returns each column's `name`, `getSQLType()`, `notNull` and `primary` — enough for a gate to
+    build `CREATE TABLE` from the shipped `hearthkitAuthDrizzleSchema` itself, using a dependency the
+    package already has. Deriving DDL from the shipped schema beats a SQL fixture _and_ drizzle-kit,
+    because the gate then cannot test a schema different from the one the package exports.
+  - **Replacement ruled: a conformance gate** asserting every table and field `getAuthTables()`
+    reports has a matching column in `hearthkitAuthDrizzleSchema`. Re-checks on every dependency
+    bump instead of only at authoring time. **Proven to bite before being prescribed** — run against
+    a hand-written seven-table schema it immediately reported `invitation.createdAt MISSING`, a real
+    omission made without noticing.
+  - Recorded, not a required change: `better-auth/adapters/drizzle` and `@better-auth/drizzle-adapter`
+    export the **identical function object** (`===` is `true`), so the separate dependency is
+    optional indirection and the two import paths carry no version-skew risk.
+
+- **`auth-contract.ts` TYPECHECKS IN ISOLATION, and the check was proven load-bearing.** `tsc
+--noEmit` with `strict`, `verbatimModuleSyntax`, `noUncheckedIndexedAccess`, `erasableSyntaxOnly`
+  and `isolatedModules`, against a scratchpad harness with `zod`, `drizzle-orm`, `@types/node` and
+  `packages/email` symlinked: **exit 0, no diagnostics**. This matters because `pnpm run typecheck`
+  still exits 0 **without checking this package** — `packages/auth` has no manifest, the fifth time
+  this repo has hit that trap. **Negative control run**: repointing the import to
+  `@hearthkit/email/NOPE-contract` fails with `TS2307`, so the exit 0 really did resolve the
+  `./email-contract` subpath and the `drizzle-orm/node-postgres` type import rather than skipping
+  them. 162 exports, 162 doc comments — full coverage. No `any`, no `export *`.
+
+- **POST-MERGE BASELINE ON `main` AT `6a8dbb5`, orchestrator-run, so any later `auth` regression is
+  attributable.** `pnpm --recursive --if-present run test` **exit 0, 8 projects, 189 tests across 46
+  files** — config 12/2, ui 27/5, observability 14/4, storage 21/8, db 24/6, email 25/5,
+  app-template 27/9, cli 39/7. `pnpm run typecheck` exit 0 (9 projects), `pnpm run lint` exit 0
+  (three pre-existing `no-unsafe-type-assertion` warnings in `config` and an `email` gate, unchanged),
+  `pnpm run format:check` exit 0. `docker compose up -d --wait postgres minio mailpit` exit 0, all
+  three healthy.
+
+- **`email` MERGED 2026-09-03 as `6a8dbb5`, squash-merge of PR #12, branch `pkg/email` deleted.** CI
+  was green on the PR's actual head commit `b576144` (run 33301005140), not only on the earlier
+  `3411332` (run 33300843861) — checked before merging, because the docs commit sat on top of the
+  implementation commit and it is the head that CI's rollup reports. `pkg/auth` cut from `main` at
+  `6a8dbb5`, working tree clean.
+
+- **`auth` opens WITHOUT the new-service trap that cost PR #10 a red CI, and this was checked rather
+  than assumed.** `auth`'s gates need Postgres and Mailpit. `ci.yml` already runs Postgres as a
+  service container (`postgres:17`, line 12) and already runs
+  `docker compose up -d --wait minio mailpit` (line 58), added during the `email` loop. So the
+  standing rule — adding a service to `docker-compose.yml` is only half the job — has nothing to bite
+  on here. If the `auth` gates turn out to need a service beyond those two, `ci.yml` must be taught
+  about it in the same commit.
 
 - **CI GREEN on PR #12 (run 33300843861), and the proof that matters is that the new gates RAN on the
   runner rather than being skipped: `packages/email test: Test Files 5 passed (5), Tests 25 passed

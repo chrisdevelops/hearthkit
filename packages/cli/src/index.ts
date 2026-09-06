@@ -50,9 +50,9 @@ export {
 export {
   generateLocalInfraComposeOptionsSchema,
   hearthkitProjectNameSchema,
-  localInfraServiceByHearthkitPackage,
   localInfraServiceImageByName,
   localInfraServiceNameSchema,
+  localInfraServicesByHearthkitPackage,
 } from './cli-contract.ts'
 
 /** Contract values: the bucket init container's service key and image pin, and the name schema the derived bucket name satisfies. */

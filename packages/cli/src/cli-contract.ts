@@ -85,10 +85,10 @@ export const hearthkitProjectNameSchema = z
 /** Branded hearthkit project name; derived from package.json name by stripping the scope and sanitizing to kebab-case. */
 export type HearthkitProjectName = z.infer<typeof hearthkitProjectNameSchema>
 
-/** The three local infra services from plan section 6; the only values infraServices accepts and the only names startedInfraServices reports. */
+/** The three local infra services from plan section 6; the only values infraServices accepts, the only names startedInfraServices reports, and the fixed order derived services are emitted in, which is never the key order of localInfraServicesByHearthkitPackage. */
 export const localInfraServiceNameSchema = z.enum(['postgres', 'minio', 'mailpit'])
 
-/** Local infra service name; postgres for db, minio for storage, mailpit for email. */
+/** Local infra service name; postgres for db and auth, minio for storage, mailpit for email and auth. */
 export type LocalInfraServiceName = z.infer<typeof localInfraServiceNameSchema>
 
 /** Pinned container image per selectable local infra service; the one place to bump these three (the bucket init container is pinned by localStorageBucketInitImage). */
@@ -98,12 +98,13 @@ export const localInfraServiceImageByName = {
   mailpit: 'axllent/mailpit:v1.31',
 } as const satisfies Record<LocalInfraServiceName, string>
 
-/** Which hearthkit package pulls in which local infra service when dev infra up derives services from package.json. */
-export const localInfraServiceByHearthkitPackage = {
-  '@hearthkit/db': 'postgres',
-  '@hearthkit/storage': 'minio',
-  '@hearthkit/email': 'mailpit',
-} as const satisfies Record<string, LocalInfraServiceName>
+/** Which local infra services each hearthkit package pulls in when dev infra up derives services from package.json; the derived set is deduplicated and emitted in localInfraServiceNameSchema option order. */
+export const localInfraServicesByHearthkitPackage = {
+  '@hearthkit/db': ['postgres'],
+  '@hearthkit/storage': ['minio'],
+  '@hearthkit/email': ['mailpit'],
+  '@hearthkit/auth': ['postgres', 'mailpit'],
+} as const satisfies Record<string, readonly LocalInfraServiceName[]>
 
 /** Compose service key of the container that creates the local storage bucket and then stays running on purpose, because docker compose up --wait exits 1 when a service it started has exited; deliberately not a LocalInfraServiceName because no project selects it. */
 export const localStorageBucketInitServiceName = 'minio-init'

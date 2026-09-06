@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import {
-  localInfraServiceByHearthkitPackage,
   localInfraServiceNameSchema,
+  localInfraServicesByHearthkitPackage,
   type HearthkitProjectName,
   type LocalInfraServiceName,
 } from './cli-contract.ts'
@@ -79,14 +79,19 @@ export async function readProjectInfraManifest(
   }
 }
 
-/** Maps installed hearthkit packages to the services they need, in the contract's fixed service order. */
+/**
+ * Maps installed hearthkit packages to the services they need. The map is one-to-many, so two
+ * packages can name the same service and the Set collapses it to one. The returned order comes from
+ * localInfraServiceNameSchema.options and never from the map or the manifest, which is what keeps one
+ * manifest producing one compose file.
+ */
 function readInfraServicesFromDependencies(
   dependencyVersionByName: Record<string, string>,
 ): LocalInfraServiceName[] {
-  const neededServiceNames = new Set(
-    Object.entries(localInfraServiceByHearthkitPackage)
+  const neededServiceNames = new Set<LocalInfraServiceName>(
+    Object.entries(localInfraServicesByHearthkitPackage)
       .filter(([packageName]) => dependencyVersionByName[packageName] !== undefined)
-      .map(([, serviceName]) => serviceName),
+      .flatMap(([, serviceNames]) => serviceNames),
   )
   return localInfraServiceNameSchema.options.filter((serviceName) =>
     neededServiceNames.has(serviceName),
