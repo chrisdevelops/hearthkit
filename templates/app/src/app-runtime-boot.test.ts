@@ -5,17 +5,52 @@ import {
   importTemplateModule,
   messageOfThrownFrom,
 } from '../test-fixtures/app-template-gate-expectations.ts'
-import { readTemplateFileText } from '../test-fixtures/app-template-tree-files.ts'
+import { gateSupersetEnv } from '../test-fixtures/app-template-gate-environment.ts'
+import {
+  fileLinesInsideSectionBlocksOf,
+  fileLinesOutsideSectionBlocks,
+} from '../test-fixtures/app-template-section-markers.ts'
+import {
+  documentedEnvVariableNamesIn,
+  readTemplateFileText,
+} from '../test-fixtures/app-template-tree-files.ts'
 import type { RequireAppRuntimeConfig } from './app-template-contract.ts'
 import {
   appRuntimeConfigSchema,
   appStartupLogMessage,
+  appTemplateEnvBlockMismatchErrorPrefix,
   appTemplateEnvVariableNames,
   appTemplateFailureSchema,
+  appTemplateOptionalPackageNames,
+  appTemplateSectionBlockBeginPrefix,
+  appTemplateSectionBlockEndPrefix,
+  appTemplateSectionsByOptionalPackage,
+  appTemplateSupersetEnvVariableNames,
 } from './app-template-contract.ts'
 
 /** A DSN that parses as an http url, so the populated-environment gate exercises the optional variable. */
 const gateGlitchtipDsn = 'https://gatepublickey@glitchtip.example.com/7'
+
+/** Every variable an optional package owns, which is what the superset adds to the always-on three. */
+const optionalEnvVariableNames = appTemplateOptionalPackageNames.flatMap(
+  (optionalPackageName) =>
+    appTemplateSectionsByOptionalPackage[optionalPackageName].envVariableNames,
+)
+
+/** A complete superset environment, since every optional package contributes at least one required variable. */
+const supersetEnv = (overrides?: Readonly<Record<string, string>>): Record<string, string> =>
+  gateSupersetEnv({
+    supersetEnvVariableNames: appTemplateSupersetEnvVariableNames,
+    optionalEnvVariableNames,
+    overrides,
+  })
+
+/** Everything a marker scan of .env.example needs from the contract. */
+const envExampleMarkerValues = {
+  beginPrefix: appTemplateSectionBlockBeginPrefix,
+  endPrefix: appTemplateSectionBlockEndPrefix,
+  optionalPackageNames: [...appTemplateOptionalPackageNames],
+} as const
 
 /** Names instrumentation.ts must call; it may not import src/, so the gate reads the file for them. */
 const instrumentationWiringNames = [
@@ -55,42 +90,66 @@ async function loadAppRuntimeConfigModule(): Promise<{
 }
 
 describe('requireAppRuntimeConfig', () => {
-  it('boots with an empty environment because the Phase 4 template requires no variable', async () => {
+  it('refuses an empty environment in the superset, naming every variable an optional package requires', async () => {
     const { requireAppRuntimeConfig } = await loadAppRuntimeConfigModule()
 
-    // The image builds and starts with nothing set, so every variable is optional or defaulted.
-    const config = requireAppRuntimeConfig({ env: {} })
+    // With no optional package selected nothing is required, which is why an empty-selection project
+    // boots on an empty environment and the container image builds with nothing set. That half is
+    // the contract's always-on schema, and it still holds.
+    expect(appRuntimeConfigSchema.parse({}).LOG_LEVEL).toBe('info')
 
-    expect(config.NODE_ENV).toBe('development')
-    expect(config.LOG_LEVEL).toBe('info')
-    expect(config.GLITCHTIP_DSN).toBeUndefined()
-    expect(Object.isFrozen(config)).toBe(true)
+    // Selecting anything changes it: app-boot-config-invalid becomes reachable through a MISSING
+    // variable and not only through an invalid one, and the superset selects all four. The message
+    // has to name them, or an operator is left guessing which of twenty-five is unset.
+    const message = messageOfThrownFrom(() => requireAppRuntimeConfig({ env: {} }))
+    expect(message.startsWith(configInvalidErrorPrefix)).toBe(true)
+    for (const requiredVariableName of [
+      'STORAGE_ENDPOINT',
+      'EMAIL_TRANSPORT',
+      'DATABASE_URL',
+      'AUTH_SECRET',
+      'STRIPE_SECRET_KEY',
+    ]) {
+      expect(message, `a superset boot failure must name ${requiredVariableName}`).toContain(
+        requiredVariableName,
+      )
+    }
   })
 
   it('returns the composed config the contract schema describes for a populated environment', async () => {
     const { requireAppRuntimeConfig } = await loadAppRuntimeConfigModule()
-    const env = {
+    const env = supersetEnv({
       NODE_ENV: 'production',
       LOG_LEVEL: 'debug',
       GLITCHTIP_DSN: gateGlitchtipDsn,
-    }
+    })
 
     const config = requireAppRuntimeConfig({ env })
 
-    // appRuntimeConfigSchema (static, in the contract) and appEnvSchemaFragments (runtime, in
-    // app-runtime-config.ts) hold the same information two ways; this is where they must agree.
-    expect(config).toEqual(appRuntimeConfigSchema.parse(env))
-    expect(config.NODE_ENV).toBe('production')
-    expect(config.LOG_LEVEL).toBe('debug')
+    // appRuntimeConfigSchema (static, in the contract) carries the always-on three, and
+    // appEnvSchemaFragments (runtime, in app-runtime-config.ts) carries those plus every selected
+    // package's; this is where the two must agree about the three they share.
+    const alwaysOnConfig = appRuntimeConfigSchema.parse(env)
+    expect(config.NODE_ENV).toBe(alwaysOnConfig.NODE_ENV)
+    expect(config.LOG_LEVEL).toBe(alwaysOnConfig.LOG_LEVEL)
     expect(String(config.GLITCHTIP_DSN)).toBe(gateGlitchtipDsn)
+    expect(Object.isFrozen(config)).toBe(true)
+
+    // One value from an optional package's fragment, to prove the composition really widened rather
+    // than the superset environment merely being ignored.
+    expect(String((config as Record<string, unknown>).DATABASE_URL)).toBe(env.DATABASE_URL)
   })
 
   it('throws config own prefixed message when a variable holds an invalid value', async () => {
     const { requireAppRuntimeConfig } = await loadAppRuntimeConfigModule()
 
-    // No variable is required yet, so an invalid value is the only way to reach the boot failure.
+    // Every required variable is present here, so the only thing wrong is the two values: this is
+    // the invalid-value half of app-boot-config-invalid, distinct from the missing-variable half the
+    // superset made reachable.
     const message = messageOfThrownFrom(() =>
-      requireAppRuntimeConfig({ env: { LOG_LEVEL: 'nope', GLITCHTIP_DSN: 'not-a-url' } }),
+      requireAppRuntimeConfig({
+        env: supersetEnv({ LOG_LEVEL: 'nope', GLITCHTIP_DSN: 'not-a-url' }),
+      }),
     )
 
     expect(message.startsWith(configInvalidErrorPrefix)).toBe(true)
@@ -101,24 +160,87 @@ describe('requireAppRuntimeConfig', () => {
     expect(bootFailure.kind).toBe('app-boot-config-invalid')
   })
 
-  it('declares the same variables in appEnvSchemaFragments as the contract schema and .env.example', async () => {
+  it('declares every superset variable in appEnvSchemaFragments and documents exactly those in .env.example', async () => {
     const { appEnvSchemaFragments } = await loadAppRuntimeConfigModule()
 
-    const fragmentVariableNames = appEnvSchemaFragments.flatMap(shapeKeysOf).toSorted()
-    const contractVariableNames = [...appTemplateEnvVariableNames].toSorted()
+    // Sorted, not in order: the superset list is written in appTemplateOptionalPackageNames order
+    // while a fragment's own shape order is its author's, and STORAGE_REGION already sits in a
+    // different place in each. The SET is the contract; the order of the list is documentation.
+    const supersetVariableNames = [...appTemplateSupersetEnvVariableNames].toSorted()
+    expect(appEnvSchemaFragments.flatMap(shapeKeysOf).toSorted()).toEqual(supersetVariableNames)
 
-    expect(fragmentVariableNames).toEqual(contractVariableNames)
-    expect(Object.keys(appRuntimeConfigSchema.shape).toSorted()).toEqual(contractVariableNames)
+    // The contract's static schema stays the always-on three: it is the empty-selection boot shape,
+    // and widening it would make a project that picked nothing require a variable it has no use for.
+    expect(Object.keys(appRuntimeConfigSchema.shape).toSorted()).toEqual(
+      [...appTemplateEnvVariableNames].toSorted(),
+    )
 
-    // .env.example documents exactly this set, whether the line is commented out or not.
-    const documentedVariableNames = [
-      ...new Set(
-        [...readTemplateFileText('.env.example').matchAll(/^\s*#?\s*([A-Z][A-Z0-9_]*)\s*=/gm)]
-          .map((match) => match[1])
-          .filter((variableName): variableName is string => variableName !== undefined),
+    // .env.example documents exactly the superset set, whether the line is commented out or not.
+    expect(documentedEnvVariableNamesIn(readTemplateFileText('.env.example')).toSorted()).toEqual(
+      supersetVariableNames,
+    )
+  })
+
+  it('documents every optional variable inside its owning package .env.example block and the always-on three outside every block', () => {
+    const envExampleText = readTemplateFileText('.env.example')
+    const envBlockMismatches: string[] = []
+
+    // A variable outside its owner's block survives a prune that deletes the package, so a project
+    // is told to set something nothing reads; a variable inside two blocks is deleted by whichever
+    // package goes first. Either way the pruned file is wrong in a way only boot would show.
+    const namesOutsideEveryBlock = documentedEnvVariableNamesIn(
+      fileLinesOutsideSectionBlocks({ ...envExampleMarkerValues, fileText: envExampleText }).join(
+        '\n',
       ),
-    ].toSorted()
-    expect(documentedVariableNames).toEqual(contractVariableNames)
+    )
+    for (const alwaysOnVariableName of appTemplateEnvVariableNames) {
+      if (!namesOutsideEveryBlock.includes(alwaysOnVariableName)) {
+        envBlockMismatches.push(
+          `${appTemplateEnvBlockMismatchErrorPrefix} ${alwaysOnVariableName} is documented inside a section block`,
+        )
+      }
+    }
+
+    for (const optionalPackageName of appTemplateOptionalPackageNames) {
+      const namesInsideThisBlock = documentedEnvVariableNamesIn(
+        fileLinesInsideSectionBlocksOf({
+          ...envExampleMarkerValues,
+          fileText: envExampleText,
+          owningOptionalPackageName: optionalPackageName,
+        }).join('\n'),
+      )
+      for (const envVariableName of appTemplateSectionsByOptionalPackage[optionalPackageName]
+        .envVariableNames) {
+        if (!namesInsideThisBlock.includes(envVariableName)) {
+          envBlockMismatches.push(
+            `${appTemplateEnvBlockMismatchErrorPrefix} ${envVariableName} (${optionalPackageName})`,
+          )
+        }
+      }
+      // Nothing else belongs in that block, which is the "inside two blocks at once" half.
+      for (const documentedName of namesInsideThisBlock) {
+        if (
+          !(
+            appTemplateSectionsByOptionalPackage[optionalPackageName]
+              .envVariableNames as readonly string[]
+          ).includes(documentedName)
+        ) {
+          envBlockMismatches.push(
+            `${appTemplateEnvBlockMismatchErrorPrefix} ${documentedName} is documented in the ${optionalPackageName} block, which does not own it`,
+          )
+        }
+      }
+    }
+
+    expect(envBlockMismatches).toEqual([])
+
+    const envBlockMismatchFailure = appTemplateFailureSchema.parse({
+      kind: 'app-template-env-block-mismatch',
+      envVariableName: 'DATABASE_URL',
+      owningOptionalPackageName: '@hearthkit/auth',
+      message: `${appTemplateEnvBlockMismatchErrorPrefix} DATABASE_URL`,
+    })
+    expect(envBlockMismatchFailure.kind).toBe('app-template-env-block-mismatch')
   })
 })
 

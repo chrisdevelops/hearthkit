@@ -376,7 +376,11 @@ export const appTemplateSectionsByOptionalPackage = {
   },
 } as const satisfies Record<AppTemplateOptionalPackageName, AppTemplateOptionalPackageSection>
 
-/** Every environment variable the superset template reads: appTemplateEnvVariableNames followed by each optional package's own, in appTemplateOptionalPackageNames order; written out rather than derived so a gate can prove the map and this list agree. */
+// COMPARE THIS AS A SORTED SET, NEVER AS AN ORDERED LIST. The order below is grouped by owner for a
+// reader; it does not match the key order of any envSchemaFragment. `storageEnvSchemaFragment`
+// declares STORAGE_REGION last and this list has it third, so an ordered comparison fails and the
+// failure looks like a defect in the map when it is a defect in the comparison.
+/** Every environment variable the superset template reads: appTemplateEnvVariableNames plus each optional package's own; written out rather than derived so a gate can prove the map and this list hold the same set. */
 export const appTemplateSupersetEnvVariableNames = [
   'NODE_ENV',
   'GLITCHTIP_DSN',
@@ -411,11 +415,17 @@ export const appTemplateSupersetEnvVariableNames = [
 // mention of the marker text anywhere else in a block-pruned file fails that gate rather than
 // silently swallowing lines.
 //
-// THE MECHANISM DELETES BETWEEN BALANCED MARKERS AND DOES NOTHING ELSE. No value is rewritten, no
-// identifier substituted, no placeholder filled. A need that cannot be met by deleting a marked
-// region is not a reason to widen this; it goes back to the orchestrator. The two properties that
-// keep it safe are gates, not conventions: a generated project must contain NO marker text at all,
-// and must still typecheck.
+// THE MECHANISM DELETES AND DOES NOTHING ELSE. No value is rewritten, no identifier substituted, no
+// placeholder filled. A need that cannot be met by deleting is not a reason to widen this; it goes
+// back to the orchestrator. The two properties that keep it safe are gates, not conventions: a
+// generated project must contain NO marker text at all, and must still typecheck.
+//
+// ABSENT AND EXPLICIT SELECTIONS BEHAVE DIFFERENTLY, AND THIS IS THE PART A READER GETS WRONG.
+// An ABSENT selection returns the text unchanged, markers and all, because that is the template
+// itself and the template must keep its markers to stay prunable. An EXPLICIT selection — empty,
+// partial, or naming all four — deletes every unselected package's blocks whole AND strips the
+// begin and end lines of every KEPT block, leaving that block's contents. So "no marker survives"
+// is a property of a generated project, never of the template.
 /** Opening marker of an optional package's block; a marker line contains this prefix, one space and the exact package name, after whatever comment leader that file uses. */
 export const appTemplateSectionBlockBeginPrefix = 'hearthkit-section:begin'
 
@@ -456,15 +466,26 @@ export type DecideTemplatePathPrune = (
   options: DecideTemplatePathPruneOptions,
 ) => AppTemplatePruneDecision
 
-/** Options type for pruneOptionalSectionBlocks; the same absent-means-superset rule as decideTemplatePathPrune. */
+/** Module that must export decideTemplatePathPrune and pruneOptionalSectionBlocks by name; both are read from there by the gates, so neither may be an unexported local. */
+export const appTemplatePrunerModulePath = 'src/materialize-app-template-project.ts'
+
+/** Options type for pruneOptionalSectionBlocks; an absent selectedOptionalPackageNames returns the text unchanged, and every explicit selection strips markers, so the two are not the same call. */
 export type PruneOptionalSectionBlocksOptions = {
   fileText: string
   selectedOptionalPackageNames?: readonly AppTemplateOptionalPackageName[]
 }
 
-/** Signature of pruneOptionalSectionBlocks: removes each unselected package's marked lines and any blank lines directly after, returns the rest byte for byte, and throws with appTemplateOptionalBlockMalformedErrorPrefix when markers do not balance. */
+/** Signature of pruneOptionalSectionBlocks: absent selection returns fileText unchanged; an explicit one deletes each unselected package's block with the blank lines after it, strips the begin and end lines of each kept block, leaves every other line byte for byte, and throws with appTemplateOptionalBlockMalformedErrorPrefix when markers do not balance. */
 export type PruneOptionalSectionBlocks = (options: PruneOptionalSectionBlocksOptions) => string
 
+// PRECEDENCE, because two of these overlap and a message names exactly one. A package may hold more
+// than one block in a file, so a "duplicate" cannot mean a second block anywhere in the file — it
+// can only mean a second BEGIN while that same package's block is still open, which is also a begin
+// inside an open block. The tie is broken by whose block is open:
+//   - a begin for a DIFFERENT package than the open one -> 'begin-inside-open-block'
+//   - a begin for the SAME package as the open one      -> 'duplicate-block-for-package'
+// The other two never overlap: 'begin-without-end' is a block still open at end of file, and
+// 'end-without-begin' is an end marker with no block open.
 /** The four ways a file's section markers can be wrong; each is a separate gate against synthetic text, so no filesystem is needed to cover them. */
 export const appTemplateBlockMarkerProblemSchema = z.enum([
   'begin-without-end',
@@ -473,7 +494,7 @@ export const appTemplateBlockMarkerProblemSchema = z.enum([
   'duplicate-block-for-package',
 ])
 
-/** Which marker rule a block-pruned file broke. */
+/** Which marker rule a block-pruned file broke; exactly one is reported per message, per the precedence above. */
 export type AppTemplateBlockMarkerProblem = z.infer<typeof appTemplateBlockMarkerProblemSchema>
 
 /** Route path of the home page the smoke test loads. */
@@ -513,6 +534,38 @@ export const appSmokeBaseUrlEnvVariableName = 'SMOKE_TEST_BASE_URL'
 /** Base URL the smoke test uses when appSmokeBaseUrlEnvVariableName is unset, matching the port the app serves locally. */
 export const appSmokeDefaultBaseUrl = `http://127.0.0.1:${String(appContainerDefaultPort)}`
 
+// The email and auth flows read delivered mail, and WHICH Mailpit they read is an input rather than
+// a constant. These specs ship into generated projects, so they can carry no Docker orchestration,
+// and playwright.config.ts may not import test-fixtures/ because the tree gate forbids it. So the
+// isolation cannot live in the artifact: whoever runs the Flows tier points this at a Mailpit that
+// no other suite is using. Scoping reads to one address is NOT sufficient on its own — see
+// CONTRACT.md under the email section for the two directions it fails to govern.
+/** Environment variable naming the Mailpit HTTP API the email and auth flows read; an input, so a run can be pointed at an isolated instance. */
+export const appMailpitApiBaseUrlEnvVariableName = 'MAILPIT_API_BASE_URL'
+
+/** Mailpit HTTP API the flows use when appMailpitApiBaseUrlEnvVariableName is unset, matching what hearthkit dev infra up publishes for a project. */
+export const appMailpitDefaultApiBaseUrl = 'http://127.0.0.1:8025'
+
+/** Request body of POST /api/email/test-message; one recipient per call, matching sendTransactionalEmail's own one-recipient rule. */
+export const appEmailTestMessageRequestSchema = z.object({
+  recipientEmailAddress: z.string(),
+})
+
+/** Request body type of the email section's test-message route. */
+export type AppEmailTestMessageRequest = z.infer<typeof appEmailTestMessageRequestSchema>
+
+/** data-testid on the element of /billing carrying the signed-in billing reference, which the payments flow stamps into the synthesised event's metadata. */
+export const appBillingReferenceTestId = 'billing-reference'
+
+/** data-testid on each purchasable price on /billing; the flow reads its two data attributes to build a webhook payload the handler can resolve. */
+export const appBillingPriceTestId = 'billing-price'
+
+/** Attribute on a billing-price element holding the catalog price name, written to Stripe metadata as hearthkit_price_name. */
+export const appBillingPriceNameAttributeName = 'data-price-name'
+
+/** Attribute on a billing-price element holding the Stripe price id, written to Stripe metadata as hearthkit_stripe_price_id. */
+export const appBillingStripePriceIdAttributeName = 'data-stripe-price-id'
+
 /** Literal strings .github/workflows/ci.yml must contain, so the pull-request checks cannot silently lose a step. */
 export const appTemplateCiWorkflowRequiredContent = [
   'pull_request',
@@ -548,6 +601,10 @@ export const appTemplateScaffoldRewriteMissingErrorPrefix =
 /** Unique literal prefix reported when a path owned by an unselected optional package reached a generated project. */
 export const appTemplateOptionalSectionCopiedErrorPrefix =
   'hearthkit app template optional section copied:'
+
+/** Unique literal prefix reported when a path the map says an optional package owns does not exist in templates/app; the mirror of appTemplatePathMissingErrorPrefix, which covers only appTemplateGuaranteedPaths. */
+export const appTemplateOptionalSectionPathMissingErrorPrefix =
+  'hearthkit app template optional section path missing:'
 
 /** Unique literal prefix reported when an unselected optional package's marked block survived in an always-present file. */
 export const appTemplateOptionalBlockCopiedErrorPrefix =
@@ -608,6 +665,12 @@ export const appTemplateFailureSchema = z.discriminatedUnion('kind', [
     copiedPath: appTemplateRelativePathSchema,
     owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
     message: z.string().startsWith(appTemplateOptionalSectionCopiedErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-template-optional-section-path-missing'),
+    missingPath: appTemplateRelativePathSchema,
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+    message: z.string().startsWith(appTemplateOptionalSectionPathMissingErrorPrefix),
   }),
   z.object({
     kind: z.literal('app-template-optional-block-copied'),

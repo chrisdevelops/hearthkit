@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -171,6 +172,52 @@ export function listTemplateFilePaths(options: {
 
   walkDirectory(appTemplateRootPath, '')
   return found.toSorted()
+}
+
+/**
+ * Every file git tracks under templates/app, as POSIX relative paths.
+ *
+ * The template artifact is its tracked files, and that distinction is load-bearing for the
+ * empty-selection gate: `next-env.d.ts` and `tsconfig.tsbuildinfo` are gitignored build output that
+ * appear in the working tree the moment anyone runs `pnpm typecheck` here, and they are named in
+ * neither appTemplateNeverCopiedDirectoryNames nor any guaranteed path list. Walking the directory
+ * instead would make "an empty selection reproduces appGeneratedProjectGuaranteedPaths exactly" pass
+ * or fail depending on whether the last command someone ran wrote a cache file.
+ */
+export function trackedTemplateFilePaths(): string[] {
+  let trackedOutput: string
+  try {
+    trackedOutput = execFileSync('git', ['ls-files', '-z'], {
+      cwd: appTemplateRootPath,
+      encoding: 'utf8',
+      maxBuffer: 8 * 1024 * 1024,
+    })
+  } catch (error) {
+    throw new Error(
+      `gate could not list the git-tracked files of templates/app: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
+
+  const trackedPaths = trackedOutput.split('\0').filter((entry) => entry !== '')
+  if (trackedPaths.length === 0) {
+    throw new Error('gate expected git to track at least one file under templates/app')
+  }
+  return trackedPaths.toSorted()
+}
+
+/**
+ * Every variable name an env file documents, whether the line is commented out or live. Marker lines
+ * cannot match: a section marker carries no `=` and its package name is lowercase.
+ */
+export function documentedEnvVariableNamesIn(envFileText: string): string[] {
+  return [
+    ...new Set(
+      [...envFileText.matchAll(/^\s*#?\s*([A-Z][A-Z0-9_]*)\s*=/gm)]
+        .map((match) => match[1])
+        .filter((variableName): variableName is string => variableName !== undefined),
+    ),
+  ]
 }
 
 /** Every module specifier a file references, covering ESM imports, require calls, CSS @import and Tailwind @source. */
