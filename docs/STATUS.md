@@ -8,7 +8,7 @@ Updated by the orchestrator after every commit. A fresh session reads this first
   and merged. **`payments` in flight.** Phase 4 complete.
 - Package: `payments` (depends on `config` and `db`, merged in Phase 1, and `auth`, merged in Phase 5
   — all three dependencies are on `main`)
-- Step: `gates`, on the **template conditional sections** — not a package loop. `payments` is
+- Step: `commit`, on the **template conditional sections** — not a package loop. `payments` is
   merged (PR #14) and the plan doc is merged (PR #15, `docs/phase-5-template-sections.md`).
 - Branch: `pkg/payments`, cut from `main` at 570b456 with a clean working tree.
 - **PR #14 open: <https://github.com/chrisdevelops/hearthkit/pull/14>**, branch `pkg/payments`,
