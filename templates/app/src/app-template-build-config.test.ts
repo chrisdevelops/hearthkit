@@ -15,7 +15,9 @@ import {
 import {
   appNextConfigOutputMode,
   appTemplateNeverCopiedDirectoryNames,
+  appTemplateOptionalPackageNames,
   appTemplateRequiredPackageNames,
+  appTemplateSectionsByOptionalPackage,
 } from './app-template-contract.ts'
 
 /** Compiler options tsconfig.json mirrors from tsconfig.base.json; it cannot extend a file a generated project has no copy of. */
@@ -63,11 +65,20 @@ describe('templates/app build configuration', () => {
     // standalone is what writes .next/standalone for the Dockerfile's runner stage.
     expect(nextConfig.output).toBe(appNextConfigOutputMode)
 
-    // The hearthkit packages ship TypeScript source, so Next must compile them.
+    // The hearthkit packages ship TypeScript source, so Next must compile them. Each optional
+    // package adds its own hearthkitDependencyNames inside that package's marked block, for the same
+    // reason and with the same deletion: transpiling a package the project no longer depends on
+    // fails the build with a resolution error rather than being ignored.
     const transpiledPackages = jsonStringArrayAt(nextConfig, 'transpilePackages')
-    const untranspiledPackageNames = appTemplateRequiredPackageNames.filter(
-      (packageName) => !transpiledPackages.includes(packageName),
-    )
+    const untranspiledPackageNames = [
+      ...appTemplateRequiredPackageNames,
+      ...new Set(
+        appTemplateOptionalPackageNames.flatMap(
+          (optionalPackageName) =>
+            appTemplateSectionsByOptionalPackage[optionalPackageName].hearthkitDependencyNames,
+        ),
+      ),
+    ].filter((packageName) => !transpiledPackages.includes(packageName))
     expect(untranspiledPackageNames).toEqual([])
 
     // A package may never appear in both lists; Next throws at build start when it does.

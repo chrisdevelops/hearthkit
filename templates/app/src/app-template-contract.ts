@@ -1,6 +1,14 @@
-import { configEnvSchemaFragment, configInvalidErrorPrefix } from '@hearthkit/config'
+import {
+  configEnvSchemaFragment,
+  configInvalidErrorPrefix,
+  envVariableNameSchema,
+} from '@hearthkit/config'
 import type { EnvSource } from '@hearthkit/config'
-import { healthCheckResultSchema, observabilityEnvSchemaFragment } from '@hearthkit/observability'
+import {
+  healthCheckNameSchema,
+  healthCheckResultSchema,
+  observabilityEnvSchemaFragment,
+} from '@hearthkit/observability'
 import type { HealthCheckName, NamedHealthCheck } from '@hearthkit/observability'
 import {
   hearthkitThemeCssImportSpecifier,
@@ -26,17 +34,21 @@ export const appTemplatePlaywrightVersion = '1.62.1'
 /** Node major version the template runs on, in the container image, in CI, and in the engines field. */
 export const appTemplateNodeMajorVersion = 24
 
+// The character class carries `[`, `]`, `(`, `)` and `@` because Next.js route conventions put them
+// in real directory names: `app/api/auth/[...all]/route.ts` is the catch-all the auth section needs,
+// and route groups `(name)` and parallel routes `@name` are the same family. The `..` guard is
+// unchanged and still rejects a parent segment, and `[...all]`'s three dots are not a `..` segment.
 /** Relative POSIX path inside the template or a generated project; no leading slash and no parent segment, branded so path strings are validated before use. */
 export const appTemplateRelativePathSchema = z
   .string()
-  .regex(/^(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/)
+  .regex(/^(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@()[\]-]+(?:\/[A-Za-z0-9._@()[\]-]+)*$/)
   .max(255)
   .brand<'AppTemplateRelativePath'>()
 
 /** Branded relative path used everywhere this contract names a file in the template tree. */
 export type AppTemplateRelativePath = z.infer<typeof appTemplateRelativePathSchema>
 
-/** Every path templates/app must contain; the template's shape gate and @hearthkit/create both assert against this list rather than prose. */
+/** Every path templates/app must contain whatever the optional-package selection is; each optional package's own paths live in appTemplateSectionsByOptionalPackage instead, so this list stays the always-present set. */
 export const appTemplateGuaranteedPaths = [
   '.dockerignore',
   '.env.example',
@@ -60,6 +72,7 @@ export const appTemplateGuaranteedPaths = [
   'playwright.config.ts',
   'postcss.config.mjs',
   'public/.gitkeep',
+  'start-standalone-server.ts',
   'tsconfig.json',
 ] as const
 
@@ -80,7 +93,7 @@ export const appTemplateRenamedPaths = [
   { templatePath: 'gitignore', generatedProjectPath: '.gitignore' },
 ] as const
 
-/** Every path a generated project must contain: appTemplateGuaranteedPaths with appTemplateRenamedPaths applied, both sorted. */
+/** Every path a project scaffolded with NO optional package selected must contain, and nothing more: appTemplateGuaranteedPaths with appTemplateRenamedPaths applied, both sorted. */
 export const appGeneratedProjectGuaranteedPaths = [
   '.dockerignore',
   '.env.example',
@@ -104,6 +117,7 @@ export const appGeneratedProjectGuaranteedPaths = [
   'playwright.config.ts',
   'postcss.config.mjs',
   'public/.gitkeep',
+  'start-standalone-server.ts',
   'tsconfig.json',
 ] as const
 
@@ -131,7 +145,7 @@ export const appTemplateRepoOnlyScriptNames = ['test', 'verify:container'] as co
 /** Script the verify:container command runs; hearthkit-only, so it lives under a repo-only directory. */
 export const appTemplateVerifyContainerScriptPath = 'src/verify-app-container.ts'
 
-/** hearthkit packages the template wires and lists in transpilePackages; Phase 5 packages are added to this list when their section lands. */
+/** hearthkit packages every project depends on and lists in transpilePackages whatever the selection is; an optional package adds its own names through appTemplateSectionsByOptionalPackage, never to this list. */
 export const appTemplateRequiredPackageNames = [
   '@hearthkit/config',
   '@hearthkit/observability',
@@ -144,13 +158,17 @@ export const appTemplateRepoOnlyDependencyNames = ['vitest', 'zod'] as const
 /** Specifier every @hearthkit/* dependency carries inside the workspace; the scaffolder replaces it with a published version range. */
 export const appTemplateWorkspaceDependencySpecifier = 'workspace:*'
 
-/** Everything the scaffolder must change rather than copy verbatim; anything not named here is copied byte for byte. */
+/** Everything the scaffolder must change rather than copy verbatim; anything not named here is copied byte for byte, and the four optional-package targets only ever delete. */
 export const appTemplateScaffoldRewriteTargets = [
   'project-package-name',
   'hearthkit-dependency-specifier',
   'repo-only-script',
   'repo-only-dependency',
   'gitignore-file-rename',
+  'optional-package-section',
+  'optional-package-block',
+  'optional-package-dependency',
+  'optional-package-script',
 ] as const
 
 /** Scaffold rewrite target as an enum, so a Phase 6 gate can report which rewrite was skipped. */
@@ -161,7 +179,7 @@ export type AppTemplateScaffoldRewriteTarget = z.infer<
   typeof appTemplateScaffoldRewriteTargetSchema
 >
 
-/** Environment variables the running app validates through @hearthkit/config; .env.example documents exactly these. */
+/** Environment variables present whatever the optional-package selection is; a project with no optional package validates exactly these and .env.example documents exactly these outside every section block. */
 export const appTemplateEnvVariableNames = ['NODE_ENV', 'GLITCHTIP_DSN', 'LOG_LEVEL'] as const
 
 /** Environment variables the Next standalone server reads directly; the Dockerfile sets both and config never validates them. */
@@ -181,8 +199,305 @@ export type RequireAppRuntimeConfig = (options?: { env?: EnvSource }) => AppRunt
 /** Named health checks app-health-checks.ts exports and app/health/route.ts hands to createHealthRouteHandler. */
 export type AppHealthCheckRegistry = readonly NamedHealthCheck[]
 
-/** Health check names the Phase 4 template registers, which is none; each Phase 5 package that owns a dependency appends one. */
+/** Health check names registered whatever the optional-package selection is, which is none; an optional package's checks are the healthCheckNames of its entry in appTemplateSectionsByOptionalPackage. */
 export const appTemplateHealthCheckNames = [] as const satisfies readonly HealthCheckName[]
+
+/** The four optional packages a project may select; @hearthkit/db is not among them, because plan 4.2 makes it a package auth and payments pull in rather than one a project picks. */
+export const appTemplateOptionalPackageNames = [
+  '@hearthkit/storage',
+  '@hearthkit/email',
+  '@hearthkit/auth',
+  '@hearthkit/payments',
+] as const
+
+/** Optional package name as an enum, so a failure can report which package a path, block or variable belongs to. */
+export const appTemplateOptionalPackageNameSchema = z.enum(appTemplateOptionalPackageNames)
+
+/** One optional package name, for example '@hearthkit/storage'. */
+export type AppTemplateOptionalPackageName = z.infer<typeof appTemplateOptionalPackageNameSchema>
+
+/** Everything one optional package owns in the template; ownedTemplatePaths and envVariableNames are exclusive to one package, every other list is unioned across the selected packages and deduplicated. */
+export type AppTemplateOptionalPackageSection = {
+  readonly sectionRoutePath: string
+  readonly flowSpecPath: string
+  readonly ownedTemplatePaths: readonly string[]
+  readonly blockPrunedPaths: readonly string[]
+  readonly envVariableNames: readonly string[]
+  readonly healthCheckNames: readonly string[]
+  readonly hearthkitDependencyNames: readonly string[]
+  readonly devDependencyNames: readonly string[]
+  readonly packageScriptNames: readonly string[]
+  readonly requiredOptionalPackageNames: readonly AppTemplateOptionalPackageName[]
+}
+
+// `packageScriptNames` covers two cases and the difference is which list the name is already in. A
+// name absent from `appTemplateGuaranteedScriptNames` is ADDED with the selection and deleted
+// without it, which is `db:generate`. A name already in that list is one whose VALUE the selection
+// changes, which today is exactly `dev`: `next dev` for the empty selection, `hearthkit dev` as soon
+// as any selected package needs local infrastructure. Both are package.json field edits, which is
+// what the scaffolder has always done to a manifest; neither touches source.
+
+/** Runtime check of one map entry; the path, variable and check-name rules are the same branded schemas the rest of hearthkit uses, so a typo in the map fails a gate rather than a build. */
+export const appTemplateOptionalPackageSectionSchema = z.object({
+  sectionRoutePath: z.string().startsWith('/'),
+  flowSpecPath: appTemplateRelativePathSchema,
+  ownedTemplatePaths: z.array(appTemplateRelativePathSchema).min(1),
+  blockPrunedPaths: z.array(appTemplateRelativePathSchema).min(1),
+  envVariableNames: z.array(envVariableNameSchema).min(1),
+  healthCheckNames: z.array(healthCheckNameSchema),
+  hearthkitDependencyNames: z.array(z.string().startsWith('@hearthkit/')).min(1),
+  devDependencyNames: z.array(z.string().min(1)),
+  packageScriptNames: z.array(z.string().min(1)),
+  requiredOptionalPackageNames: z.array(appTemplateOptionalPackageNameSchema),
+})
+
+// One map, one truth, the same shape `localInfraServicesByHearthkitPackage` already uses in
+// @hearthkit/cli. This is the value @hearthkit/create consumes in Phase 6, so its shape matters more
+// than any individual section. Two ownership rules, and they are different on purpose:
+//   - `ownedTemplatePaths` and `envVariableNames` are EXCLUSIVE. A path or a variable belongs to
+//     exactly one package, because pruning has to be able to answer "who owns this" with one name.
+//   - every other list is UNIONED and deduplicated across the selected packages, exactly as
+//     `postgres` appears under both `@hearthkit/db` and `@hearthkit/auth` in the cli map.
+// `requiredOptionalPackageNames` is what keeps exclusive env ownership sound: @hearthkit/auth reads
+// EMAIL_TRANSPORT and EMAIL_FROM through `createAuthServerInstance`'s `emailTransportConfig`, and
+// those variables live in @hearthkit/email's block, so a selection carrying auth must carry email.
+/** What each optional package owns in the template: its section route, its Playwright flow, the paths it owns outright, the always-present files it has marked blocks in, and the variables, health checks, dependencies and scripts it contributes. */
+export const appTemplateSectionsByOptionalPackage = {
+  '@hearthkit/storage': {
+    sectionRoutePath: '/storage',
+    flowSpecPath: 'e2e/storage-upload-flow.spec.ts',
+    ownedTemplatePaths: [
+      'app-storage-connection.ts',
+      'app/api/storage/download-url/route.ts',
+      'app/api/storage/objects/route.ts',
+      'app/api/storage/upload-url/route.ts',
+      'app/storage/page.tsx',
+      'e2e/storage-upload-flow.spec.ts',
+    ],
+    blockPrunedPaths: ['.env.example', 'app-runtime-config.ts', 'next.config.ts'],
+    envVariableNames: [
+      'STORAGE_ENDPOINT',
+      'STORAGE_BUCKET',
+      'STORAGE_REGION',
+      'STORAGE_ACCESS_KEY_ID',
+      'STORAGE_SECRET_ACCESS_KEY',
+    ],
+    healthCheckNames: [],
+    hearthkitDependencyNames: ['@hearthkit/storage'],
+    devDependencyNames: ['@hearthkit/cli'],
+    packageScriptNames: ['dev'],
+    requiredOptionalPackageNames: [],
+  },
+  '@hearthkit/email': {
+    sectionRoutePath: '/email',
+    flowSpecPath: 'e2e/email-send-flow.spec.ts',
+    ownedTemplatePaths: [
+      'app-email-test-template.tsx',
+      'app-email-transport.ts',
+      'app/api/email/test-message/route.ts',
+      'app/email/page.tsx',
+      'e2e/email-send-flow.spec.ts',
+    ],
+    blockPrunedPaths: ['.env.example', 'app-runtime-config.ts', 'next.config.ts'],
+    envVariableNames: [
+      'EMAIL_TRANSPORT',
+      'EMAIL_FROM',
+      'EMAIL_SMTP_HOST',
+      'EMAIL_SMTP_PORT',
+      'EMAIL_SMTP_USER',
+      'EMAIL_SMTP_PASSWORD',
+      'EMAIL_RESEND_API_KEY',
+      'EMAIL_RESEND_BASE_URL',
+    ],
+    healthCheckNames: [],
+    hearthkitDependencyNames: ['@hearthkit/email'],
+    devDependencyNames: ['@hearthkit/cli'],
+    packageScriptNames: ['dev'],
+    requiredOptionalPackageNames: [],
+  },
+  '@hearthkit/auth': {
+    sectionRoutePath: '/sign-in',
+    flowSpecPath: 'e2e/auth-sign-in-flow.spec.ts',
+    ownedTemplatePaths: [
+      'app-auth-server.ts',
+      'app-database-client.ts',
+      'app-drizzle-schema.ts',
+      'app/account/page.tsx',
+      'app/api/auth/[...all]/route.ts',
+      'app/sign-in/page.tsx',
+      'drizzle.config.ts',
+      'e2e/auth-sign-in-flow.spec.ts',
+    ],
+    blockPrunedPaths: [
+      '.env.example',
+      'app-health-checks.ts',
+      'app-runtime-config.ts',
+      'next.config.ts',
+    ],
+    envVariableNames: [
+      'DATABASE_URL',
+      'AUTH_SECRET',
+      'AUTH_BASE_URL',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'GITHUB_CLIENT_ID',
+      'GITHUB_CLIENT_SECRET',
+    ],
+    healthCheckNames: ['database'],
+    hearthkitDependencyNames: ['@hearthkit/auth', '@hearthkit/db'],
+    devDependencyNames: ['@hearthkit/cli', 'drizzle-kit'],
+    packageScriptNames: ['dev', 'db:generate'],
+    requiredOptionalPackageNames: ['@hearthkit/email'],
+  },
+  '@hearthkit/payments': {
+    sectionRoutePath: '/billing',
+    flowSpecPath: 'e2e/payments-checkout-flow.spec.ts',
+    ownedTemplatePaths: [
+      'app-payments-client.ts',
+      'app/api/payments/checkout/route.ts',
+      'app/api/payments/portal/route.ts',
+      'app/api/payments/webhook/route.ts',
+      'app/billing/page.tsx',
+      'app/billing/return/page.tsx',
+      'e2e/payments-checkout-flow.spec.ts',
+      'payments-catalog.ts',
+    ],
+    blockPrunedPaths: [
+      '.env.example',
+      'app-drizzle-schema.ts',
+      'app-runtime-config.ts',
+      'drizzle.config.ts',
+      'next.config.ts',
+    ],
+    envVariableNames: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+    healthCheckNames: [],
+    hearthkitDependencyNames: ['@hearthkit/payments'],
+    devDependencyNames: ['@hearthkit/cli'],
+    packageScriptNames: ['dev'],
+    requiredOptionalPackageNames: ['@hearthkit/auth'],
+  },
+} as const satisfies Record<AppTemplateOptionalPackageName, AppTemplateOptionalPackageSection>
+
+// COMPARE THIS AS A SORTED SET, NEVER AS AN ORDERED LIST. The order below is grouped by owner for a
+// reader; it does not match the key order of any envSchemaFragment. `storageEnvSchemaFragment`
+// declares STORAGE_REGION last and this list has it third, so an ordered comparison fails and the
+// failure looks like a defect in the map when it is a defect in the comparison.
+/** Every environment variable the superset template reads: appTemplateEnvVariableNames plus each optional package's own; written out rather than derived so a gate can prove the map and this list hold the same set. */
+export const appTemplateSupersetEnvVariableNames = [
+  'NODE_ENV',
+  'GLITCHTIP_DSN',
+  'LOG_LEVEL',
+  'STORAGE_ENDPOINT',
+  'STORAGE_BUCKET',
+  'STORAGE_REGION',
+  'STORAGE_ACCESS_KEY_ID',
+  'STORAGE_SECRET_ACCESS_KEY',
+  'EMAIL_TRANSPORT',
+  'EMAIL_FROM',
+  'EMAIL_SMTP_HOST',
+  'EMAIL_SMTP_PORT',
+  'EMAIL_SMTP_USER',
+  'EMAIL_SMTP_PASSWORD',
+  'EMAIL_RESEND_API_KEY',
+  'EMAIL_RESEND_BASE_URL',
+  'DATABASE_URL',
+  'AUTH_SECRET',
+  'AUTH_BASE_URL',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'GITHUB_CLIENT_ID',
+  'GITHUB_CLIENT_SECRET',
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+] as const
+
+// The marker text carries no comment character, so one rule covers `#` in .env.example and `//` in a
+// TypeScript file: a marker line is a line CONTAINING `<prefix> <packageName>`. That is loose on its
+// own, which is why the malformed-block gate requires markers to balance and never overlap — a stray
+// mention of the marker text anywhere else in a block-pruned file fails that gate rather than
+// silently swallowing lines.
+//
+// THE MECHANISM DELETES AND DOES NOTHING ELSE. No value is rewritten, no identifier substituted, no
+// placeholder filled. A need that cannot be met by deleting is not a reason to widen this; it goes
+// back to the orchestrator. The two properties that keep it safe are gates, not conventions: a
+// generated project must contain NO marker text at all, and must still typecheck.
+//
+// ABSENT AND EXPLICIT SELECTIONS BEHAVE DIFFERENTLY, AND THIS IS THE PART A READER GETS WRONG.
+// An ABSENT selection returns the text unchanged, markers and all, because that is the template
+// itself and the template must keep its markers to stay prunable. An EXPLICIT selection — empty,
+// partial, or naming all four — deletes every unselected package's blocks whole AND strips the
+// begin and end lines of every KEPT block, leaving that block's contents. So "no marker survives"
+// is a property of a generated project, never of the template.
+/** Opening marker of an optional package's block; a marker line contains this prefix, one space and the exact package name, after whatever comment leader that file uses. */
+export const appTemplateSectionBlockBeginPrefix = 'hearthkit-section:begin'
+
+/** Closing marker of an optional package's block; same line rule as the begin marker, and at most one block is ever open at a line. */
+export const appTemplateSectionBlockEndPrefix = 'hearthkit-section:end'
+
+/** Route segment config every section page and section route handler must export, so no section is prerendered during a next build that runs with an empty environment. */
+export const appTemplateSectionDynamicMode = 'force-dynamic'
+
+/** What the pruner decided about one template path; the optional-package variant names the owner, which is the question isPrunedTemplatePath could not answer before. */
+export const appTemplatePruneDecisionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('template-path-copied') }),
+  z.object({ kind: z.literal('template-path-never-copied') }),
+  z.object({ kind: z.literal('template-path-repo-only') }),
+  z.object({
+    kind: z.literal('template-path-optional-package-unselected'),
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+  }),
+])
+
+/** Prune decision for one template path; only template-path-copied reaches a generated project. */
+export type AppTemplatePruneDecision = z.infer<typeof appTemplatePruneDecisionSchema>
+
+/** Runtime shape of decideTemplatePathPrune options; omitting selectedOptionalPackageNames means the superset, an empty array means no optional package at all (what verify:container materializes), and the two are never the same answer. */
+export const decideTemplatePathPruneOptionsSchema = z.object({
+  templateRelativePath: appTemplateRelativePathSchema,
+  selectedOptionalPackageNames: z.array(appTemplateOptionalPackageNameSchema).optional(),
+})
+
+/** Options type for decideTemplatePathPrune; templateRelativePath is a plain string because a caller walking a directory has not parsed it yet. */
+export type DecideTemplatePathPruneOptions = {
+  templateRelativePath: string
+  selectedOptionalPackageNames?: readonly AppTemplateOptionalPackageName[]
+}
+
+/** Signature of decideTemplatePathPrune, which replaces the boolean isPrunedTemplatePath: pure, total, and it reads nothing from disk. */
+export type DecideTemplatePathPrune = (
+  options: DecideTemplatePathPruneOptions,
+) => AppTemplatePruneDecision
+
+/** Module that must export decideTemplatePathPrune and pruneOptionalSectionBlocks by name; both are read from there by the gates, so neither may be an unexported local. */
+export const appTemplatePrunerModulePath = 'src/materialize-app-template-project.ts'
+
+/** Options type for pruneOptionalSectionBlocks; an absent selectedOptionalPackageNames returns the text unchanged, and every explicit selection strips markers, so the two are not the same call. */
+export type PruneOptionalSectionBlocksOptions = {
+  fileText: string
+  selectedOptionalPackageNames?: readonly AppTemplateOptionalPackageName[]
+}
+
+/** Signature of pruneOptionalSectionBlocks: absent selection returns fileText unchanged; an explicit one deletes each unselected package's block with the blank lines after it, strips the begin and end lines of each kept block, leaves every other line byte for byte, and throws with appTemplateOptionalBlockMalformedErrorPrefix when markers do not balance. */
+export type PruneOptionalSectionBlocks = (options: PruneOptionalSectionBlocksOptions) => string
+
+// PRECEDENCE, because two of these overlap and a message names exactly one. A package may hold more
+// than one block in a file, so a "duplicate" cannot mean a second block anywhere in the file — it
+// can only mean a second BEGIN while that same package's block is still open, which is also a begin
+// inside an open block. The tie is broken by whose block is open:
+//   - a begin for a DIFFERENT package than the open one -> 'begin-inside-open-block'
+//   - a begin for the SAME package as the open one      -> 'duplicate-block-for-package'
+// The other two never overlap: 'begin-without-end' is a block still open at end of file, and
+// 'end-without-begin' is an end marker with no block open.
+/** The four ways a file's section markers can be wrong; each is a separate gate against synthetic text, so no filesystem is needed to cover them. */
+export const appTemplateBlockMarkerProblemSchema = z.enum([
+  'begin-without-end',
+  'end-without-begin',
+  'begin-inside-open-block',
+  'duplicate-block-for-package',
+])
+
+/** Which marker rule a block-pruned file broke; exactly one is reported per message, per the precedence above. */
+export type AppTemplateBlockMarkerProblem = z.infer<typeof appTemplateBlockMarkerProblemSchema>
 
 /** Route path of the home page the smoke test loads. */
 export const appHomeRoutePath = '/'
@@ -221,6 +536,38 @@ export const appSmokeBaseUrlEnvVariableName = 'SMOKE_TEST_BASE_URL'
 /** Base URL the smoke test uses when appSmokeBaseUrlEnvVariableName is unset, matching the port the app serves locally. */
 export const appSmokeDefaultBaseUrl = `http://127.0.0.1:${String(appContainerDefaultPort)}`
 
+// The email and auth flows read delivered mail, and WHICH Mailpit they read is an input rather than
+// a constant. These specs ship into generated projects, so they can carry no Docker orchestration,
+// and playwright.config.ts may not import test-fixtures/ because the tree gate forbids it. So the
+// isolation cannot live in the artifact: whoever runs the Flows tier points this at a Mailpit that
+// no other suite is using. Scoping reads to one address is NOT sufficient on its own — see
+// CONTRACT.md under the email section for the two directions it fails to govern.
+/** Environment variable naming the Mailpit HTTP API the email and auth flows read; an input, so a run can be pointed at an isolated instance. */
+export const appMailpitApiBaseUrlEnvVariableName = 'MAILPIT_API_BASE_URL'
+
+/** Mailpit HTTP API the flows use when appMailpitApiBaseUrlEnvVariableName is unset, matching what hearthkit dev infra up publishes for a project. */
+export const appMailpitDefaultApiBaseUrl = 'http://127.0.0.1:8025'
+
+/** Request body of POST /api/email/test-message; one recipient per call, matching sendTransactionalEmail's own one-recipient rule. */
+export const appEmailTestMessageRequestSchema = z.object({
+  recipientEmailAddress: z.string(),
+})
+
+/** Request body type of the email section's test-message route. */
+export type AppEmailTestMessageRequest = z.infer<typeof appEmailTestMessageRequestSchema>
+
+/** data-testid on the element of /billing carrying the signed-in billing reference, which the payments flow stamps into the synthesised event's metadata. */
+export const appBillingReferenceTestId = 'billing-reference'
+
+/** data-testid on each purchasable price on /billing; the flow reads its two data attributes to build a webhook payload the handler can resolve. */
+export const appBillingPriceTestId = 'billing-price'
+
+/** Attribute on a billing-price element holding the catalog price name, written to Stripe metadata as hearthkit_price_name. */
+export const appBillingPriceNameAttributeName = 'data-price-name'
+
+/** Attribute on a billing-price element holding the Stripe price id, written to Stripe metadata as hearthkit_stripe_price_id. */
+export const appBillingStripePriceIdAttributeName = 'data-stripe-price-id'
+
 /** Literal strings .github/workflows/ci.yml must contain, so the pull-request checks cannot silently lose a step. */
 export const appTemplateCiWorkflowRequiredContent = [
   'pull_request',
@@ -252,6 +599,32 @@ export const appTemplateRepoOnlyPathCopiedErrorPrefix =
 /** Unique literal prefix reported when the scaffolder left a template-only value in a generated project. */
 export const appTemplateScaffoldRewriteMissingErrorPrefix =
   'hearthkit app template scaffold rewrite missing:'
+
+/** Unique literal prefix reported when a path owned by an unselected optional package reached a generated project. */
+export const appTemplateOptionalSectionCopiedErrorPrefix =
+  'hearthkit app template optional section copied:'
+
+/** Unique literal prefix reported when a path the map says an optional package owns does not exist in templates/app; the mirror of appTemplatePathMissingErrorPrefix, which covers only appTemplateGuaranteedPaths. */
+export const appTemplateOptionalSectionPathMissingErrorPrefix =
+  'hearthkit app template optional section path missing:'
+
+/** Unique literal prefix reported when an unselected optional package's marked block survived in an always-present file. */
+export const appTemplateOptionalBlockCopiedErrorPrefix =
+  'hearthkit app template optional block copied:'
+
+/** Unique literal prefix reported when a block-pruned file's markers do not balance, overlap, or appear out of order. */
+export const appTemplateOptionalBlockMalformedErrorPrefix =
+  'hearthkit app template optional block malformed:'
+
+/** Unique literal prefix reported when a selection names an optional package without one it requires. */
+export const appTemplateOptionalSelectionIncompleteErrorPrefix =
+  'hearthkit app template optional selection incomplete:'
+
+/** Unique literal prefix reported when a variable is documented outside its owning package's .env.example block, or inside two blocks at once. */
+export const appTemplateEnvBlockMismatchErrorPrefix = 'hearthkit app template env block mismatch:'
+
+/** Unique literal prefix reported when a section's page or route handler answered outside the 2xx range; the owning package's own message is carried alongside, not re-worded. */
+export const appSectionRouteFailedErrorPrefix = 'hearthkit app section route failed:'
 
 /** Unique literal prefix reported when globals.css or the root layout lost a line the theme wiring depends on. */
 export const appThemeWiringMissingErrorPrefix = 'hearthkit app theme wiring missing:'
@@ -288,6 +661,51 @@ export const appTemplateFailureSchema = z.discriminatedUnion('kind', [
     kind: z.literal('app-scaffold-rewrite-missing'),
     rewriteTarget: appTemplateScaffoldRewriteTargetSchema,
     message: z.string().startsWith(appTemplateScaffoldRewriteMissingErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-template-optional-section-copied'),
+    copiedPath: appTemplateRelativePathSchema,
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+    message: z.string().startsWith(appTemplateOptionalSectionCopiedErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-template-optional-section-path-missing'),
+    missingPath: appTemplateRelativePathSchema,
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+    message: z.string().startsWith(appTemplateOptionalSectionPathMissingErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-template-optional-block-copied'),
+    blockPrunedPath: appTemplateRelativePathSchema,
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+    message: z.string().startsWith(appTemplateOptionalBlockCopiedErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-template-optional-block-malformed'),
+    blockPrunedPath: appTemplateRelativePathSchema,
+    blockMarkerProblem: appTemplateBlockMarkerProblemSchema,
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+    message: z.string().startsWith(appTemplateOptionalBlockMalformedErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-template-optional-selection-incomplete'),
+    selectedOptionalPackageNames: z.array(appTemplateOptionalPackageNameSchema),
+    missingOptionalPackageNames: z.array(appTemplateOptionalPackageNameSchema).min(1),
+    message: z.string().startsWith(appTemplateOptionalSelectionIncompleteErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-template-env-block-mismatch'),
+    envVariableName: envVariableNameSchema,
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+    message: z.string().startsWith(appTemplateEnvBlockMismatchErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('app-section-route-failed'),
+    sectionRoutePath: z.string().startsWith('/'),
+    owningOptionalPackageName: appTemplateOptionalPackageNameSchema,
+    observedStatusCode: z.number().int(),
+    owningPackageFailureMessage: z.string().min(1),
+    message: z.string().startsWith(appSectionRouteFailedErrorPrefix),
   }),
   z.object({
     kind: z.literal('app-theme-wiring-missing'),

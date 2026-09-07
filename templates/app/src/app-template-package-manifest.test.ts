@@ -11,26 +11,73 @@ import {
   appTemplateGuaranteedScriptNames,
   appTemplateNextVersion,
   appTemplateNodeMajorVersion,
+  appTemplateOptionalPackageNames,
   appTemplatePackageName,
   appTemplatePlaywrightVersion,
   appTemplateRepoOnlyDependencyNames,
   appTemplateRepoOnlyScriptNames,
   appTemplateRequiredPackageNames,
+  appTemplateSectionsByOptionalPackage,
   appTemplateTailwindVersion,
   appTemplateTypescriptVersion,
   appTemplateVerifyContainerScriptPath,
   appTemplateWorkspaceDependencySpecifier,
 } from './app-template-contract.ts'
 
-/** The exact command each shipped script runs, as the contract's script table writes it. */
+/** Everything the four sections contribute to the manifest, unioned and deduplicated as the contract says they are. */
+const optionalHearthkitDependencyNames = [
+  ...new Set(
+    appTemplateOptionalPackageNames.flatMap(
+      (optionalPackageName) =>
+        appTemplateSectionsByOptionalPackage[optionalPackageName].hearthkitDependencyNames,
+    ),
+  ),
+]
+
+const optionalDevDependencyNames = [
+  ...new Set(
+    appTemplateOptionalPackageNames.flatMap(
+      (optionalPackageName) =>
+        appTemplateSectionsByOptionalPackage[optionalPackageName].devDependencyNames,
+    ),
+  ),
+]
+
+const optionalPackageScriptNames = [
+  ...new Set(
+    appTemplateOptionalPackageNames.flatMap(
+      (optionalPackageName) =>
+        appTemplateSectionsByOptionalPackage[optionalPackageName].packageScriptNames,
+    ),
+  ),
+]
+
+/**
+ * The exact command each shipped script runs, as the contract's script table writes it.
+ *
+ * `dev` is the one whose VALUE a selection changes: `next dev` for the empty selection, `hearthkit
+ * dev` as soon as any selected package needs local infrastructure — which is all four, so the
+ * superset template carries the CLI form. That is a package.json field edit like every other one the
+ * scaffolder makes to a manifest, and it is why `dev` appears in every packageScriptNames list.
+ *
+ * `start` is NOT `next start`, and it is not the literal `node .next/standalone/server.js` either.
+ * next.config.ts sets `output: 'standalone'`, which Next 16.3.3 refuses to serve with `next start`.
+ * The emitted server then sits at a path that depends on where the tracing root landed: inside this
+ * workspace it is `.next/standalone/templates/app/server.js`, because pnpm-workspace.yaml sits above
+ * templates/app, and in a materialized project with no workspace above it, it is at the root. A
+ * literal would work in a generated project and ENOENT here, which is exactly where the flows run.
+ * The script bridges the two layouts, and a bare `node` runs its .ts entry point because Node 24
+ * strips types with no flag.
+ */
 const expectedScriptCommands: Record<string, string> = {
-  dev: 'next dev',
+  dev: 'hearthkit dev',
   build: 'next build',
-  start: 'next start',
+  start: 'node start-standalone-server.ts',
   lint: 'oxlint --type-aware .',
   typecheck: 'next typegen && tsc --noEmit',
   'test:e2e': 'playwright test',
   test: 'vitest run',
+  'db:generate': 'drizzle-kit generate',
 }
 
 const readTemplatePackageJson = (): Record<string, unknown> => readTemplateJsonFile('package.json')
@@ -71,8 +118,19 @@ describe('templates/app package.json', () => {
     const missingScriptNames = [
       ...appTemplateGuaranteedScriptNames,
       ...appTemplateRepoOnlyScriptNames,
+      ...optionalPackageScriptNames,
     ].filter((scriptName) => stringFieldAt(scripts, scriptName) === '')
     expect(missingScriptNames).toEqual([])
+
+    // A packageScriptNames entry is either a script the package ADDS (db:generate) or one whose
+    // VALUE the selection changes (dev, already guaranteed). Which case applies is decided by
+    // whether the name is already in appTemplateGuaranteedScriptNames, and both must be spelled out
+    // above, or the superset manifest could satisfy this gate with a script nobody named.
+    const addedScriptNames = optionalPackageScriptNames.filter(
+      (scriptName) => !(appTemplateGuaranteedScriptNames as readonly string[]).includes(scriptName),
+    )
+    expect(addedScriptNames).toEqual(['db:generate'])
+    expect(optionalPackageScriptNames).toContain('dev')
 
     for (const [scriptName, command] of Object.entries(expectedScriptCommands)) {
       expect(scripts[scriptName], `script ${scriptName}`).toBe(command)
@@ -93,17 +151,41 @@ describe('templates/app package.json', () => {
     expect(templateFileExists(appTemplateVerifyContainerScriptPath)).toBe(true)
   })
 
-  it('depends on exactly the three hearthkit packages at workspace:* and pins its third-party versions', () => {
+  it('depends on the three always-on hearthkit packages plus every optional section at workspace:* and pins its third-party versions', () => {
     const packageJson = readTemplatePackageJson()
     const dependencies = jsonObjectAt(packageJson, 'dependencies')
     const devDependencies = jsonObjectAt(packageJson, 'devDependencies')
     const allDependencies = { ...dependencies, ...devDependencies }
 
-    // Phase 4 wires three packages and no more: no db, storage, email, auth, payments or cli.
+    // Three packages always, plus each optional package's own runtime dependencies and its dev
+    // dependencies. Exactly those and no more: a hearthkit package in the manifest that no section
+    // claims is one @hearthkit/create would never delete, and so one an empty-selection project
+    // would install for nothing.
     const hearthkitDependencyNames = Object.keys(allDependencies)
       .filter((dependencyName) => dependencyName.startsWith('@hearthkit/'))
       .toSorted()
-    expect(hearthkitDependencyNames).toEqual([...appTemplateRequiredPackageNames].toSorted())
+    expect(hearthkitDependencyNames).toEqual(
+      [
+        ...new Set([
+          ...appTemplateRequiredPackageNames,
+          ...optionalHearthkitDependencyNames,
+          ...optionalDevDependencyNames.filter((dependencyName) =>
+            dependencyName.startsWith('@hearthkit/'),
+          ),
+        ]),
+      ].toSorted(),
+    )
+
+    // The optional runtime packages are dependencies, and the tools they bring are dev dependencies.
+    const misplacedOptionalDependencies = [
+      ...optionalHearthkitDependencyNames.filter(
+        (dependencyName) => dependencies[dependencyName] === undefined,
+      ),
+      ...optionalDevDependencyNames.filter(
+        (dependencyName) => devDependencies[dependencyName] === undefined,
+      ),
+    ]
+    expect(misplacedOptionalDependencies).toEqual([])
 
     const wrongSpecifiers = hearthkitDependencyNames.filter(
       (dependencyName) =>

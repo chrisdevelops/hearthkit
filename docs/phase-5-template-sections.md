@@ -128,8 +128,15 @@ the plan's section 4 list is slightly out of date in two places (`storage` also 
 
 ### `auth` — "sign in"
 
-- **Env:** `AUTH_SECRET`, `AUTH_BASE_URL`, optional `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`,
-  `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`
+- **Env:** `DATABASE_URL`, `AUTH_SECRET`, `AUTH_BASE_URL`, optional
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`
+- **Correction, 2026-09-06:** the first draft of this list **omitted `DATABASE_URL` entirely**, for
+  `auth` and for `payments`. Both take a Drizzle client and nothing else in the template supplies one,
+  so a section built to the original list would have connected to nothing. Found by the contract-author
+  building against this plan. `DATABASE_URL` belongs to `db`'s fragment, but `db` is never directly
+  selectable — plan 4.2 has it "pulled in by auth and payments" — so the template attributes it and the
+  Drizzle wiring to `auth`, exactly as `localInfraServicesByHearthkitPackage` gives `auth` both
+  `postgres` and `mailpit`. `payments` inherits it by requiring `auth`.
 - **Section:** `app/api/auth/[...all]/route.ts`, a sign-in page offering password and magic link, and
   a signed-in area showing the session.
 - **Flow:** sign up with a password, sign out, request a magic link, read it from Mailpit, complete
@@ -151,7 +158,8 @@ the plan's section 4 list is slightly out of date in two places (`storage` also 
 
 ### `payments` — "complete test checkout"
 
-- **Env:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+- **Env:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, plus `DATABASE_URL` inherited from `auth` —
+  see the correction under `auth` above
 - **Section:** a `payments-catalog.ts`, a pricing area that calls `createCheckoutSession` and
   redirects, a return page, a billing-portal link, and `app/api/payments/webhook/route.ts` reading the
   **raw** body.

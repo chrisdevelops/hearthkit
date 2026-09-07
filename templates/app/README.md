@@ -10,19 +10,24 @@ pnpm install
 pnpm dev
 ```
 
-The app serves <http://localhost:3000> and `/health`. Nothing else has to be running: every
-environment variable is optional, so the app boots with no `.env` file at all.
+The app serves <http://localhost:3000> and `/health`. Copy `.env.example` to `.env` first and set
+whatever it marks as required; a project that uses no optional hearthkit package requires nothing at
+all and boots with no `.env` file.
 
 ## Scripts
 
-| Script           | What it does                                                     |
-| ---------------- | ---------------------------------------------------------------- |
-| `pnpm dev`       | Development server with fast refresh                             |
-| `pnpm build`     | Production build, including the standalone server the image runs |
-| `pnpm start`     | Serves the production build                                      |
-| `pnpm lint`      | oxlint with type-aware rules                                     |
-| `pnpm typecheck` | Regenerates Next's types, then `tsc --noEmit`                    |
-| `pnpm test:e2e`  | Playwright smoke test; builds and starts the app first           |
+| Script           | What it does                                                      |
+| ---------------- | ----------------------------------------------------------------- |
+| `pnpm dev`       | Development server with fast refresh, plus anything it depends on |
+| `pnpm build`     | Production build, including the standalone server the image runs  |
+| `pnpm start`     | Serves the production build                                       |
+| `pnpm lint`      | oxlint with type-aware rules                                      |
+| `pnpm typecheck` | Regenerates Next's types, then `tsc --noEmit`                     |
+| `pnpm test:e2e`  | The Playwright specs in `e2e/`; builds and starts the app first   |
+
+`pnpm dev` runs `hearthkit dev` when this project uses a hearthkit package with a local service
+behind it, which starts that service and then Next; otherwise it is plain `next dev`. Run
+`pnpm run` to see every script this project actually has, including any a package added.
 
 Point the smoke test at a server that is already running instead of starting one:
 
@@ -44,9 +49,9 @@ SMOKE_TEST_BASE_URL=http://127.0.0.1:8080 pnpm test:e2e
 
 ## Configuration
 
-Every variable is documented in `.env.example`. Copy it to `.env` and uncomment what you need. An
-invalid value fails the boot with a message that names the variable, rather than starting a server
-that misbehaves later.
+Every variable is documented in `.env.example`, and each entry there says whether it is required. A
+required variable that is unset, or any variable holding an invalid value, fails the boot with a
+message that names it rather than starting a server that misbehaves later.
 
 Nothing is read at build time, which is why one image can be promoted from staging to production by
 tag with only its environment changed.
