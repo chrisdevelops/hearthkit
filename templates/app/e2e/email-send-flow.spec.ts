@@ -77,11 +77,18 @@ test('the test email action sends one message with both body parts', async ({ pa
 
   // The section reports the subject it sent, which is what ties the message in the inbox to this
   // click rather than to any other message that happens to be addressed the same way.
-  const sentSubject = await page.getByTestId('email-sent-subject').innerText({ timeout: 30_000 })
-  expect(sentSubject.trim()).not.toBe('')
+  //
+  // Waited for with a retrying assertion, not read with innerText. The element that carries the
+  // subject is rendered empty from the first paint, so innerText resolves against it the moment the
+  // page loads: actionability is satisfied while the POST is still in flight, and the read comes
+  // back ''. innerText never retries on CONTENT, so it is the wrong tool anywhere an element
+  // pre-exists its value.
+  const sentSubjectText = page.getByTestId('email-sent-subject')
+  await expect(sentSubjectText).not.toHaveText('', { timeout: 30_000 })
+  const sentSubject = (await sentSubjectText.innerText()).trim()
 
   const message = await waitForMessageToThisRun()
-  expect(message.Subject).toBe(sentSubject.trim())
+  expect(message.Subject).toBe(sentSubject)
 
   // Both parts, and they are genuinely two parts: a transactional message with an empty text part
   // renders as an attachment in some clients, and one whose html part is a copy of the text part is

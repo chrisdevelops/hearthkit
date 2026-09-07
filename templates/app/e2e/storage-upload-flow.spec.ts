@@ -43,16 +43,16 @@ test('a file uploaded from the browser is listed and comes back byte for byte', 
 
   // The download link is a presigned URL: it carries its own credentials, so fetching it with a
   // request context that has none of the page's cookies is the assertion that it really is signed.
-  const downloadUrl = await uploadedObject
-    .getByTestId('stored-object-download-url')
-    .getAttribute('href')
-  expect(
-    downloadUrl,
+  // Asserted with toHaveAttribute before it is read, because getAttribute resolves against whatever
+  // the element holds at that instant and never retries on content.
+  const downloadLink = uploadedObject.getByTestId('stored-object-download-url')
+  await expect(
+    downloadLink,
     'the section must presign a download URL for the object it listed',
-  ).not.toBeNull()
-  expect(downloadUrl ?? '').toContain('http')
+  ).toHaveAttribute('href', /^https?:\/\//, { timeout: 30_000 })
+  const downloadUrl = (await downloadLink.getAttribute('href')) ?? ''
 
-  const downloaded = await request.get(downloadUrl ?? '')
+  const downloaded = await request.get(downloadUrl)
   expect(downloaded.status()).toBe(200)
   expect(await downloaded.text()).toBe(uploadedFileBytes)
 })

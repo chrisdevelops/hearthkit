@@ -85,30 +85,55 @@ test('a checkout redirect reaches Stripe with the right session, and its complet
   expect(billingResponse?.status()).toBe(200)
 
   // The billing reference and the Stripe price id are what the webhook body has to carry: a delivery
-  // carries no line_items, so session metadata is the only source for what was sold.
-  const billingReferenceId = (await page.getByTestId('billing-reference').innerText()).trim()
-  expect(billingReferenceId).not.toBe('')
+  // carries no line_items, so session metadata is the only source for what was sold. Every read here
+  // is a retrying assertion first, because innerText and getAttribute resolve against whatever the
+  // element holds at that instant and never retry on content.
+  const billingReferenceText = page.getByTestId('billing-reference')
+  await expect(billingReferenceText).not.toHaveText('', { timeout: 30_000 })
+  const billingReferenceId = (await billingReferenceText.innerText()).trim()
 
   const priceCard = page.getByTestId('billing-price').first()
+  await expect(
+    priceCard,
+    'the billing section must name the catalog price it offers',
+  ).toHaveAttribute('data-price-name', /\S/, { timeout: 30_000 })
+  await expect(
+    priceCard,
+    'the billing section must name the Stripe price its catalog synced to',
+  ).toHaveAttribute('data-stripe-price-id', /\S/)
   const priceName = (await priceCard.getAttribute('data-price-name')) ?? ''
   const stripePriceId = (await priceCard.getAttribute('data-stripe-price-id')) ?? ''
-  expect(priceName, 'the billing section must name the catalog price it offers').not.toBe('')
-  expect(
-    stripePriceId,
-    'the billing section must name the Stripe price its catalog synced to',
-  ).not.toBe('')
 
   // The redirect half. The session id is read off the app's own answer rather than off the URL, so
   // the assertion is that Stripe sent the browser to the session THIS app created.
-  const [checkoutResponse] = await Promise.all([
-    page.waitForResponse((response) => response.url().includes('/api/payments/checkout')),
-    priceCard.getByRole('button', { name: 'Checkout' }).click(),
-  ])
-  const created = (await checkoutResponse.json()) as CheckoutSessionCreated
+  //
+  // The answer is captured by INTERCEPTING the request, not by asking for the body afterwards. The
+  // page calls window.location.assign as soon as its own fetch resolves, and a navigation makes
+  // Chromium discard the response body: reading it out of band a moment later fails with "Response
+  // body is not available for a response that was navigated away from", and every assertion below
+  // this line is then never reached. route.fetch performs the request from Node and buffers the body
+  // here, so the navigation cannot take it away; route.fulfill hands the same bytes to the page, so
+  // the app behaves exactly as it would unobserved.
+  let checkoutSessionCreated: CheckoutSessionCreated | undefined
+  await page.route('**/api/payments/checkout', async (route) => {
+    const checkoutResponse = await route.fetch()
+    const checkoutBodyText = await checkoutResponse.text()
+    checkoutSessionCreated = JSON.parse(checkoutBodyText) as CheckoutSessionCreated
+    await route.fulfill({ response: checkoutResponse, body: checkoutBodyText })
+  })
+
+  await priceCard.getByRole('button', { name: 'Checkout' }).click()
+  await page.waitForURL(/checkout\.stripe\.com/, { timeout: 60_000 })
+
+  if (checkoutSessionCreated === undefined) {
+    throw new Error(
+      'the flow never saw a body from POST /api/payments/checkout, so it cannot say which session the browser was sent to',
+    )
+  }
+  const created = checkoutSessionCreated
   expect(created.kind).toBe('payments-checkout-session-created')
   expect(created.stripeLivemode, 'no gate here may touch a live Stripe account').toBe(false)
 
-  await page.waitForURL(/checkout\.stripe\.com/, { timeout: 60_000 })
   expect(page.url()).toContain('checkout.stripe.com')
   expect(page.url()).toContain(created.stripeCheckoutSessionId)
 
