@@ -8,9 +8,10 @@ Updated by the orchestrator after every commit. A fresh session reads this first
   and merged. **`payments` in flight.** Phase 4 complete.
 - Package: `payments` (depends on `config` and `db`, merged in Phase 1, and `auth`, merged in Phase 5
   — all three dependencies are on `main`)
-- Step: `commit`, on the **template conditional sections** — not a package loop. `payments` is
-  merged (PR #14) and the plan doc is merged (PR #15, `docs/phase-5-template-sections.md`).
-- Branch: `pkg/payments`, cut from `main` at 570b456 with a clean working tree.
+- Step: **nothing in flight.** Working tree clean on `main` at `c698c1a`. Phase 5's work is complete;
+  Phase 5 is **not tickable** until the user edits `docs/PLAN.md` — see Open issues.
+- Branch: none in flight. `pkg/payments`, `docs/phase-5-template-sections` and
+  `template/optional-sections` are all merged and deleted.
 - **PR #14 open: <https://github.com/chrisdevelops/hearthkit/pull/14>**, branch `pkg/payments`,
   implementation commit `2ab1003` (61 files, 9947 insertions). **Not merged.** Before merging, check
   CI on the branch's **actual head**, not on `2ab1003` — a docs commit sits on top of it and it is the
@@ -62,10 +63,12 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11.
 - [x] Phase 2: `cli` (merged, PR #3)
 - [x] Phase 3: `ui` (merged, PR #4), `observability` (merged, PR #5), `docs/theming.md` + verified shadowed-component example
 - [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (merged, PR #8); DoD verified on a throwaway repo
-- [ ] Phase 5: `storage` (merged, PR #10), the `cli` local bucket (merged, PR #11), `email` (merged,
-      PR #12) and `auth` (merged, PR #13) done; **`payments` still to do**, and the template's
-      conditional sections are outstanding for all four — see Open issues, they are deliberately
-      deferred until after `payments` and Phase 5 cannot be ticked without them
+- [ ] Phase 5: **all work complete, blocked only on a `docs/PLAN.md` edit the orchestrator does not
+      make.** `storage` (PR #10), the `cli` local bucket (PR #11), `email` (PR #12), `auth` (PR #13),
+      `payments` (PR #14) and the template's conditional sections (PR #16, plan in PR #15) are all
+      merged. The DoD's second clause is met for the **superset**: 58 template gates and **6 Playwright
+      flows green**, `verify:container` 7/7. Ticking it requires section 11's DoD to be narrowed to the
+      superset per the settled decision — see Open issues.
 - [ ] Phase 6: `create`
 - [ ] Phase 7: `infra/tofu`, `hearthkit vps bootstrap`, backups
 - [ ] Phase 8: AI tooling, docs
@@ -136,6 +139,66 @@ Items that blocked a loop and need a human decision. Remove when resolved.
   than left open: `hearthkit dev infra up` now creates it (PR #11).
 
 ## Verified facts this session
+
+- **PHASE 5's TEMPLATE SECTIONS MERGED AS `c698c1a` (PR #16), AND THE DoD EVIDENCE IS A REAL PURCHASE
+  ROW RATHER THAN AN INFERENCE.** Orchestrator-run, not taken from a subagent: **6 Playwright flows
+  passed, 0 failed, 0 skipped**, against real Postgres, real MinIO, an isolated Mailpit and Stripe test
+  mode; `verify:container` **passed all seven steps** against an empty-selection materialization.
+  - The payments flow wrote `payments_purchase` carrying a **real Stripe test-mode session id**
+    (`cs_test_a1YNDgqICyfq…`, `hearthkit-app-lifetime`, 1900, usd). That row cannot exist unless the
+    whole chain ran — session created, redirect reached `checkout.stripe.com` with that session, signed
+    `checkout.session.completed` posted, route answered `purchase-recorded`. **The webhook half had
+    never executed before that run.**
+  - **Mailpit isolation held in both directions, measured:** the isolated container held 2 messages and
+    the repo's shared Mailpit held **0**, so `packages/email`'s nine exact-count assertions could not
+    have been disturbed. The collision that cost a loop during `auth` did not recur.
+  - The auth flow read a **real** magic link; the spec has no fallback path, so the pass is the proof.
+
+- **POST-MERGE BASELINE ON `main` AT `c698c1a`, so any later regression is attributable.**
+  `pnpm --recursive --if-present run test` **exit 0, 10 projects, 322 tests** — config 12, ui 27,
+  observability 14, storage 21, db 24, email 25, auth 40, cli 42, **payments 45**, **app-template 58**.
+  `pnpm run typecheck`, `pnpm run lint`, `pnpm run format:check` and `pnpm install --frozen-lockfile`
+  all exit 0. **`payments` is 45/45 with no skip segment now the repo secret exists**, both locally and
+  on CI run 34074124711.
+
+- **TWO FLOW SPECS PASSED FOR THE WRONG REASON ON THEIR FIRST RUN, AND A THIRD CLASS WAS SWEPT AFTER.**
+  The first execution was 4/6. Both failures were **races in the specs**, not bugs in the sections:
+  `.innerText()` satisfies actionability against an element that already exists and never retries on
+  _content_, so it read `''` while the POST was still in flight; and `page.waitForResponse().json()`
+  cannot work when the page navigates on its own fetch resolving, because Chromium discards the body.
+  - **The email really was sent** — confirmed in Mailpit's API afterwards. The assertion raced the app
+    rather than catching anything, which is the failure mode that looks like a product bug.
+  - Fixed with `expect(locator).not.toHaveText('')` and with `route.fetch()` / `route.fulfill()`
+    interception, which buffers the body in the test process so the app behaves as it would unobserved.
+  - **The gate-writer then swept the same class and found two more non-retrying reads that happened to
+    be winning their races**, in the storage and billing specs. Generalised: **passing is not the same
+    as not racing**, and a non-retrying read next to a value the page fills asynchronously is a latent
+    failure whatever today's timing says.
+
+- **`next start` IS UNSUPPORTED WITH `output: 'standalone'`, AND THE OBVIOUS FIX WAS ALSO WRONG.** Next
+  16.3.3 warns verbatim: `"next start" does not work with "output: standalone" configuration.` It
+  serves `.next/` while the container serves `.next/standalone/` plus two hand-copied directories —
+  **different artifacts**, so guiding rule 1 was not being met. Predates this work; found by running the
+  flows.
+  - **The literal `node .next/standalone/server.js` fails here and passes in a generated project**,
+    which is the worst possible direction. Next roots tracing at the workspace because
+    `pnpm-workspace.yaml` sits above `templates/app`, so the server lands at
+    **`.next/standalone/templates/app/server.js`** in this repo and at the root in a materialized
+    project. Measured, not reasoned. `outputFileTracingRoot` is not an escape — the contract forbids it,
+    and setting it would drop the symlinked `@hearthkit/*` packages from the traced output.
+  - Fixed with `start-standalone-server.ts`: locate the emitted server across both layouts, `cpSync`
+    `public/` and `.next/static` beside it, spawn it. **Orchestrator-verified**: home 200, **CSS 200**
+    — the request that 404s without the copy step — health 200, and **zero** occurrences of either the
+    standalone warning or `MODULE_TYPELESS_PACKAGE_JSON`.
+  - The script is **CommonJS deliberately**: an ESM `.ts` entry point under a typeless `package.json`
+    prints a four-line warning on every `pnpm start`, and its own advice is to add the one field the
+    contract forbids because it breaks the standalone server.
+
+- **ORCHESTRATOR ERROR WORTH RECORDING: a 500 from the new start script was the orchestrator's own bad
+  environment, not the script.** A dummy `STORAGE_BUCKET="x"` failed validation, and the 500 was plan
+  4.1's boot-validation property working correctly — it named the offending variable. `.next/static`
+  had been copied fine. **The lesson is the one this file keeps relearning: check the log before
+  attributing a failure to the thing you just changed.**
 
 - **CI GREEN ON PR #14 WITH THE PROOF THAT MATTERS: `packages/payments test: Tests 45 passed (45)`,
   NO SKIP SEGMENT, on the branch head `3b5b7ed` (run 34055944950), after the repo secret was set.**
