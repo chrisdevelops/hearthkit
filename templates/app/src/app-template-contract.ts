@@ -72,6 +72,7 @@ export const appTemplateGuaranteedPaths = [
   'playwright.config.ts',
   'postcss.config.mjs',
   'public/.gitkeep',
+  'start-standalone-server.ts',
   'tsconfig.json',
 ] as const
 
@@ -116,6 +117,7 @@ export const appGeneratedProjectGuaranteedPaths = [
   'playwright.config.ts',
   'postcss.config.mjs',
   'public/.gitkeep',
+  'start-standalone-server.ts',
   'tsconfig.json',
 ] as const
 

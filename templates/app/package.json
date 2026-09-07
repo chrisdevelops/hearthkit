@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "hearthkit dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node start-standalone-server.ts",
     "lint": "oxlint --type-aware .",
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",

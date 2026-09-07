@@ -59,11 +59,20 @@ const optionalPackageScriptNames = [
  * dev` as soon as any selected package needs local infrastructure — which is all four, so the
  * superset template carries the CLI form. That is a package.json field edit like every other one the
  * scaffolder makes to a manifest, and it is why `dev` appears in every packageScriptNames list.
+ *
+ * `start` is NOT `next start`, and it is not the literal `node .next/standalone/server.js` either.
+ * next.config.ts sets `output: 'standalone'`, which Next 16.3.3 refuses to serve with `next start`.
+ * The emitted server then sits at a path that depends on where the tracing root landed: inside this
+ * workspace it is `.next/standalone/templates/app/server.js`, because pnpm-workspace.yaml sits above
+ * templates/app, and in a materialized project with no workspace above it, it is at the root. A
+ * literal would work in a generated project and ENOENT here, which is exactly where the flows run.
+ * The script bridges the two layouts, and a bare `node` runs its .ts entry point because Node 24
+ * strips types with no flag.
  */
 const expectedScriptCommands: Record<string, string> = {
   dev: 'hearthkit dev',
   build: 'next build',
-  start: 'next start',
+  start: 'node start-standalone-server.ts',
   lint: 'oxlint --type-aware .',
   typecheck: 'next typegen && tsc --noEmit',
   'test:e2e': 'playwright test',

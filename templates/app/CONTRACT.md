@@ -68,7 +68,7 @@ Two more variables are read by the Next standalone server itself and never valid
 
 Two variables, neither validated by `@hearthkit/config` and neither in `appTemplateSupersetEnvVariableNames`, because both are read by specs rather than by the app.
 
-- `SMOKE_TEST_BASE_URL` (`appSmokeBaseUrlEnvVariableName`). When set, the Playwright smoke test runs against that already-running server and starts nothing itself; that is how the same spec runs against both `next start` in project CI and the container in the batched verify. When unset it defaults to `appSmokeDefaultBaseUrl` and Playwright's `webServer` starts the app.
+- `SMOKE_TEST_BASE_URL` (`appSmokeBaseUrlEnvVariableName`). When set, the Playwright smoke test runs against that already-running server and starts nothing itself; that is how the same spec runs against both the `start` script in project CI and the container in the batched verify — and since `start` now serves the standalone output, those two are the same artifact rather than two that merely behave alike. When unset it defaults to `appSmokeDefaultBaseUrl` and Playwright's `webServer` starts the app.
 - `MAILPIT_API_BASE_URL` (`appMailpitApiBaseUrlEnvVariableName`), read by the email and auth flows. Defaults to `appMailpitDefaultApiBaseUrl`, `http://127.0.0.1:8025`, which is the port `hearthkit dev infra up` publishes for a project. It exists so a run can be pointed at an isolated Mailpit; see the email section for why that isolation cannot live in the spec.
 
 ### 4. Named exports inside the tree
@@ -87,7 +87,7 @@ Every optional package's own files export names too, listed with each section be
 
 ### The template tree
 
-`appTemplateGuaranteedPaths` — 23 literal paths that must exist in `templates/app` **whatever the selection is**:
+`appTemplateGuaranteedPaths` — 24 literal paths that must exist in `templates/app` **whatever the selection is**:
 
 ```
 .dockerignore                   app/globals.css          next.config.ts
@@ -95,8 +95,8 @@ Every optional package's own files export names too, listed with each section be
 .github/workflows/ci.yml        app/layout.tsx           playwright.config.ts
 .github/workflows/deploy.yml    app/page.tsx             postcss.config.mjs
 .oxlintrc.json                  docs/theming.md          public/.gitkeep
-Dockerfile                      e2e/app-smoke.spec.ts    tsconfig.json
-README.md                       gitignore
+Dockerfile                      e2e/app-smoke.spec.ts    start-standalone-server.ts
+README.md                       gitignore                tsconfig.json
 app-health-checks.ts            instrumentation.ts
 app-runtime-config.ts
 ```
@@ -284,7 +284,7 @@ Scripts — `appTemplateGuaranteedScriptNames` ship, `appTemplateRepoOnlyScriptN
 
 - `dev` is `next dev` with an empty selection and `hearthkit dev` with any optional package (ships either way).
 - `build` is `next build` (ships).
-- `start` is `next start` (ships).
+- `start` runs `start-standalone-server.ts` (ships). **Not `next start`**, which is a real bug this template shipped with: Next 16.3.3 warns verbatim `"next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.` It serves, so nothing failed — but `next start` serves `.next/` while the container serves `.next/standalone/` plus two hand-copied directories. Those are **different artifacts**, so "local and container behave the same" was false, and guiding rule 1 says a project is a Dockerfile plus environment variables. See below for why the script exists rather than a literal path.
 - `lint` is `oxlint --type-aware .` (ships).
 - `typecheck` is `next typegen && tsc --noEmit` (ships).
 - `test:e2e` is `playwright test` (ships).
@@ -293,6 +293,23 @@ Scripts — `appTemplateGuaranteedScriptNames` ship, `appTemplateRepoOnlyScriptN
 - `db:generate` is `drizzle-kit generate`, contributed by `@hearthkit/auth` and present only when it is selected.
 
 `test` must stay the fast gates: the repo-root CI runs `pnpm --recursive --if-present run test` on every pull request, and Playwright must never run there. `typecheck` regenerates `next-env.d.ts` first because that file is gitignored on Next's own instruction.
+
+#### `start-standalone-server.ts`, and why a literal path was rejected
+
+`start-standalone-server.ts` sits at the template root, is **always present**, and is **owned by no optional package** — it holds no marked block, appears in no entry of `appTemplateSectionsByOptionalPackage`, and is therefore never pruned at any selection. It ships to every generated project.
+
+**The obvious form, `"start": "node .next/standalone/server.js"`, is wrong, and the measurement is the part a future reader will otherwise undo.** Next's output file tracing root decides where `server.js` lands, and it resolves differently in the two places this script runs:
+
+| Where                                 | Emitted server path                        |
+| ------------------------------------- | ------------------------------------------ |
+| `templates/app` inside this workspace | `.next/standalone/templates/app/server.js` |
+| A materialized or generated project   | `.next/standalone/server.js`               |
+
+The workspace copy nests because `pnpm-workspace.yaml` sits above `templates/app`, so tracing roots at the workspace root. A literal path therefore works in a generated project — which is what `Dockerfile:40` already assumes — and `ENOENT`s in `templates/app`, **which is exactly where the Playwright flows run**. Setting `outputFileTracingRoot` is not an escape: **Configuration files** forbids it, because a generated project is its own tracing root and the workspace build path is handled by materializing a self-contained directory instead.
+
+So the script does three things: locate `server.js` across both layouts, copy `public/` and `.next/static` beside it, and spawn it. The copy is there because Next ships neither directory into the standalone tree — the same fact `Dockerfile:38` states in as many words, and without them the CSS 404s.
+
+**The copy belongs in the start path and not in `build`.** `build` stays `next build`. `verify:container` and the Dockerfile do their own copying, and moving it into `build` would make them do it twice.
 
 ### Configuration files
 
