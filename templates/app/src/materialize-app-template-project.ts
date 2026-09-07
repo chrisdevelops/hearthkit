@@ -1,16 +1,24 @@
 import { mkdir, copyFile, readdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
-  appTemplateNeverCopiedDirectoryNames,
+  appTemplateGuaranteedScriptNames,
+  appTemplateOptionalPackageNames,
   appTemplateRenamedPaths,
   appTemplateRepoOnlyDependencyNames,
-  appTemplateRepoOnlyDirectoryNames,
-  appTemplateRepoOnlyPaths,
   appTemplateRepoOnlyScriptNames,
   appTemplateRequiredPackageNames,
+  appTemplateSectionBlockBeginPrefix,
+  appTemplateSectionBlockEndPrefix,
+  appTemplateSectionsByOptionalPackage,
   appTemplateWorkspaceDependencySpecifier,
   appVerifyContainerFailedErrorPrefix,
+  type AppTemplateOptionalPackageName,
 } from './app-template-contract.ts'
+import {
+  decideTemplatePathPrune,
+  packedPackagesDirectoryName,
+} from './decide-template-path-prune.ts'
+import { pruneOptionalSectionBlocks } from './prune-optional-section-blocks.ts'
 import { runVerifyCommand } from './run-verify-command.ts'
 
 /**
@@ -19,14 +27,24 @@ import { runVerifyCommand } from './run-verify-command.ts'
  * does when it scaffolds, from the same lists, which is why it prunes and rewrites rather than
  * copying the tree wholesale.
  *
+ * It materializes with an EMPTY optional-package selection, not the superset. That keeps this a
+ * Docker-only structural check rather than one needing Postgres, MinIO, Mailpit and a Stripe key, and
+ * it makes the empty-selection prune the thing this command exercises on every invocation — which is
+ * the strongest available check that the always-on project is still exactly what it was. The cost is
+ * stated in CONTRACT.md: this command never exercises a section.
+ *
  * The hearthkit packages arrive as tarballs written *inside* the project, because the image build
  * copies the project and installs from within the container: a dependency resolved through a path
  * outside the directory, or through a symlink escaping it, would drop those packages from
  * `.next/standalone`.
  */
 
-/** Directory inside the materialized project holding the packed hearthkit tarballs the install resolves. */
-const packedPackagesDirectoryName = 'hearthkit-packages'
+/** The two pruning halves Phase 6 consumes, re-exported by name so both are reachable from one module. */
+export { decideTemplatePathPrune } from './decide-template-path-prune.ts'
+export { pruneOptionalSectionBlocks } from './prune-optional-section-blocks.ts'
+
+/** Optional-package selection this command materializes: none, which is the tree a project that picked nothing gets. */
+const materializedOptionalPackageNames: readonly AppTemplateOptionalPackageName[] = []
 
 /** Where the materialized project ended up, and which tarballs its dependencies now point at. */
 export type MaterializedAppTemplateProject = {
@@ -42,24 +60,42 @@ export type MaterializeAppTemplateProjectOptions = {
   projectName: string
 }
 
-/** True when this relative path is pruned rather than copied into a generated project. */
-function isPrunedTemplatePath(relativePath: string): boolean {
-  const [firstSegment = ''] = relativePath.split('/')
-
-  return (
-    appTemplateNeverCopiedDirectoryNames.some((directoryName) => directoryName === firstSegment) ||
-    appTemplateRepoOnlyDirectoryNames.some((directoryName) => directoryName === firstSegment) ||
-    appTemplateRepoOnlyPaths.some((repoOnlyPath) => repoOnlyPath === relativePath) ||
-    firstSegment === '.git' ||
-    firstSegment === packedPackagesDirectoryName
-  )
-}
-
 /** The name a template file is written under in a generated project; only the ignore file changes. */
 function generatedProjectPathOf(relativePath: string): string {
   return (
     appTemplateRenamedPaths.find((rename) => rename.templatePath === relativePath)
       ?.generatedProjectPath ?? relativePath
+  )
+}
+
+/**
+ * Copies one file, pruning its marked blocks when it holds any.
+ *
+ * A file with no marker text is copied byte for byte rather than round-tripped through a string, so
+ * nothing here can corrupt a file this template later adds that is not UTF-8 text.
+ */
+async function copyTemplateFile(
+  sourceFilePath: string,
+  destinationFilePath: string,
+): Promise<void> {
+  await mkdir(dirname(destinationFilePath), { recursive: true })
+
+  const fileText = await readFile(sourceFilePath, 'utf8')
+  if (
+    !fileText.includes(appTemplateSectionBlockBeginPrefix) &&
+    !fileText.includes(appTemplateSectionBlockEndPrefix)
+  ) {
+    await copyFile(sourceFilePath, destinationFilePath)
+    return
+  }
+
+  await writeFile(
+    destinationFilePath,
+    pruneOptionalSectionBlocks({
+      fileText,
+      selectedOptionalPackageNames: materializedOptionalPackageNames,
+    }),
+    'utf8',
   )
 }
 
@@ -76,18 +112,24 @@ async function copyTemplateTree(
 
   for (const entry of await readdir(sourceDirectoryPath, { withFileTypes: true })) {
     const relativePath = relativePrefix === '' ? entry.name : `${relativePrefix}/${entry.name}`
-    if (isPrunedTemplatePath(relativePath)) {
+    if (
+      decideTemplatePathPrune({
+        templateRelativePath: relativePath,
+        selectedOptionalPackageNames: materializedOptionalPackageNames,
+      }).kind !== 'template-path-copied'
+    ) {
       continue
     }
 
     if (entry.isDirectory()) {
-      await mkdir(join(projectDirectoryPath, ...relativePath.split('/')), { recursive: true })
+      // The directory itself is created by the first file written into it, so a section whose files
+      // were all pruned leaves no empty directory behind.
       await copyTemplateTree(templateDirectoryPath, projectDirectoryPath, relativePath)
       continue
     }
 
     if (entry.isFile()) {
-      await copyFile(
+      await copyTemplateFile(
         join(sourceDirectoryPath, entry.name),
         join(projectDirectoryPath, ...generatedProjectPathOf(relativePath).split('/')),
       )
@@ -157,6 +199,41 @@ function manifestSectionOf(
   return stringEntries
 }
 
+/** Every optional package the materialized selection leaves out, whose manifest entries are deleted. */
+function unselectedOptionalPackageNames(): AppTemplateOptionalPackageName[] {
+  return appTemplateOptionalPackageNames.filter(
+    (optionalPackageName) => !materializedOptionalPackageNames.includes(optionalPackageName),
+  )
+}
+
+/**
+ * Applies the two manifest rewrites the optional packages own: an unselected package's dependencies
+ * and dev dependencies go, and so do the scripts it adds. `dev` is the one script whose VALUE the
+ * selection changes rather than one a package adds, so it is set rather than deleted.
+ */
+function deleteUnselectedOptionalManifestEntries(
+  dependencies: Record<string, string>,
+  devDependencies: Record<string, string>,
+  scripts: Record<string, string>,
+): void {
+  for (const optionalPackageName of unselectedOptionalPackageNames()) {
+    const section = appTemplateSectionsByOptionalPackage[optionalPackageName]
+    for (const dependencyName of section.hearthkitDependencyNames) {
+      delete dependencies[dependencyName]
+    }
+    for (const devDependencyName of section.devDependencyNames) {
+      delete devDependencies[devDependencyName]
+    }
+    for (const scriptName of section.packageScriptNames) {
+      if (!(appTemplateGuaranteedScriptNames as readonly string[]).includes(scriptName)) {
+        delete scripts[scriptName]
+      }
+    }
+  }
+
+  scripts.dev = materializedOptionalPackageNames.length === 0 ? 'next dev' : 'hearthkit dev'
+}
+
 /** Reads the project manifest, applies every scaffold rewrite, and writes it back. */
 async function rewriteProjectPackageJson(
   projectDirectoryPath: string,
@@ -173,15 +250,15 @@ async function rewriteProjectPackageJson(
   for (const scriptName of appTemplateRepoOnlyScriptNames) {
     delete scripts[scriptName]
   }
-  manifest.scripts = scripts
 
   const devDependencies = manifestSectionOf(manifest, 'devDependencies')
   for (const dependencyName of appTemplateRepoOnlyDependencyNames) {
     delete devDependencies[dependencyName]
   }
-  manifest.devDependencies = devDependencies
 
   const dependencies = manifestSectionOf(manifest, 'dependencies')
+  deleteUnselectedOptionalManifestEntries(dependencies, devDependencies, scripts)
+
   for (const packageName of appTemplateRequiredPackageNames) {
     if (dependencies[packageName] !== appTemplateWorkspaceDependencySpecifier) {
       throw new Error(
@@ -194,15 +271,31 @@ async function rewriteProjectPackageJson(
     }
     dependencies[packageName] = `file:./${packedPackagesDirectoryName}/${tarballFileName}`
   }
+
+  // A workspace specifier surviving anywhere would resolve to nothing outside the workspace, which is
+  // the whole failure this materialization exists to rule out.
+  const survivingWorkspaceSpecifiers = [
+    ...Object.entries(dependencies),
+    ...Object.entries(devDependencies),
+  ].filter(([, specifier]) => specifier === appTemplateWorkspaceDependencySpecifier)
+  if (survivingWorkspaceSpecifiers.length > 0) {
+    throw new Error(
+      `${appVerifyContainerFailedErrorPrefix} ${survivingWorkspaceSpecifiers.map(([name]) => name).join(', ')} still resolve through the workspace after pruning`,
+    )
+  }
+
+  manifest.scripts = scripts
   manifest.dependencies = dependencies
+  manifest.devDependencies = devDependencies
 
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 }
 
 /**
- * Copies the template into a fresh directory with the repo-only files dropped, the renames applied,
- * the repo-only scripts and dev dependencies deleted, and every `workspace:*` specifier replaced by
- * a tarball that resolves from inside the directory.
+ * Copies the template into a fresh directory with the repo-only files dropped, every optional
+ * package's owned paths and marked blocks removed, the renames applied, the repo-only scripts and
+ * dev dependencies deleted, and every `workspace:*` specifier replaced by a tarball that resolves
+ * from inside the directory.
  */
 export async function materializeAppTemplateProject(
   options: MaterializeAppTemplateProjectOptions,
