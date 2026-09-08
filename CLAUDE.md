@@ -1,6 +1,6 @@
 # hearthkit
 
-Opinionated stack for shipping many small TypeScript web projects. Full plan: `docs/PLAN.md`. Current position: `docs/STATUS.md`. Read both before doing anything.
+Opinionated stack for shipping many small TypeScript web projects. Full plan: `docs/PLAN.md`. Current position: `docs/STATUS.md`. Path to v1.0.0: `docs/COMPLETION-PLAN.md`, one step per session. Read all three before doing anything; each session does exactly one step and stops.
 
 ## Guiding rules
 

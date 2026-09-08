@@ -457,3 +457,33 @@ Report to the user rather than work around:
 - The VPS or Cloudflare token not being available when step 6.3 is reached. Steps 5 and 7 can
   proceed; step 6.3 waits.
 - Any second provider request. That is a v1.1 decision.
+
+## Appendix: running the template's Playwright flows locally
+
+Recorded from the step 1 run on 2026-09-07. Every step that touches the template's e2e specs or
+routes must re-run this; the vitest gates do not exercise the flows.
+
+1. Services: `docker compose up -d --wait` at the repo root gives Postgres, MinIO and the shared
+   Mailpit. Do not point the flows at that Mailpit: `packages/email`'s gates assert exact message
+   counts on it. Start an isolated one:
+   `docker run -d --rm --name hk-flows-mailpit -p 1125:1025 -p 8125:8025 axllent/mailpit:v1.31`.
+2. Database: `docker compose exec -T postgres createdb -U hearthkit hk_flows_<suffix>`.
+3. Bucket: the repo compose has no bucket-init container. Create `hearthkit-app` on MinIO with a
+   short `@aws-sdk/client-s3` script from `packages/storage` (endpoint `http://127.0.0.1:9000`,
+   credentials `hearthkit`/`hearthkit`, `forcePathStyle: true`).
+4. Migrations, from `templates/app` with `DATABASE_URL` set to the new database:
+   `pnpm db:generate` then `pnpm exec hearthkit db migrate --migrations-folder ./drizzle`. Delete
+   `templates/app/drizzle` afterwards; it is not tracked.
+5. Port: `playwright.config.ts` reuses any server already on port 3000 outside CI, and an unrelated
+   app on this machine has been found listening there. Build and start on another port yourself,
+   then hand Playwright the URL so it starts nothing:
+   `PORT=3100 pnpm start` after `pnpm build`, and `SMOKE_TEST_BASE_URL=http://127.0.0.1:3100 pnpm test:e2e`.
+6. Environment for both the server and the specs, beyond `DATABASE_URL`: `NODE_ENV=production`,
+   the five `STORAGE_*` variables pointing at MinIO and the bucket above, `EMAIL_TRANSPORT=smtp`,
+   `EMAIL_FROM`, `EMAIL_SMTP_HOST=127.0.0.1`, `EMAIL_SMTP_PORT=1125`,
+   `MAILPIT_API_BASE_URL=http://127.0.0.1:8125`, `AUTH_SECRET` (any long value),
+   `AUTH_BASE_URL` equal to the server URL, and `STRIPE_SECRET_KEY` plus `STRIPE_WEBHOOK_SECRET`
+   from the git-ignored root `.env`. Without the Stripe key the payments flow skips, and a skipped
+   flow is not a passing flow.
+7. Expect `6 passed`. Then stop the server, `docker rm -f hk-flows-mailpit`, drop the database, and
+   confirm `git status` shows no untracked files under `templates/app`.
