@@ -5,11 +5,11 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 ## Position
 
-- Phase: 5 complete. Plan Version 2 (`docs/COMPLETION-PLAN.md` step 2) is on `docs/plan-v2`.
-- Current work: step 2 (plan Version 2) awaiting merge. Step 1 (hygiene) merged as PR #18.
+- Phase: 5 complete. Plan Version 2 merged (`docs/COMPLETION-PLAN.md` step 2, PR #19).
+- Current work: none in flight.
 - Package loop: none in flight.
-- Last commit on `main`: 8fa8810 (PR #18, hygiene pass).
-- Next: merge step 2, then **step 3 (Phase 6, `create`)** on branch `pkg/create` through the loop.
+- Last commit on `main`: 0a30378 (PR #19, plan Version 2).
+- Next: **step 3 (Phase 6, `create`)** on branch `pkg/create` through the `next-package` loop.
 
 ## Phase checklist
 
