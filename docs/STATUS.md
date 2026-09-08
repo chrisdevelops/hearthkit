@@ -9,7 +9,7 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Current work: completion plan step 3, Phase 6 `create`, branch `pkg/create`, STOPPED at the
   three-round cap with one scaffold variant failing. See Open issues.
 - Package loop: `create`, step `verify`, rounds 3 (cap reached).
-- Last commit on `main`: 0a30378 (PR #19, plan Version 2).
+- Last commit on `main`: 0a30378 (PR #19, plan Version 2). Branch `pkg/create` at 6cd71b7.
 - Next: user decides the Open issue below, then one implementor round on `pkg/create`, verify, PR.
 
 ## Phase checklist
