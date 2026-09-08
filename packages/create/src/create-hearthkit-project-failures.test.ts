@@ -251,7 +251,11 @@ describe('createHearthkitProject failure modes', () => {
     }
     expect(failure.failedCommand).toBe('hearthkit dev infra up')
     // Carried verbatim, so a user can act on what the CLI actually said rather than on a summary.
-    expect(failure.cliFailure.kind).toBe('docker-unavailable')
+    // Either kind, because which one an unreachable DOCKER_HOST yields is the docker CLI's business
+    // and it differs by machine: a probe that fails first says docker-unavailable, while a CI runner
+    // whose CLI reaches compose before it reports the dead daemon says infra-compose-failed. create
+    // only promises to wrap whatever CliFailure it was handed, unchanged.
+    expect(['docker-unavailable', 'infra-compose-failed']).toContain(failure.cliFailure.kind)
     expect(failure.message.startsWith(createInfraUpFailedErrorPrefix)).toBe(true)
 
     // The compose file the failed command was pointed at is still on disk, unrolled back.
