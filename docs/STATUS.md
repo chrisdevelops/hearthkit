@@ -5,11 +5,12 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 ## Position
 
-- Phase: 5 complete. Plan Version 2 merged (`docs/COMPLETION-PLAN.md` step 2, PR #19).
-- Current work: completion plan step 3, Phase 6 `create`, branch `pkg/create`, PR open, awaiting CI.
-- Package loop: `create`, step `commit`, rounds 4 (round 4 authorized by the user 2026-09-08).
-- Last commit on `main`: 0a30378 (PR #19, plan Version 2). Branch `pkg/create` at 6cd71b7.
-- Next: merge the step 3 PR once CI is green on its head, then step 4 (first release).
+- Phase: 6 in progress. `create` merged (completion plan step 3, PR #20).
+- Current work: none in flight.
+- Package loop: none in flight.
+- Last commit on `main`: 08c9000 (PR #20, `create`).
+- Next: **step 4 (first release 0.1.0)**: `chore/release-workflow` branch, then the user runbook in
+  `docs/COMPLETION-PLAN.md` 4.2.
 
 ## Phase checklist
 
@@ -24,7 +25,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 - [x] Phase 5: `storage` (PR #10, #11), `email` (PR #12), `auth` (PR #13), `payments` (PR #14),
       template sections and flows (PR #15, #16). 308 gates green, 6 Playwright flows green. DoD
       narrowed to the superset by plan Version 2 (completion plan step 2).
-- [ ] Phase 6: `create` (completion plan step 3), first release 0.1.0 (step 4)
+- [ ] Phase 6: `create` done (PR #20, step 3); first release 0.1.0 (step 4) pending
 - [ ] Export-surface refactor (completion plan step 5)
 - [ ] Phase 7: `infra/tofu/cloudflare`, `hearthkit vps bootstrap`, backups (step 6)
 - [ ] Phase 8: `AGENTS.md`, skills, MCP config, runbooks (step 7)
