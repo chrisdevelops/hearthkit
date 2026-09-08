@@ -35,28 +35,31 @@ type StoredObjectRow = {
   presignedDownloadUrl: string
 }
 
-/** Shape of the listing route's success body; only the fields this page renders are named. */
-type StoredObjectsListed = {
-  storedObjects?: { storageObjectKey?: string; objectByteCount?: number }[]
+/** True for a JSON object, which is the only shape this page reads a route's answer as; only the fields it renders are read. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Shape of the upload signer's success body. */
-type PresignedUploadUrlCreated = {
-  presignedUploadUrl?: string
-  requiredRequestHeaders?: Record<string, string>
-}
-
-/** Shape of the download signer's success body. */
-type PresignedDownloadUrlCreated = {
-  presignedDownloadUrl?: string
+/** The string-valued entries of a JSON object, which is what a signed request's headers must be; anything else is left out. */
+function stringEntriesOf(value: unknown): Record<string, string> {
+  const stringEntries: Record<string, string> = {}
+  if (!isJsonObject(value)) {
+    return stringEntries
+  }
+  for (const [entryName, entryValue] of Object.entries(value)) {
+    if (typeof entryValue === 'string') {
+      stringEntries[entryName] = entryValue
+    }
+  }
+  return stringEntries
 }
 
 /** The message a non-2xx section route carries; it is the owning package's own, so it is shown unchanged. */
 async function failureMessageOf(response: Response): Promise<string> {
   const bodyText = await response.text()
   try {
-    const parsed = JSON.parse(bodyText) as { message?: unknown }
-    return typeof parsed.message === 'string' ? parsed.message : bodyText
+    const parsed: unknown = JSON.parse(bodyText)
+    return isJsonObject(parsed) && typeof parsed.message === 'string' ? parsed.message : bodyText
   } catch {
     return bodyText
   }
@@ -74,13 +77,15 @@ export default function StorageSectionPage() {
       setSectionMessage(await failureMessageOf(listResponse))
       return
     }
-    const listed = (await listResponse.json()) as StoredObjectsListed
+    const listed: unknown = await listResponse.json()
+    const storedObjects: readonly unknown[] =
+      isJsonObject(listed) && Array.isArray(listed.storedObjects) ? listed.storedObjects : []
 
     // One presigned download per listed object. Fine for a bucket a person is looking at, and the
     // honest shape: a download URL carries its own credentials, so it cannot be built in the browser.
     const rows: StoredObjectRow[] = []
-    for (const storedObject of listed.storedObjects ?? []) {
-      if (typeof storedObject.storageObjectKey !== 'string') {
+    for (const storedObject of storedObjects) {
+      if (!isJsonObject(storedObject) || typeof storedObject.storageObjectKey !== 'string') {
         continue
       }
       const downloadResponse = await fetch('/api/storage/download-url', {
@@ -91,13 +96,14 @@ export default function StorageSectionPage() {
       if (!downloadResponse.ok) {
         continue
       }
-      const signed = (await downloadResponse.json()) as PresignedDownloadUrlCreated
-      if (typeof signed.presignedDownloadUrl !== 'string') {
+      const signed: unknown = await downloadResponse.json()
+      if (!isJsonObject(signed) || typeof signed.presignedDownloadUrl !== 'string') {
         continue
       }
       rows.push({
         storageObjectKey: storedObject.storageObjectKey,
-        objectByteCount: storedObject.objectByteCount ?? 0,
+        objectByteCount:
+          typeof storedObject.objectByteCount === 'number' ? storedObject.objectByteCount : 0,
         presignedDownloadUrl: signed.presignedDownloadUrl,
       })
     }
@@ -125,8 +131,8 @@ export default function StorageSectionPage() {
         setSectionMessage(await failureMessageOf(signResponse))
         return
       }
-      const signed = (await signResponse.json()) as PresignedUploadUrlCreated
-      if (typeof signed.presignedUploadUrl !== 'string') {
+      const signed: unknown = await signResponse.json()
+      if (!isJsonObject(signed) || typeof signed.presignedUploadUrl !== 'string') {
         setSectionMessage('The upload signer answered without a URL.')
         return
       }
@@ -135,7 +141,7 @@ export default function StorageSectionPage() {
       // because the content type is inside the signature.
       const uploadResponse = await fetch(signed.presignedUploadUrl, {
         method: 'PUT',
-        headers: signed.requiredRequestHeaders ?? {},
+        headers: stringEntriesOf(signed.requiredRequestHeaders),
         body: selectedFile,
       })
       if (!uploadResponse.ok) {

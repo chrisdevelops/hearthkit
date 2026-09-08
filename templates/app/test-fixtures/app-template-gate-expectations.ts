@@ -1,7 +1,19 @@
+import type { z } from 'zod'
+
 /**
  * Narrowing helpers the shape gates share. Like the tree fixture, nothing here imports from src/:
  * the gates pass every contract value in, so this directory never breaks the pruning invariant.
  */
+
+/** True for any non-null object, which is all a module namespace or a parsed JSON object needs to be before its keys are read one by one. */
+export function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/** True for any function value; the widest callable type, so a gate that needs a signature parses it through expectExportedFunctionOfType. */
+function isCallableValue(value: unknown): value is (...functionArguments: never[]) => unknown {
+  return typeof value === 'function'
+}
 
 /**
  * Imports one template module through a literal specifier and reports the path when it is missing,
@@ -11,14 +23,21 @@ export async function importTemplateModule(
   templateRelativePath: string,
   importModule: () => Promise<unknown>,
 ): Promise<Record<string, unknown>> {
+  let moduleNamespace: unknown
   try {
-    return (await importModule()) as Record<string, unknown>
+    moduleNamespace = await importModule()
   } catch (error) {
     throw new Error(
       `gate could not import templates/app/${templateRelativePath} (not written yet?): ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     )
   }
+  if (!isUnknownRecord(moduleNamespace)) {
+    throw new Error(
+      `gate expected templates/app/${templateRelativePath} to import as a module namespace, received ${typeof moduleNamespace}`,
+    )
+  }
+  return moduleNamespace
 }
 
 /** One named export that must be a function, failing the gate with the file that should have exported it. */
@@ -28,12 +47,26 @@ export function expectExportedFunction(
   templateRelativePath: string,
 ): (...functionArguments: never[]) => unknown {
   const exportedValue = moduleNamespace[exportName]
-  if (typeof exportedValue !== 'function') {
+  if (!isCallableValue(exportedValue)) {
     throw new Error(
       `gate expected templates/app/${templateRelativePath} to export ${exportName} as a function, received ${typeof exportedValue}`,
     )
   }
-  return exportedValue as (...functionArguments: never[]) => unknown
+  return exportedValue
+}
+
+/** One named export that must be a function of the signature the passed schema names; the schema is a z.custom over that signature, and the gate that calls it checks the behaviour. */
+export function expectExportedFunctionOfType<
+  TFunction extends (...functionArguments: never[]) => unknown,
+>(
+  moduleNamespace: Record<string, unknown>,
+  exportName: string,
+  templateRelativePath: string,
+  functionSchema: z.ZodType<TFunction>,
+): TFunction {
+  return functionSchema.parse(
+    expectExportedFunction(moduleNamespace, exportName, templateRelativePath),
+  )
 }
 
 /**
@@ -48,16 +81,21 @@ export function expectNonEmptyStringList(
   contractValue: unknown,
   contractExportName: string,
 ): readonly string[] {
-  if (
-    !Array.isArray(contractValue) ||
-    contractValue.length === 0 ||
-    contractValue.some((entry) => typeof entry !== 'string' || entry === '')
-  ) {
+  if (!Array.isArray(contractValue) || contractValue.length === 0) {
     throw new Error(
       `gate expected the contract to export ${contractExportName} as a non-empty array of strings, received ${JSON.stringify(contractValue)}`,
     )
   }
-  return contractValue as readonly string[]
+  const entries: readonly unknown[] = contractValue
+  const stringEntries = entries.filter(
+    (entry): entry is string => typeof entry === 'string' && entry !== '',
+  )
+  if (stringEntries.length !== entries.length) {
+    throw new Error(
+      `gate expected the contract to export ${contractExportName} as a non-empty array of strings, received ${JSON.stringify(contractValue)}`,
+    )
+  }
+  return stringEntries
 }
 
 /** The message of a value that must have been thrown; fails the gate when nothing was thrown or it was not an Error. */
@@ -85,10 +123,10 @@ export function jsonObjectAt(
   key: string,
 ): Record<string, unknown> {
   const value = jsonObject[key]
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isUnknownRecord(value) || Array.isArray(value)) {
     return {}
   }
-  return value as Record<string, unknown>
+  return value
 }
 
 /** A string array read out of parsed JSON, or an empty array when the key is absent or not an array of strings. */

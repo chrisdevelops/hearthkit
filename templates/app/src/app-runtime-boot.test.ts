@@ -1,8 +1,11 @@
 import { configInvalidErrorPrefix } from '@hearthkit/config'
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   expectExportedFunction,
+  expectExportedFunctionOfType,
   importTemplateModule,
+  isUnknownRecord,
   messageOfThrownFrom,
 } from '../test-fixtures/app-template-gate-expectations.ts'
 import { gateSupersetEnv } from '../test-fixtures/app-template-gate-environment.ts'
@@ -61,8 +64,10 @@ const instrumentationWiringNames = [
 ]
 
 const shapeKeysOf = (fragment: unknown): string[] => {
-  const shape = (fragment as { shape?: Record<string, unknown> }).shape
-  return shape === undefined ? [] : Object.keys(shape)
+  if (!isUnknownRecord(fragment) || !isUnknownRecord(fragment.shape)) {
+    return []
+  }
+  return Object.keys(fragment.shape)
 }
 
 async function loadAppRuntimeConfigModule(): Promise<{
@@ -73,11 +78,12 @@ async function loadAppRuntimeConfigModule(): Promise<{
     'app-runtime-config.ts',
     () => import('../app-runtime-config.ts'),
   )
-  const requireAppRuntimeConfig = expectExportedFunction(
+  const requireAppRuntimeConfig = expectExportedFunctionOfType(
     namespace,
     'requireAppRuntimeConfig',
     'app-runtime-config.ts',
-  ) as unknown as RequireAppRuntimeConfig
+    z.custom<RequireAppRuntimeConfig>((value) => typeof value === 'function'),
+  )
 
   const fragments = namespace.appEnvSchemaFragments
   if (!Array.isArray(fragments)) {

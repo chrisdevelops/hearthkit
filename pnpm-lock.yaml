@@ -29,6 +29,9 @@ importers:
       '@better-auth/drizzle-adapter':
         specifier: 1.7.2
         version: 1.7.2(@better-auth/core@1.7.2(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@opentelemetry/api@1.9.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.10)(kysely@0.29.5)(nanostores@1.5.3))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))
+      '@hearthkit/config':
+        specifier: workspace:*
+        version: link:../config
       '@hearthkit/db':
         specifier: workspace:*
         version: link:../db
@@ -45,9 +48,6 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      '@hearthkit/config':
-        specifier: workspace:*
-        version: link:../config
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
@@ -141,6 +141,9 @@ importers:
 
   packages/email:
     dependencies:
+      '@hearthkit/config':
+        specifier: workspace:*
+        version: link:../config
       '@react-email/render':
         specifier: 2.1.0
         version: 2.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -157,9 +160,6 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      '@hearthkit/config':
-        specifier: workspace:*
-        version: link:../config
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
@@ -187,6 +187,9 @@ importers:
 
   packages/observability:
     dependencies:
+      '@hearthkit/config':
+        specifier: workspace:*
+        version: link:../config
       '@sentry/node':
         specifier: 10.71.0
         version: 10.71.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))
@@ -197,9 +200,6 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      '@hearthkit/config':
-        specifier: workspace:*
-        version: link:../config
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
@@ -221,6 +221,9 @@ importers:
       '@hearthkit/auth':
         specifier: workspace:*
         version: link:../auth
+      '@hearthkit/config':
+        specifier: workspace:*
+        version: link:../config
       '@hearthkit/db':
         specifier: workspace:*
         version: link:../db
@@ -234,9 +237,6 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      '@hearthkit/config':
-        specifier: workspace:*
-        version: link:../config
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
@@ -261,13 +261,13 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: 3.1121.0
         version: 3.1121.0
+      '@hearthkit/config':
+        specifier: workspace:*
+        version: link:../config
       zod:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      '@hearthkit/config':
-        specifier: workspace:*
-        version: link:../config
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3

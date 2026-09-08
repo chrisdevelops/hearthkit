@@ -10,7 +10,7 @@ import {
 import {
   appTemplateGuaranteedScriptNames,
   appTemplateNextVersion,
-  appTemplateNodeMajorVersion,
+  appTemplateNodeVersion,
   appTemplateOptionalPackageNames,
   appTemplatePackageName,
   appTemplatePlaywrightVersion,
@@ -100,9 +100,7 @@ describe('templates/app package.json', () => {
     expect(packageJson.name).toBe(appTemplatePackageName)
     expect(packageJson.private).toBe(true)
     expect(packageJson.version).toBe('0.0.0')
-    expect(stringFieldAt(jsonObjectAt(packageJson, 'engines'), 'node')).toBe(
-      `>=${String(appTemplateNodeMajorVersion)}`,
-    )
+    expect(stringFieldAt(jsonObjectAt(packageJson, 'engines'), 'node')).toBe(appTemplateNodeVersion)
 
     // One package manager version for the whole repo; the template must not drift from the root.
     expect(packageJson.packageManager).toBe(readRepoRootPackageJson().packageManager)

@@ -48,9 +48,11 @@ export const createHealthRouteHandler: CreateHealthRouteHandler = (options) => {
   const healthChecks: readonly NamedHealthCheck[] = parsedOptions.success
     ? parsedOptions.data.healthChecks
     : // The option type is zod's input type, which carries no HealthCheckName brand, so this branch
-      // needs one narrowing assertion. Keeping the caller's checks beats turning /health into a
-      // permanent 200, and only a caller that cast around the types can reach it at all.
-      ((requestedOptions.healthChecks as readonly NamedHealthCheck[] | undefined) ?? [])
+      // parses the checks on their own through the same contract schema. Keeping the caller's
+      // checks beats turning /health into a permanent 200 when only the timeout was rejected; a
+      // check the schema itself rejects throws here, at boot, rather than running under a name the
+      // contract never allowed.
+      createHealthRouteHandlerOptionsSchema.shape.healthChecks.parse(requestedOptions.healthChecks)
   const healthCheckTimeoutMs = readHealthCheckTimeoutMs(
     parsedOptions.success
       ? parsedOptions.data.healthCheckTimeoutMs

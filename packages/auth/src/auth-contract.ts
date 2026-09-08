@@ -475,14 +475,19 @@ export const authServerInstanceSchema = z.custom<AuthServerInstance>(
   (value) =>
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AuthServerInstance).handler === 'function' &&
-    typeof (value as AuthServerInstance).api === 'object',
+    'handler' in value &&
+    typeof value.handler === 'function' &&
+    'api' in value &&
+    typeof value.api === 'object',
 )
 
 /** Runtime check that a value behaves like a web Headers object; duck-typed so Next's read-only headers pass too. */
 export const authRequestHeadersSchema = z.custom<Headers>(
   (value) =>
-    typeof value === 'object' && value !== null && typeof (value as Headers).get === 'function',
+    typeof value === 'object' &&
+    value !== null &&
+    'get' in value &&
+    typeof value.get === 'function',
 )
 
 /** Runtime check that a value is a Drizzle node-postgres client; the precise schema type lives on the option types. */

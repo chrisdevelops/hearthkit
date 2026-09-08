@@ -5,7 +5,7 @@
   "description": "Next.js App Router template @hearthkit/create copies to make a new project",
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=24"
+    "node": "24.20.0"
   },
   "scripts": {
     "dev": "hearthkit dev",

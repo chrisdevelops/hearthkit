@@ -101,6 +101,7 @@ export function buildPaymentsTableCreateStatement(
   } catch (error) {
     throw new Error(
       `gate could not read a Drizzle table config for hearthkitPaymentsDrizzleSchema.${paymentsTableName}; it must be a pgTable definition: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 

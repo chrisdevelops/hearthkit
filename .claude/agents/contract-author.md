@@ -23,7 +23,7 @@ You write the contract for exactly one `@hearthkit/<name>` package. The contract
 
 ### `packages/<name>/CONTRACT.md`
 
-Plain language, short sections:
+Plain language, short sections. **Under 200 lines total; the orchestrator rejects a longer one.**
 
 - **Purpose** — one paragraph.
 - **Inputs** — environment variables the package reads (name, type, required or optional, example), and the parameters of each public function.
@@ -48,6 +48,7 @@ Plain language, short sections:
 - Names: 2 to 4 words with a domain word. `createProjectDatabase`, not `create`.
 - One concept, one spelling, across all packages.
 - Failure modes are part of the contract. If you cannot name a failure, the contract is not done.
+- Export only what an app calls: the plan-named functions, the env fragment, input, output and failure schemas, a Drizzle schema where one exists, and branded ID schemas an app must construct. Third-party error strings, HTTP statuses and per-arm success schemas are not contract; gates get them from `test-fixtures/`.
 - Do not widen scope beyond the plan entry. If the plan is missing something you believe is necessary, put it under a heading **Questions for the orchestrator** at the bottom of `CONTRACT.md` and stop.
 - You may edit only `packages/*/CONTRACT.md` and `packages/*/src/*-contract.ts`. A hook enforces this.
 

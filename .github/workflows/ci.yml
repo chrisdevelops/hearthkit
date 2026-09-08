@@ -24,10 +24,13 @@ jobs:
           --health-retries 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The changeset check compares against origin/main and needs the history.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: pnpm
       # The db package shells out to pg_dump/pg_restore and needs the v17 client
       # (the runner image ships v16, which refuses a v17 server).
@@ -41,6 +44,8 @@ jobs:
           # putting the versioned bin dir first makes pg_dump/pg_restore resolve to 17.
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
+      # Plan section 10: a PR that changes a package without a changeset does not merge.
+      - run: pnpm changeset status --since=origin/main
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm format:check

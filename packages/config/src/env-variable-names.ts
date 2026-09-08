@@ -1,6 +1,6 @@
-import type { EnvVariableName } from './config-contract.ts'
+import { envVariableNameSchema, type EnvVariableName } from './config-contract.ts'
 
-/** Brands a raw key as an env variable name; the caller must pass a key taken from a fragment shape, because no SCREAMING_SNAKE_CASE check runs here. */
+/** Brands a raw key as an env variable name by parsing it; throws on a key that is not SCREAMING_SNAKE_CASE, so pass only keys taken from a fragment shape. */
 export function asEnvVariableName(variableName: string): EnvVariableName {
-  return variableName as EnvVariableName
+  return envVariableNameSchema.parse(variableName)
 }

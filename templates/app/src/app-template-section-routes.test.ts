@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import {
-  expectExportedFunction,
+  expectExportedFunctionOfType,
   importTemplateModule,
 } from '../test-fixtures/app-template-gate-expectations.ts'
 import {
@@ -35,6 +36,11 @@ import {
 
 /** A route handler as Next calls it: a Web Request in, a Web Response out. */
 type SectionRouteHandler = (request: Request) => Promise<Response>
+
+/** Narrows a section route's POST export to the handler signature; the gate below checks what it answers. */
+const sectionRouteHandlerSchema = z.custom<SectionRouteHandler>(
+  (value) => typeof value === 'function',
+)
 
 /** Section files that must carry the route segment config: pages and route handlers, not the plain modules beside them. */
 const isSectionRouteFile = (ownedTemplatePath: string): boolean =>
@@ -281,11 +287,12 @@ describe('the optional package sections as files', () => {
       emailTestMessageRoutePath,
       () => import('../app/api/email/test-message/route.ts'),
     )
-    const handleTestMessageRequest = expectExportedFunction(
+    const handleTestMessageRequest = expectExportedFunctionOfType(
       routeNamespace,
       'POST',
       emailTestMessageRoutePath,
-    ) as unknown as SectionRouteHandler
+      sectionRouteHandlerSchema,
+    )
 
     const response = await handleTestMessageRequest(
       new Request('http://127.0.0.1/api/email/test-message', {

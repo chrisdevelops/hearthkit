@@ -40,6 +40,7 @@ export async function importHearthkitEmailNamespace(): Promise<Record<string, un
   } catch (error) {
     throw new Error(
       `gate could not load the public entry point of @hearthkit/email (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 }

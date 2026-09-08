@@ -1,7 +1,8 @@
 import { healthReportSchema, namedHealthCheckSchema } from '@hearthkit/observability'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import {
-  expectExportedFunction,
+  expectExportedFunctionOfType,
   importTemplateModule,
 } from '../test-fixtures/app-template-gate-expectations.ts'
 import {
@@ -21,6 +22,11 @@ import {
 
 /** A GET handler as Next calls it: a Web Request in, a Web Response out. */
 type HealthRouteHandler = (request: Request) => Promise<Response>
+
+/** Narrows the route's GET export to the handler signature; the gate below checks what it answers. */
+const healthRouteHandlerSchema = z.custom<HealthRouteHandler>(
+  (value) => typeof value === 'function',
+)
 
 /** Every check name the superset registers: none always-on, plus each selected package's. */
 const supersetHealthCheckNames = [
@@ -65,11 +71,12 @@ describe(`GET ${appHealthRoutePath}`, () => {
       'app/health/route.ts',
       () => import('../app/health/route.ts'),
     )
-    const handleHealthRequest = expectExportedFunction(
+    const handleHealthRequest = expectExportedFunctionOfType(
       routeNamespace,
       'GET',
       'app/health/route.ts',
-    ) as unknown as HealthRouteHandler
+      healthRouteHandlerSchema,
+    )
 
     const response = await handleHealthRequest(new Request(`http://localhost${appHealthRoutePath}`))
 

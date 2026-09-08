@@ -45,11 +45,16 @@ const paymentsCatalogFieldRules: Record<string, string> = {
 
 const unknownCatalogFieldRule = 'must match the shape paymentsCatalogSchema describes'
 
+/** True for any non-null object, which is all a catalog entry needs to be before its properties are read one by one. */
+function isCatalogEntryRecord(candidate: unknown): candidate is Record<string, unknown> {
+  return typeof candidate === 'object' && candidate !== null
+}
+
 function readCatalogEntryName(candidate: unknown, propertyName: string): string | undefined {
-  if (typeof candidate !== 'object' || candidate === null) {
+  if (!isCatalogEntryRecord(candidate)) {
     return undefined
   }
-  const value = (candidate as Record<string, unknown>)[propertyName]
+  const value = candidate[propertyName]
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
@@ -118,7 +123,7 @@ export function validatePaymentsCatalogEntries(candidate: unknown): PaymentsCata
       productNames.push(productName)
     }
 
-    const priceEntries = (productEntry as { prices?: unknown } | null)?.prices
+    const priceEntries = isCatalogEntryRecord(productEntry) ? productEntry.prices : undefined
     if (Array.isArray(priceEntries)) {
       if (priceEntries.length === 0) {
         catalogIssues.push({

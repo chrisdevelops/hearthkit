@@ -640,7 +640,10 @@ export const paymentsDrizzleClientSchema = z.custom<NodePgDatabase<Record<string
 /** Runtime check that a value behaves like a web Headers object; duck-typed so Next's read-only headers pass, as auth does it. */
 export const paymentsRequestHeadersSchema = z.custom<Headers>(
   (value) =>
-    typeof value === 'object' && value !== null && typeof (value as Headers).get === 'function',
+    typeof value === 'object' &&
+    value !== null &&
+    'get' in value &&
+    typeof value.get === 'function',
 )
 
 // This is the one value that legitimately carries the webhook secret, because carrying it to
@@ -664,10 +667,14 @@ export const paymentsClientSchema = z.custom<PaymentsClient>(
   (value) =>
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as PaymentsClient).stripeClient === 'object' &&
-    typeof (value as PaymentsClient).drizzleClient === 'object' &&
-    typeof (value as PaymentsClient).paymentsCatalog === 'object' &&
-    typeof (value as PaymentsClient).billingScope === 'string',
+    'stripeClient' in value &&
+    typeof value.stripeClient === 'object' &&
+    'drizzleClient' in value &&
+    typeof value.drizzleClient === 'object' &&
+    'paymentsCatalog' in value &&
+    typeof value.paymentsCatalog === 'object' &&
+    'billingScope' in value &&
+    typeof value.billingScope === 'string',
 )
 
 /** Runtime shape of createPaymentsClient options; organizationsEnabled is the auth scaffold flag, never an env variable. */

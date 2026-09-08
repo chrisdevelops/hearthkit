@@ -28,9 +28,9 @@ import { useCallback, useState, type ChangeEvent } from 'react'
 /** Never prerendered: the route segment config is stated for every section page and handler alike. */
 export const dynamic = 'force-dynamic'
 
-/** Shape of the send route's success body; only the fields this page renders are named. */
-type TransactionalEmailSent = {
-  subject?: string
+/** True for a JSON object, which is the only shape this page reads the send route's answer as; only the subject is read. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 export default function EmailSectionPage() {
@@ -58,8 +58,8 @@ export default function EmailSectionPage() {
         return
       }
 
-      const sent = JSON.parse(bodyText) as TransactionalEmailSent
-      setSentSubject(sent.subject ?? '')
+      const sent: unknown = JSON.parse(bodyText)
+      setSentSubject(isJsonObject(sent) && typeof sent.subject === 'string' ? sent.subject : '')
       setSectionMessage(`Sent to ${recipientEmailAddress}.`)
     } finally {
       setIsBusy(false)

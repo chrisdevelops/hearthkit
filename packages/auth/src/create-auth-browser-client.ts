@@ -1,6 +1,10 @@
 import { magicLinkClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
-import type { AuthBrowserClient, CreateAuthBrowserClientOptions } from './auth-contract.ts'
+import {
+  authBrowserClientSchema,
+  type AuthBrowserClient,
+  type CreateAuthBrowserClientOptions,
+} from './auth-contract.ts'
 
 /**
  * The Better Auth browser client, exactly as `createAuthClient` builds it, carrying the session
@@ -26,9 +30,9 @@ export function createAuthBrowserClient(
     ...(options.baseUrl === undefined ? {} : { baseURL: String(options.baseUrl) }),
     plugins: [magicLinkClient(), ...(options.organizationsEnabled ? [organizationClient()] : [])],
   })
-  // Widened and re-narrowed rather than validated, because this function cannot fail and
-  // authBrowserClientSchema's only honest check would have to throw. Better Auth's own session type
-  // is structurally close to AuthBrowserClient but not assignable to it: the contract brands
-  // activeOrganizationId, and a plain string is not a branded one.
-  return authBrowserClient as unknown as AuthBrowserClient
+  // Narrowed through the contract schema rather than a cast. Better Auth's own session type is
+  // structurally close to AuthBrowserClient but not assignable to it: the contract brands
+  // activeOrganizationId, and a plain string is not a branded one. The schema's one check, that the
+  // root value is a function, holds for every client createAuthClient builds, so this cannot throw.
+  return authBrowserClientSchema.parse(authBrowserClient)
 }

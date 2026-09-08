@@ -23,11 +23,42 @@ const mailpitApiBaseUrl = (process.env.MAILPIT_API_BASE_URL ?? '').trim() || 'ht
 /** A recipient nothing else can be sending to, which is what makes a scoped search sound. */
 const recipientEmailAddress = `hearthkit-email-flow-${randomUUID().replaceAll('-', '').slice(0, 12)}@hearthkit.test`
 
-/** One message as Mailpit's list endpoints summarise it. */
-type MailpitMessageSummary = { ID: string; Subject: string }
-
 /** One message in full: both body parts, which is what the section's template has to produce. */
 type MailpitMessage = { Subject: string; Text: string; HTML: string }
+
+/** True for a JSON object, which is what every Mailpit answer this flow reads is. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** The JSON object Mailpit answered with, failing the flow when it is anything else. */
+function jsonObjectOf(value: unknown, requestPath: string): Record<string, unknown> {
+  if (!isJsonObject(value)) {
+    throw new Error(`the flow expected a JSON object from Mailpit at ${requestPath}`)
+  }
+  return value
+}
+
+/** The id of the first message in a search answer, or undefined while the search finds nothing. */
+function firstMessageIdOf(searched: Record<string, unknown>): string | undefined {
+  const messages: readonly unknown[] = Array.isArray(searched.messages) ? searched.messages : []
+  const [summary] = messages
+  return isJsonObject(summary) && typeof summary.ID === 'string' ? summary.ID : undefined
+}
+
+/** One message read in full, failing the flow when a part this flow reads is missing. */
+async function readMailpitMessage(messageId: string): Promise<MailpitMessage> {
+  const requestPath = `/api/v1/message/${messageId}`
+  const message = jsonObjectOf(await readMailpitJson(requestPath), requestPath)
+  if (
+    typeof message.Subject !== 'string' ||
+    typeof message.Text !== 'string' ||
+    typeof message.HTML !== 'string'
+  ) {
+    throw new Error(`the flow expected Subject, Text and HTML on the message at ${requestPath}`)
+  }
+  return { Subject: message.Subject, Text: message.Text, HTML: message.HTML }
+}
 
 /** Reads JSON from Mailpit, failing with the body rather than with a parse error. */
 async function readMailpitJson(requestPath: string): Promise<unknown> {
@@ -54,10 +85,9 @@ async function waitForMessageToThisRun(waitMs = 20_000): Promise<MailpitMessage>
   const giveUpAt = Date.now() + waitMs
 
   for (;;) {
-    const searched = (await readMailpitJson(searchPath)) as { messages?: MailpitMessageSummary[] }
-    const [summary] = searched.messages ?? []
-    if (summary !== undefined) {
-      return (await readMailpitJson(`/api/v1/message/${summary.ID}`)) as MailpitMessage
+    const messageId = firstMessageIdOf(jsonObjectOf(await readMailpitJson(searchPath), searchPath))
+    if (messageId !== undefined) {
+      return readMailpitMessage(messageId)
     }
     if (Date.now() >= giveUpAt) {
       throw new Error(

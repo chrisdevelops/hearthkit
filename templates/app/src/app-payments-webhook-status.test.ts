@@ -1,7 +1,8 @@
 import { createHmac, randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import {
-  expectExportedFunction,
+  expectExportedFunctionOfType,
   importTemplateModule,
 } from '../test-fixtures/app-template-gate-expectations.ts'
 import {
@@ -34,6 +35,18 @@ const paymentsWebhookRoutePath = 'app/api/payments/webhook/route.ts'
 
 /** A route handler as Next calls it: a Web Request in, a Web Response out. */
 type PaymentsWebhookRouteHandler = (request: Request) => Promise<Response>
+
+/** Narrows the route's POST export to the handler signature; the gates below check what it answers. */
+const paymentsWebhookRouteHandlerSchema = z.custom<PaymentsWebhookRouteHandler>(
+  (value) => typeof value === 'function',
+)
+
+/** The fields these gates assert on out of the webhook route's JSON answer; every other field is left alone. */
+const webhookResponseBodySchema = z.object({
+  kind: z.string().optional(),
+  signatureFailureReason: z.string().optional(),
+  ignoredReason: z.string().optional(),
+})
 
 /** The signing secret the gate configures the app with, and a different one to sign wrongly with. */
 const gateStripeWebhookSecret = 'gate-template-webhook-secret-that-must-never-be-echoed'
@@ -130,11 +143,12 @@ async function loadPaymentsWebhookRouteHandler(): Promise<PaymentsWebhookRouteHa
     paymentsWebhookRoutePath,
     () => import('../app/api/payments/webhook/route.ts'),
   )
-  return expectExportedFunction(
+  return expectExportedFunctionOfType(
     routeNamespace,
     'POST',
     paymentsWebhookRoutePath,
-  ) as unknown as PaymentsWebhookRouteHandler
+    paymentsWebhookRouteHandlerSchema,
+  )
 }
 
 /** The header name @hearthkit/payments reads, taken from its contract rather than retyped. */
@@ -195,10 +209,7 @@ describe(`POST /api/payments/webhook`, () => {
     // Asserted on the kind and the enum, never on the message: four different signature failures
     // share the opening words "No signatures found", so message text cannot tell them apart and a
     // gate written against it would pass for the wrong reason.
-    const webhookResult = JSON.parse(responseBodyText) as {
-      kind?: string
-      signatureFailureReason?: string
-    }
+    const webhookResult = webhookResponseBodySchema.parse(JSON.parse(responseBodyText))
     expect(webhookResult.kind).toBe('payments-webhook-signature-invalid')
     if (webhookResult.signatureFailureReason !== undefined) {
       const { webhookSignatureFailureReasonSchema } =
@@ -234,7 +245,7 @@ describe(`POST /api/payments/webhook`, () => {
     const responseBodyText = await response.text()
 
     expect(response.status, responseBodyText).toBe(503)
-    expect((JSON.parse(responseBodyText) as { kind?: string }).kind).toBe(
+    expect(webhookResponseBodySchema.parse(JSON.parse(responseBodyText)).kind).toBe(
       'payments-database-unavailable',
     )
   })
@@ -262,10 +273,7 @@ describe(`POST /api/payments/webhook`, () => {
 
     expect(response.status, responseBodyText).toBe(200)
 
-    const webhookResult = JSON.parse(responseBodyText) as {
-      kind?: string
-      ignoredReason?: string
-    }
+    const webhookResult = webhookResponseBodySchema.parse(JSON.parse(responseBodyText))
     expect(webhookResult.kind).toBe('payments-webhook-ignored')
 
     // The enum again rather than the wording, so a renamed reason fails here rather than drifting.

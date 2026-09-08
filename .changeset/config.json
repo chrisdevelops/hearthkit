@@ -3,7 +3,19 @@
   "baseBranch": "main",
   "access": "public",
   "ignore": [],
-  "fixed": [],
+  "fixed": [
+    [
+      "@hearthkit/config",
+      "@hearthkit/db",
+      "@hearthkit/ui",
+      "@hearthkit/observability",
+      "@hearthkit/storage",
+      "@hearthkit/email",
+      "@hearthkit/auth",
+      "@hearthkit/payments",
+      "@hearthkit/cli"
+    ]
+  ],
   "linked": [],
   "format": "auto",
   "updateInternalDependencies": "patch",

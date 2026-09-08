@@ -82,6 +82,7 @@ export function buildAuthTableCreateStatement(authTableName: string, authTable: 
   } catch (error) {
     throw new Error(
       `gate could not read a Drizzle table config for hearthkitAuthDrizzleSchema.${authTableName}; it must be a pgTable definition: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 

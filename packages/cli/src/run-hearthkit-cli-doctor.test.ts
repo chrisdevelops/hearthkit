@@ -39,8 +39,8 @@ describe('hearthkit doctor', () => {
 
     const success = expectCliSuccess(run, 'doctor-report', 0)
     expect(success.allDoctorChecksPassed).toBe(true)
-    expect([...success.checks].map((check) => check.checkName).sort()).toEqual(
-      [...doctorCheckNameSchema.options].sort(),
+    expect([...success.checks].map((check) => check.checkName).toSorted()).toEqual(
+      [...doctorCheckNameSchema.options].toSorted(),
     )
     expect(success.checks.filter((check) => check.status !== 'pass')).toEqual([])
     expect(success.checks.every((check) => check.detail.length > 0)).toBe(true)
@@ -61,8 +61,8 @@ describe('hearthkit doctor', () => {
 
     const failure = expectCliFailure(run, 'doctor-checks-failed', 1)
     expect(failure.failedCheckNames).toContain('admin-database-reachable')
-    expect([...failure.checks].map((check) => check.checkName).sort()).toEqual(
-      [...doctorCheckNameSchema.options].sort(),
+    expect([...failure.checks].map((check) => check.checkName).toSorted()).toEqual(
+      [...doctorCheckNameSchema.options].toSorted(),
     )
     expect(
       failure.checks.find((check) => check.checkName === 'admin-database-reachable')?.status,

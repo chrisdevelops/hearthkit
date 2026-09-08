@@ -24,11 +24,38 @@ const signUpEmailAddress = `hearthkit-auth-flow-${signUpToken}@hearthkit.test`
 const signUpPassword = `hearthkit-flow-password-${signUpToken}`
 const signUpDisplayName = `Hearthkit Flow ${signUpToken}`
 
-/** One message as Mailpit's list endpoints summarise it. */
-type MailpitMessageSummary = { ID: string }
-
 /** One message in full; the magic link is read out of the plain text part. */
 type MailpitMessage = { Subject: string; Text: string }
+
+/** True for a JSON object, which is what every Mailpit answer this flow reads is. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** The JSON object Mailpit answered with, failing the flow when it is anything else. */
+function jsonObjectOf(value: unknown, requestPath: string): Record<string, unknown> {
+  if (!isJsonObject(value)) {
+    throw new Error(`the flow expected a JSON object from Mailpit at ${requestPath}`)
+  }
+  return value
+}
+
+/** The id of the first message in a search answer, or undefined while the search finds nothing. */
+function firstMessageIdOf(searched: Record<string, unknown>): string | undefined {
+  const messages: readonly unknown[] = Array.isArray(searched.messages) ? searched.messages : []
+  const [summary] = messages
+  return isJsonObject(summary) && typeof summary.ID === 'string' ? summary.ID : undefined
+}
+
+/** One message read in full, failing the flow when a part this flow reads is missing. */
+async function readMailpitMessage(messageId: string): Promise<MailpitMessage> {
+  const requestPath = `/api/v1/message/${messageId}`
+  const message = jsonObjectOf(await readMailpitJson(requestPath), requestPath)
+  if (typeof message.Subject !== 'string' || typeof message.Text !== 'string') {
+    throw new Error(`the flow expected Subject and Text on the message at ${requestPath}`)
+  }
+  return { Subject: message.Subject, Text: message.Text }
+}
 
 async function readMailpitJson(requestPath: string): Promise<unknown> {
   const response = await fetch(`${mailpitApiBaseUrl}${requestPath}`)
@@ -47,10 +74,9 @@ async function waitForSignInMessage(waitMs = 20_000): Promise<MailpitMessage> {
   const giveUpAt = Date.now() + waitMs
 
   for (;;) {
-    const searched = (await readMailpitJson(searchPath)) as { messages?: MailpitMessageSummary[] }
-    const [summary] = searched.messages ?? []
-    if (summary !== undefined) {
-      return (await readMailpitJson(`/api/v1/message/${summary.ID}`)) as MailpitMessage
+    const messageId = firstMessageIdOf(jsonObjectOf(await readMailpitJson(searchPath), searchPath))
+    if (messageId !== undefined) {
+      return readMailpitMessage(messageId)
     }
     if (Date.now() >= giveUpAt) {
       throw new Error(

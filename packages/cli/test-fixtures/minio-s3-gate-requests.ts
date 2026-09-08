@@ -66,8 +66,8 @@ export function presignMinioObjectUrl(options: {
     ['X-Amz-Expires', String(presignedUrlLifetimeSeconds)],
     ['X-Amz-SignedHeaders', 'host'],
   ]
-  const canonicalQueryString = [...queryParameters]
-    .sort(([leftName], [rightName]) => (leftName < rightName ? -1 : 1))
+  const canonicalQueryString = queryParameters
+    .toSorted(([leftName], [rightName]) => (leftName < rightName ? -1 : 1))
     .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
     .join('&')
 

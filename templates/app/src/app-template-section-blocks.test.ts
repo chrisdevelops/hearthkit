@@ -160,8 +160,8 @@ describe('the marked blocks templates/app ships', () => {
       // one nothing ever removes.
       for (const span of blockSpans) {
         if (
-          !owningPackageNames.includes(
-            span.owningOptionalPackageName as AppTemplateOptionalPackageName,
+          !owningPackageNames.some(
+            (owningPackageName) => owningPackageName === span.owningOptionalPackageName,
           )
         ) {
           missingBlocks.push(
