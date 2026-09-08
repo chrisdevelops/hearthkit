@@ -24,13 +24,13 @@
   },
   "dependencies": {
     "@hearthkit/config": "workspace:*",
+    "@types/pg": "8.23.1",
     "drizzle-orm": "0.45.2",
     "pg": "8.23.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
-    "@types/pg": "8.23.1",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   }

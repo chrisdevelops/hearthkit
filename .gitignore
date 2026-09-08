@@ -12,3 +12,7 @@ dist/
 test-results/
 playwright-report/
 next-env.d.ts
+
+# packages/create bundles a copy of templates/app at prepack time so the published
+# tarball is self-contained; inside the workspace the live template is used instead.
+packages/create/app-template/

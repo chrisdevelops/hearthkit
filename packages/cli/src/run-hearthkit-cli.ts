@@ -6,6 +6,7 @@ import { runDbLifecycleCommand } from './run-db-lifecycle-command.ts'
 import { runDevCommand } from './run-dev-command.ts'
 import { runDevInfraDownCommand, runDevInfraUpCommand } from './run-dev-infra-command.ts'
 import { runDoctorCommand } from './run-doctor-checks.ts'
+import { runPaymentsSyncCommand } from './run-payments-sync-command.ts'
 
 /**
  * Runs one hearthkit command end to end: resolve the working directory and environment, parse argv,
@@ -51,6 +52,9 @@ async function runCliCommandInvocation(options: {
   }
   if (invocation.commandPath === 'doctor') {
     return runDoctorCommand(context)
+  }
+  if (invocation.commandPath === 'payments sync') {
+    return runPaymentsSyncCommand({ catalogPath: invocation.catalogPath, context })
   }
   // Everything left is a db command, and it has to be: a command path added to the enum without a
   // handler here fails to typecheck against DbLifecycleInvocation rather than falling through.

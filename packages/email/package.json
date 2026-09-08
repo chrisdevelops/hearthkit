@@ -29,6 +29,7 @@
   "dependencies": {
     "@hearthkit/config": "workspace:*",
     "@react-email/render": "2.1.0",
+    "@types/nodemailer": "8.0.1",
     "nodemailer": "9.0.6",
     "react-email": "6.9.3",
     "resend": "6.25.0",
@@ -40,7 +41,6 @@
   },
   "devDependencies": {
     "@types/node": "24.13.3",
-    "@types/nodemailer": "8.0.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "react": "19.2.8",

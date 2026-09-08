@@ -13,7 +13,8 @@
       "@hearthkit/email",
       "@hearthkit/auth",
       "@hearthkit/payments",
-      "@hearthkit/cli"
+      "@hearthkit/cli",
+      "@hearthkit/create"
     ]
   ],
   "linked": [],

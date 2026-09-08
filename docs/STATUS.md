@@ -6,10 +6,11 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 ## Position
 
 - Phase: 5 complete. Plan Version 2 merged (`docs/COMPLETION-PLAN.md` step 2, PR #19).
-- Current work: none in flight.
-- Package loop: none in flight.
+- Current work: completion plan step 3, Phase 6 `create`, branch `pkg/create`, STOPPED at the
+  three-round cap with one scaffold variant failing. See Open issues.
+- Package loop: `create`, step `verify`, rounds 3 (cap reached).
 - Last commit on `main`: 0a30378 (PR #19, plan Version 2).
-- Next: **step 3 (Phase 6, `create`)** on branch `pkg/create` through the `next-package` loop.
+- Next: user decides the Open issue below, then one implementor round on `pkg/create`, verify, PR.
 
 ## Phase checklist
 
@@ -35,15 +36,23 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes |
-| ------- | ---- | ------------------ | ----- |
-| none    |      |                    |       |
+| Package | Step      | Implementor rounds | Notes                                       |
+| ------- | --------- | ------------------ | ------------------------------------------- |
+| create  | implement | 2                  | branch `pkg/create`, completion plan step 3 |
 
 ## Open issues
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- None.
+- **Where the type-stripping hook lives.** The `no-package` scaffold variant fails because the
+  template `test:e2e` script preloads `@hearthkit/cli/register-node-modules-type-stripping` and an
+  empty selection prunes `@hearthkit/cli` (it is only in optional packages `devDependencyNames`).
+  Recommended: move the hook module to `@hearthkit/config`, which every project and every package
+  already depends on; cli and create bins import it from there; template script and CONTRACT.md
+  lines follow. Alternative: rewrite `scripts.test:e2e` to plain `playwright test` for the empty
+  selection like `scripts.dev`, which leaves a project that adds a package later without the hook.
+  Needs a fourth implementor round, which the cap forbids without the user. ("2026-09-07: completion
+  plan step 3" in HISTORY.)
 
 ## Traps
 

@@ -134,6 +134,13 @@ export const appTemplateNeverCopiedDirectoryNames = [
   'playwright-report',
 ] as const
 
+/** File names that are build output or OS noise which may exist on disk beside the template and never belong to a project; the scaffolder skips them wherever they appear. */
+export const appTemplateNeverCopiedFileNames = [
+  'next-env.d.ts',
+  'tsconfig.tsbuildinfo',
+  '.DS_Store',
+] as const
+
 /** package.json scripts every generated project gets; the project's own ci.yml calls lint, typecheck, and test:e2e. */
 export const appTemplateGuaranteedScriptNames = [
   'dev',
@@ -163,7 +170,7 @@ export const appTemplateRepoOnlyDependencyNames = ['vitest', 'zod'] as const
 /** Specifier every @hearthkit/* dependency carries inside the workspace; the scaffolder replaces it with a published version range. */
 export const appTemplateWorkspaceDependencySpecifier = 'workspace:*'
 
-/** Everything the scaffolder must change rather than copy verbatim; anything not named here is copied byte for byte, and the four optional-package targets only ever delete. */
+/** Everything the scaffolder must change rather than copy verbatim; anything not named here is copied byte for byte, the four optional-package targets only ever delete, and organizations-flag-literal is the single value substitution in source (ruled 2026-09-07). */
 export const appTemplateScaffoldRewriteTargets = [
   'project-package-name',
   'hearthkit-dependency-specifier',
@@ -174,6 +181,8 @@ export const appTemplateScaffoldRewriteTargets = [
   'optional-package-block',
   'optional-package-dependency',
   'optional-package-script',
+  // Rewrites exactly one line of app-auth-server.ts, `export const appOrganizationsEnabled = false`, to `true` when the organizations flag is on; nothing else in source is ever substituted.
+  'organizations-flag-literal',
 ] as const
 
 /** Scaffold rewrite target as an enum, so a Phase 6 gate can report which rewrite was skipped. */
@@ -473,9 +482,6 @@ export type DecideTemplatePathPrune = (
   options: DecideTemplatePathPruneOptions,
 ) => AppTemplatePruneDecision
 
-/** Module that must export decideTemplatePathPrune and pruneOptionalSectionBlocks by name; both are read from there by the gates, so neither may be an unexported local. */
-export const appTemplatePrunerModulePath = 'src/materialize-app-template-project.ts'
-
 /** Options type for pruneOptionalSectionBlocks; an absent selectedOptionalPackageNames returns the text unchanged, and every explicit selection strips markers, so the two are not the same call. */
 export type PruneOptionalSectionBlocksOptions = {
   fileText: string
@@ -644,9 +650,6 @@ export const appContainerNotHealthyErrorPrefix = 'hearthkit app container not he
 export const appHealthDependencyUnavailableErrorPrefix =
   'hearthkit app health dependency unavailable:'
 
-/** Unique literal prefix reported when a required workflow line is missing from ci.yml or deploy.yml. */
-export const appWorkflowContentMissingErrorPrefix = 'hearthkit app workflow content missing:'
-
 /** Unique literal prefix verify:container prints for its own failures (a failed pnpm install, docker run or pnpm pack, a missing published port, a nonzero Playwright run); deliberately not an appTemplateFailureSchema variant, because the verification harness failed rather than the template artifact. */
 export const appVerifyContainerFailedErrorPrefix = 'hearthkit app verify container failed:'
 
@@ -716,12 +719,6 @@ export const appTemplateFailureSchema = z.discriminatedUnion('kind', [
     kind: z.literal('app-theme-wiring-missing'),
     missingLine: z.string().min(1),
     message: z.string().startsWith(appThemeWiringMissingErrorPrefix),
-  }),
-  z.object({
-    kind: z.literal('app-workflow-content-missing'),
-    workflowPath: appTemplateRelativePathSchema,
-    missingLine: z.string().min(1),
-    message: z.string().startsWith(appWorkflowContentMissingErrorPrefix),
   }),
   z.object({
     kind: z.literal('app-boot-config-invalid'),

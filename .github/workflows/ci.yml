@@ -76,3 +76,31 @@ jobs:
       - name: Stop compose services
         if: always()
         run: docker compose down -v
+
+  # Completion plan step 3.4: the three scaffold variants of @hearthkit/create are the slowest gates
+  # in the repo (pack, install, typecheck, build, boot, Playwright), so they run in their own job
+  # after the fast checks pass. They read the repo compose Postgres and MinIO by container name and
+  # start an isolated Mailpit of their own. The every-package variant runs the payments flow live
+  # against Stripe test mode, and a skipped flow is a failed gate. Only the secret key is a repo secret:
+  # the webhook secret is verified by a local HMAC that the flow signs with the same value the app
+  # validated at boot, so any whitespace-free literal works here, as in the payments gates.
+  scaffold:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start Postgres and MinIO for the scaffold variants
+        run: docker compose up -d --wait postgres minio
+      - run: pnpm --filter @hearthkit/create run test:scaffold
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: whsec_ci_scaffold_gate
+      - name: Stop compose services
+        if: always()
+        run: docker compose down -v
