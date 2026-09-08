@@ -5,11 +5,11 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 ## Position
 
-- Phase: 5 complete in code; tickable when `docs/COMPLETION-PLAN.md` step 2 (plan Version 2) merges.
-- Current work: none in flight. `docs/COMPLETION-PLAN.md` step 1 (hygiene) merged as PR #18.
+- Phase: 5 complete. Plan Version 2 (`docs/COMPLETION-PLAN.md` step 2) is on `docs/plan-v2`.
+- Current work: step 2 (plan Version 2) awaiting merge. Step 1 (hygiene) merged as PR #18.
 - Package loop: none in flight.
 - Last commit on `main`: 8fa8810 (PR #18, hygiene pass).
-- Next: **step 2 (plan Version 2)** on branch `docs/plan-v2`, then step 3 (Phase 6, `create`).
+- Next: merge step 2, then **step 3 (Phase 6, `create`)** on branch `pkg/create` through the loop.
 
 ## Phase checklist
 
@@ -21,9 +21,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 - [x] Phase 2: `cli` (PR #3)
 - [x] Phase 3: `ui` (PR #4), `observability` (PR #5), `docs/theming.md` (PR #6, #7)
 - [x] Phase 4: `templates/app`, Dockerfile, project CI workflows (PR #8, #9); DoD verified on a throwaway repo
-- [ ] Phase 5: `storage` (PR #10, #11), `email` (PR #12), `auth` (PR #13), `payments` (PR #14),
-      template sections and flows (PR #15, #16). All merged, 308 gates green, 6 Playwright flows
-      green. Tick once plan Version 2 narrows the DoD to the superset (completion plan step 2).
+- [x] Phase 5: `storage` (PR #10, #11), `email` (PR #12), `auth` (PR #13), `payments` (PR #14),
+      template sections and flows (PR #15, #16). 308 gates green, 6 Playwright flows green. DoD
+      narrowed to the superset by plan Version 2 (completion plan step 2).
 - [ ] Phase 6: `create` (completion plan step 3), first release 0.1.0 (step 4)
 - [ ] Export-surface refactor (completion plan step 5)
 - [ ] Phase 7: `infra/tofu/cloudflare`, `hearthkit vps bootstrap`, backups (step 6)
@@ -43,8 +43,7 @@ implement, verify, commit.
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- None. The 2026-09-06 items (Phase 5 DoD, plan section 6 auth row) are settled and land in
-  completion plan step 2.
+- None.
 
 ## Traps
 

@@ -1,6 +1,6 @@
 # hearthkit implementation plan
 
-Version 1. Based on the confirmed shared understanding of 2026-08-26.
+Version 2. Revised 2026-09-07 after the Phase 5 audit. Version 1 was based on the confirmed shared understanding of 2026-08-26; the audit findings and the rulings this version records are in `docs/COMPLETION-PLAN.md`.
 
 ## 1. What we are building
 
@@ -63,10 +63,18 @@ hearthkit/
   templates/
     app/              Next.js app template consumed by create
   infra/
-    tofu/             OpenTofu module: Cloudflare DNS, R2, token
+    tofu/             Provider interface (PROVIDER-CONTRACT.md) and its implementations
+      cloudflare/     The one v1 implementation: Cloudflare DNS, R2, token, CORS
     vps/              Shared-service compose files and bootstrap assets
-  docs/               Stack docs, theming rules, package contracts
-  .ai/                CLAUDE.md, skills, MCP config for working in the stack
+  docs/
+    PLAN.md           This file: what hearthkit is
+    STATUS.md         Current position only, under 150 lines
+    HISTORY.md        Journal of verified facts and traps; searched, not read
+    COMPLETION-PLAN.md  Ordered path to v1.0.0; deleted at Phase 9
+    theming.md, contracts, runbooks
+  AGENTS.md           Canonical agent instructions (section 9)
+  CLAUDE.md           Imports AGENTS.md, adds the build-loop rules for Claude Code
+  .claude/            Agents, hooks and skills the build loop uses
   .changeset/
   .github/workflows/
   pnpm-workspace.yaml
@@ -84,6 +92,10 @@ Naming rules for every file and export follow the write-discoverable-code skill.
 ## 4. Package contracts
 
 Each package is a black box with a defined input, output, and failure modes. Integration tests ("gates") exercise the public contract against real dependencies. There are a handful per package, not hundreds. Gates are written before implementation.
+
+Export policy: a package's public surface is the outputs named in its contract below, its input and output schemas, its failure union, its `envSchemaFragment`, the Drizzle schema object where one exists, and the branded ID schemas an app must construct. Nothing else leaves `index.ts`. Third-party error strings, HTTP status constants and every constant whose only reader is a gate live in `test-fixtures/`.
+
+Loop caps, checked at the orchestrator's review steps: `CONTRACT.md` under 200 lines, at most 20 gates and 3 fixture files per package, exports limited to the policy above. A contract or gate set over a cap is rejected. Packages merged before this version exceed the caps and are trimmed by the export-surface refactor in `docs/COMPLETION-PLAN.md` step 5.
 
 Dependency graph, used by the scaffolder:
 
@@ -141,8 +153,8 @@ Purpose: error reporting to GlitchTip, structured logging, health endpoint.
 - Input: optional `GLITCHTIP_DSN`, `LOG_LEVEL`.
 - Output: initialized Sentry-compatible SDK, a pino logger, a `/health` route handler for Next.js.
 - Failure modes: none fatal. Without a DSN, error reporting is a no-op and logs go to stdout.
-- Gates: with no DSN, `captureError` does not throw; with a DSN pointed at a local mock endpoint, an event is sent; `/health` returns 200 and reports database reachability when `db` is installed.
-- Notes: SDK sample rates are set conservatively by default to prevent a runaway loop filling GlitchTip's disk.
+- Gates: with no DSN, `captureError` does not throw; with a DSN pointed at a local mock endpoint, an event is sent; `/health` returns 200 with no checks registered and 503 when a registered check throws or times out.
+- Notes: SDK sample rates are set conservatively by default to prevent a runaway loop filling GlitchTip's disk. Health checks are supplied by the app, not the package: `createHealthRouteHandler` takes a list of named checks and knows nothing about `db`. The template's `app-health-checks.ts` registers a one-round-trip database check inside its `auth` section, because `auth` is what brings `db` into a template project; a project that adds another dependency appends a check there.
 
 ### 4.5 `@hearthkit/storage` (optional)
 
@@ -159,7 +171,7 @@ Purpose: S3-compatible object storage with presigned uploads.
 Purpose: send transactional email from React Email templates through a swappable transport.
 
 - Input: `EMAIL_TRANSPORT` = `smtp` or `resend`, plus transport credentials. `EMAIL_FROM`.
-- Output: `sendTransactionalEmail(template, props, to)`, template components.
+- Output: `sendTransactionalEmail(options)`, where the one options object carries the transport config, the template, its props, the recipient and an optional subject override; template components.
 - Failure modes: transport rejects, template render error, invalid recipient.
 - Gates: against Mailpit in compose. Send a template, query Mailpit's API, confirm subject and body. Resend transport is covered by a contract test with a mocked HTTP layer only, since it cannot run offline.
 
@@ -181,8 +193,8 @@ Purpose: Stripe subscriptions and one-time purchases, webhooks, hosted customer 
 - Input: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, a `payments-catalog.ts` file in the app defining products and prices.
 - Output: `createCheckoutSession`, `createCustomerPortalSession`, `handleStripeWebhook`, `syncPaymentsCatalog`, Drizzle schema for customers, subscriptions, and purchases.
 - Failure modes: webhook signature mismatch, unknown price, customer not found.
-- Gates: against Stripe test mode using the Stripe CLI. Sync a catalog, confirm prices exist in Stripe, create a checkout session, replay a `checkout.session.completed` event through the webhook handler, confirm the subscription row exists. Payments gates are tagged so they can be skipped when no Stripe key is present.
-- Notes: billing scope (user or org) follows the `auth` scaffold flag. Verify at build time whether Better Auth's Stripe plugin covers one-time purchases; if not, implement one-time purchases directly with the Stripe SDK alongside it.
+- Gates: against Stripe test mode over the Stripe SDK. Sync a catalog, confirm prices exist in Stripe, create a checkout session, post a locally signed `checkout.session.completed` event through the webhook handler, confirm the subscription row exists. The live gates read `STRIPE_SECRET_KEY` locally and, on CI, from the repository secret; they refuse a live-mode key. Without the key they report as skipped, and a run with a skip segment is not a passing run: the merge criterion is every gate passed, none skipped.
+- Notes: billing scope (user or org) follows the `auth` scaffold flag. Better Auth's Stripe plugin covers subscriptions only (verified 2026-09-06 against the installed package), so one-time purchases are implemented directly with the Stripe SDK.
 
 ### 4.9 `@hearthkit/cli` (bin `hearthkit`)
 
@@ -203,20 +215,35 @@ hearthkit doctor                 checks env, Docker, versions, connectivity
 ```
 
 - Gates: each command runs end to end against local compose. `vps bootstrap` is gated in CI against a throwaway Ubuntu container.
+- `infra apply` reads `HEARTHKIT_INFRA_PROVIDER` and accepts only `cloudflare` in v1. Any other value fails before OpenTofu runs. The provider interface is in section 8.2.
 
 ### 4.10 `@hearthkit/create`
 
 Purpose: scaffold a new project.
 
-Flow:
+Flags first. Every option is a flag, so a script or an agent can scaffold without a terminal. Interactive prompts exist only as a fallback: when a required flag is absent and stdin is a TTY, `create` prompts for it; when absent and not a TTY, it fails with `create-option-missing`.
 
-1. Ask for project name.
-2. Ask which optional packages to include (multi-select). Resolve dependencies automatically.
-3. If `auth` is chosen, ask whether to enable organizations.
-4. Copy `templates/app`, prune files for packages not chosen, write `package.json` scripts, generate `docker-compose.yml` with only the needed services, generate `Dockerfile`, write `.env.example`, write `infra/tofu.tfvars` with the project name.
-5. Run `pnpm install`, `hearthkit dev infra up`, `hearthkit db create <name>` if `db` is included, and print next steps.
+| Flag                 | Meaning                                                              | Default                                         |
+| -------------------- | -------------------------------------------------------------------- | ----------------------------------------------- |
+| `<project-name>`     | Positional. Kebab-case, branded                                      | required                                        |
+| `--packages`         | Optional packages to include: `storage`, `email`, `auth`, `payments` | required (prompted, or `create-option-missing`) |
+| `--organizations`    | Enable Better Auth organizations. Only meaningful with `auth`        | `false`                                         |
+| `--target-directory` | Where to write the project                                           | `./<project-name>`                              |
+| `--no-install`       | Skip `pnpm install`                                                  | install runs                                    |
+| `--no-start-infra`   | Skip `hearthkit dev infra up` and `hearthkit db create`              | infra starts                                    |
+| `--package-version`  | `@hearthkit/*` version written into `package.json`                   | the version of `@hearthkit/create`              |
+| `--interactive`      | Force prompts on or off                                              | on when stdin is a TTY                          |
 
-- Gates: scaffold with every package, with none, and with `auth` only; each result installs, typechecks, boots, and passes its Playwright smoke test.
+Steps:
+
+1. Resolve dependencies without asking: `auth` pulls `db` and `email`; `payments` pulls `auth`. Reject `--organizations` without `auth` and any unknown package name.
+2. Copy `templates/app`. Prune the paths and the `hearthkit-section` blocks that belong to packages not chosen, and apply the scaffold rewrites the template's manifest declares (`appTemplateScaffoldRewriteTargets`). The pruning logic lives in `packages/create`; the template keeps only the section manifest, as data, in `app-template-contract.ts`.
+3. Write `.env.example`, `docker-compose.yml` through the CLI's generator with only the needed services, `Dockerfile`, and `infra/tofu.tfvars` with the project name.
+4. Run `pnpm install`, `hearthkit dev infra up`, `hearthkit db create <name>` if `db` is included, and print next steps.
+
+- Output: the written tree and the commands that ran.
+- Failure modes: target exists and is not empty, invalid project name, unknown package name, `organizations` without `auth`, a required option missing outside a TTY, install failed, infra up failed.
+- Gates: scaffold with every package, with none, and with `auth` only plus organizations; each result installs, typechecks, boots, and passes its Playwright smoke test and the flows for its chosen packages.
 
 ## 5. App template
 
@@ -230,11 +257,13 @@ Flow:
 
 `hearthkit dev` starts compose infrastructure and then `next dev` on the host. Compose contains only what the chosen packages need:
 
-| Service     | Included when | Purpose                          |
-| ----------- | ------------- | -------------------------------- |
-| Postgres 17 | `db`          | Local database server            |
-| MinIO       | `storage`     | S3 stand-in                      |
-| Mailpit     | `email`       | SMTP catcher with web UI and API |
+| Service                 | Included when | Purpose                                                           |
+| ----------------------- | ------------- | ----------------------------------------------------------------- |
+| Postgres 17             | `db`          | Local database server                                             |
+| MinIO                   | `storage`     | S3 stand-in                                                       |
+| MinIO bucket init       | `storage`     | One-shot `minio-init` container that creates the project's bucket |
+| Mailpit                 | `email`       | SMTP catcher with web UI and API                                  |
+| Postgres 17 and Mailpit | `auth`        | Pulled in through `db` and `email`; sign-in and magic-link flows  |
 
 Stripe uses `stripe listen` from the official CLI to forward webhooks. Observability is a no-op without a DSN. OAuth needs real client IDs; password and magic link do not.
 
@@ -242,10 +271,10 @@ Stripe uses `stripe listen` from the official CLI to forward webhooks. Observabi
 
 Workflows in the hearthkit repo:
 
-| Workflow      | Trigger       | Steps                                                                                                           |
-| ------------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`      | pull request  | pnpm install, lint, typecheck, package gates with services as GitHub Actions service containers, scaffold gates |
-| `release.yml` | merge to main | Changesets version PR or publish to npm                                                                         |
+| Workflow      | Trigger       | Steps                                                                                                                                            |
+| ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ci.yml`      | pull request  | pnpm install, changeset check, lint, typecheck, package gates with services as GitHub Actions service containers, scaffold gates in a second job |
+| `release.yml` | merge to main | Changesets version PR, then publish to npm through trusted publishing (GitHub OIDC, no long-lived token)                                         |
 
 Workflows written into each generated project:
 
@@ -255,6 +284,8 @@ Workflows written into each generated project:
 | `deploy.yml` | merge to main | build image, push to GHCR tagged with git SHA and `latest`, call Dokploy deploy webhook |
 
 Rollback is redeploying a previous SHA tag from Dokploy.
+
+Both repos read Node from `.nvmrc`. The changeset check (`pnpm changeset status --since=origin/main`) fails a PR that changes `packages/**` or `templates/**` without a changeset. Every `@hearthkit/*` package is in one Changesets fixed group and moves to the same version; `templates/app` is private and excluded. The first publish is 0.1.0 when `create` lands, and 1.0.0 at Phase 9.
 
 ## 8. Infrastructure
 
@@ -272,16 +303,21 @@ Shared services are plain compose, run outside Dokploy, so Dokploy can be replac
 
 Backups: a scheduled job on the VPS runs `hearthkit db backup` for every database and uploads to an R2 bucket. Restore is tested as part of the initial bootstrap verification.
 
-### 8.2 OpenTofu module
+### 8.2 Infrastructure provider interface
 
-`infra/tofu/` with the Cloudflare provider. Input: project name, zone, VPS IP. Creates:
+`infra/tofu/PROVIDER-CONTRACT.md` defines the contract every provider implements. The CLI and the generated project depend on the contract, not on a provider.
+
+- Inputs: `project_name`, `zone_name`, `host_ip`.
+- Outputs: `hostname`, `storage_endpoint`, `storage_bucket`, `storage_access_key_id`, `storage_secret_access_key`, `dsn_hint`.
+
+`infra/tofu/cloudflare/` is the one implementation in v1, selected by `HEARTHKIT_INFRA_PROVIDER=cloudflare`. It creates:
 
 - A DNS record pointing the project's hostname at the VPS.
 - An R2 bucket named after the project.
 - A scoped R2 API token, output as the storage credentials.
 - CORS rules on the bucket for presigned browser uploads.
 
-State stored in an R2 bucket dedicated to OpenTofu state, encrypted with OpenTofu's state encryption.
+State stored in an R2 bucket dedicated to OpenTofu state, encrypted with OpenTofu's state encryption. HCL is allowed only under `infra/tofu/`. A second provider is a v1.1 decision; the interface is what keeps it open.
 
 ### 8.3 Monitoring
 
@@ -291,11 +327,14 @@ State stored in an R2 bucket dedicated to OpenTofu state, encrypted with OpenTof
 
 ## 9. AI tooling
 
-`.ai/` in the hearthkit repo and a trimmed copy in each generated project:
+In the hearthkit repo and, trimmed to the chosen packages by `create`, in each generated project:
 
-- `CLAUDE.md`: stack summary, the five guiding rules, package contracts in one line each, where things live, commands.
-- Skills: one per package describing how to use it correctly, plus theming rules and the testing method.
-- MCP config: GlitchTip's MCP server for reading production errors, Postgres MCP for local database inspection.
+- `AGENTS.md` at the root is canonical and tool-neutral: stack summary, the five guiding rules, package contracts in one line each, where things live, commands.
+- `CLAUDE.md` imports it with a first line `@AGENTS.md` and adds only what is specific to Claude Code (in this repo, the build loop).
+- Skills: one per package describing how to use it correctly, plus theming rules and the testing method, each under 80 lines, in one shared directory read by every supported tool. If two tools need different directories, one is the source and the other a symlink committed to git.
+- `.mcp.json`: Postgres MCP for local database inspection, and GlitchTip's MCP server for reading production errors if one exists (section 14).
+
+The exact directories each tool reads (Claude Code, opencode, Codex) are verified at Phase 8, from each tool's current docs, and recorded here then.
 
 ## 10. Conventions
 
@@ -311,7 +350,7 @@ Each phase ends with a verifiable definition of done. Do not start the next phas
 ### Phase 0: foundation
 
 - Register `@hearthkit` npm scope (done).
-- Create the repo, pnpm workspaces, TypeScript base config, oxlint (chosen over ESLint 2026-08-27 to unblock TypeScript 7), Prettier, Changesets, `.ai/CLAUDE.md` first draft.
+- Create the repo, pnpm workspaces, TypeScript base config, oxlint (chosen over ESLint 2026-08-27 to unblock TypeScript 7), Prettier, Changesets, a first `CLAUDE.md` draft (then under `.ai/`, since removed).
 - Done when: `pnpm install`, `pnpm lint`, `pnpm typecheck` succeed on an empty workspace and CI runs green.
 
 ### Phase 1: config and db
@@ -343,12 +382,12 @@ Each phase ends with a verifiable definition of done. Do not start the next phas
 
 Order: `storage`, `email`, `auth`, `payments`. Each gates-first. `auth` supports both user and org mode from the start.
 
-- Done when: each package's gates pass against compose (Stripe against test mode) and the template's conditional sections render for each.
+- Done when: each package's gates pass against compose (Stripe against test mode), and the template, as the superset, carries a section and a Playwright flow per optional package and both pass. Rendering the sections conditionally is Phase 6, proven by the three scaffold variants (decision of 2026-09-06).
 
 ### Phase 6: scaffolder
 
 - `create` with package selection, dependency resolution, compose and Dockerfile generation, tfvars.
-- Done when: the three scaffold gate variants install, boot, and pass Playwright.
+- Done when: the three scaffold gate variants install, boot, and pass Playwright; 0.1.0 is published; `pnpm create @hearthkit` works from the registry.
 
 ### Phase 7: cloud and VPS
 
@@ -361,7 +400,7 @@ Order: `storage`, `email`, `auth`, `payments`. Each gates-first. `auth` supports
 
 - Skills per package, MCP config, project-level CLAUDE.md template.
 - `docs/` filled: contracts, theming, testing method, deploy runbook, restore runbook.
-- Done when: a fresh Claude Code session in a scaffolded project can add a feature using a package without reading package source.
+- Done when: a fresh Claude Code session in a scaffolded project can add a feature using a package without reading package source, and the same skills work from opencode.
 
 ### Phase 9: end-to-end verification
 
@@ -392,13 +431,14 @@ Order: `storage`, `email`, `auth`, `payments`. Each gates-first. `auth` supports
 
 Facts to confirm when each phase starts, since they can change:
 
-- Next 16 standalone output and App Router route handler conventions.
-- Tailwind v4 `@source` syntax for scanning a workspace package.
-- Better Auth 1.7 Drizzle adapter, organization plugin, and Stripe plugin scope (subscriptions only or one-time too).
 - Drizzle 1.0 GA date; migration path from 0.45.
-- Dokploy 0.30 deploy webhook format and how to attach a service to an external Docker network.
-- GlitchTip MCP server configuration.
+- Dokploy 0.30 deploy webhook format and how to attach a service to an external Docker network. The webhook call in `deploy.yml` is untested until Phase 7.
+- npm trusted publishing: the exact npmjs.com steps to add a GitHub Actions publisher per package, and the npm CLI version the runner needs for OIDC (11.5 or later at time of writing). The first publish of a new package cannot use it and runs from a maintainer's machine.
+- Skills directory conventions: which directories Claude Code, opencode and Codex read for skills and instructions, and whether the Agent Skills format is shared.
+- Whether a GlitchTip MCP server exists; if not, record that here and use a Sentry-compatible fallback.
 - Cloudflare provider resource names for R2 buckets and scoped tokens in the current OpenTofu registry.
+
+Verified and struck from this list: Next 16 standalone output and route handlers (Phase 4), Tailwind v4 `@source` for a workspace package (Phase 3), Better Auth 1.7 Drizzle adapter and organization plugin (Phase 5), Stripe plugin scope (subscriptions only, 2026-09-06). `docs/HISTORY.md` holds the evidence.
 
 ## 15. Risks and mitigations
 
