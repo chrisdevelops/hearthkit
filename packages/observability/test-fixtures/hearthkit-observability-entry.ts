@@ -38,6 +38,7 @@ export async function importHearthkitObservabilityNamespace(): Promise<Record<st
   } catch (error) {
     throw new Error(
       `gate could not load the public entry point of @hearthkit/observability (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 }

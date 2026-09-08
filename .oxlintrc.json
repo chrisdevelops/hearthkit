@@ -9,7 +9,22 @@
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/await-thenable": "error",
-    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ]
   },
-  "ignorePatterns": ["**/dist/**", "**/.next/**", ".reports/**"]
+  "ignorePatterns": ["**/dist/**", "**/.next/**", ".reports/**"],
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/test-fixtures/**", "**/e2e/**"],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/no-unnecessary-type-assertion": "off"
+      }
+    }
+  ]
 }

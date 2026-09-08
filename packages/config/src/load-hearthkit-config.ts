@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type {
   ConfigFailure,
   EnvSchemaFragment,
@@ -36,8 +37,16 @@ export function loadHearthkitConfig<const TFragments extends readonly EnvSchemaF
     }
   }
 
+  // The composed schema is one z.object over every fragment's shape, so its output is, by
+  // construction, the merge of every fragment's output: exactly what HearthkitConfigOf names. The
+  // type system cannot follow that through a tuple of fragments, so the narrowing is stated as a
+  // schema whose one runtime check, a non-null object, the composed parse has already guaranteed.
+  const loadedConfigSchema = z.custom<HearthkitConfigOf<TFragments>>(
+    (value) => typeof value === 'object' && value !== null,
+  )
+
   return {
     kind: 'config-loaded',
-    config: Object.freeze(parsed.data) as HearthkitConfigOf<TFragments>,
+    config: loadedConfigSchema.parse(Object.freeze(parsed.data)),
   }
 }

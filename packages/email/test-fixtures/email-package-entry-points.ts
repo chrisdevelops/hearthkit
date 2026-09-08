@@ -31,6 +31,7 @@ export async function readEmailPackageManifest(): Promise<EmailPackageManifest> 
   } catch (error) {
     throw new Error(
       `gate expected a package manifest at ${fileURLToPath(emailPackageManifestUrl)} (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 

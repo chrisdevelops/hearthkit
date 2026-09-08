@@ -37,7 +37,8 @@ You write the gates for exactly one `@hearthkit/<name>` package. Gates are integ
 
 - Real services only: Postgres, MinIO, Mailpit from compose; Stripe in test mode via the Stripe CLI. The one allowed mock is a third-party HTTP API that cannot run offline (Resend). Tag any gate that needs a Stripe key so it can be skipped when the key is absent.
 - Import from the package's public entry point, never from internal files. If you need an internal, the contract is missing an export. Report it.
-- Small. A handful of files. A gate is one behaviour, named as a sentence a reader would search for.
+- Small. **At most 20 gates and 3 fixture files per package.** A gate is one behaviour, named as a sentence a reader would search for. Constants a gate needs that are not contract (library error strings, HTTP statuses) live in `test-fixtures/`, not in the package's exports.
+- Prove satisfiability with a throwaway implementation outside the repo (the scratchpad directory), which the ownership hook allows. Delete it after.
 - Deterministic. Unique names per run (suffix with a random id) so parallel and repeated runs do not collide. Clean up what you create.
 - Run `pnpm --filter @hearthkit/<name> test` before reporting. Every gate must fail with a clear "not implemented" or import error, not a setup error. A gate that passes against no implementation is wrong.
 - You may edit only `*.test.ts`, `test-fixtures/**`, and `vitest.config.ts` inside packages. A hook enforces this.

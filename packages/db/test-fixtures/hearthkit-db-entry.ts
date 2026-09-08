@@ -39,6 +39,7 @@ export async function loadHearthkitDbEntry(): Promise<HearthkitDbEntry> {
   } catch (error) {
     throw new Error(
       `gate could not load the public entry point of @hearthkit/db (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 

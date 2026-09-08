@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isUnknownRecord } from './app-template-gate-expectations.ts'
 
 /**
  * Filesystem helpers the shape gates share. Nothing here imports src/app-template-contract.ts: this
@@ -121,10 +122,10 @@ export function parseJsonWithComments(
     }
   }
 
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+  if (!isUnknownRecord(parsed) || Array.isArray(parsed)) {
     throw new Error(`gate expected ${sourceLabel} to hold a JSON object`)
   }
-  return parsed as Record<string, unknown>
+  return parsed
 }
 
 /** Parsed JSON object of a template file, for package.json and tsconfig.json. */

@@ -1,4 +1,8 @@
-import { expectExportedFunction, importTemplateModule } from './app-template-gate-expectations.ts'
+import { z } from 'zod'
+import {
+  expectExportedFunctionOfType,
+  importTemplateModule,
+} from './app-template-gate-expectations.ts'
 
 /**
  * The two functions Phase 6 consumes, loaded from the materializer.
@@ -43,15 +47,21 @@ export async function loadAppTemplatePruneEntry(
   const namespace = await importTemplateModule(materializerModulePath, importMaterializer)
 
   return {
-    decideTemplatePathPrune: expectExportedFunction(
+    decideTemplatePathPrune: expectExportedFunctionOfType(
       namespace,
       'decideTemplatePathPrune',
       materializerModulePath,
-    ) as unknown as AppTemplatePruneEntry['decideTemplatePathPrune'],
-    pruneOptionalSectionBlocks: expectExportedFunction(
+      z.custom<AppTemplatePruneEntry['decideTemplatePathPrune']>(
+        (value) => typeof value === 'function',
+      ),
+    ),
+    pruneOptionalSectionBlocks: expectExportedFunctionOfType(
       namespace,
       'pruneOptionalSectionBlocks',
       materializerModulePath,
-    ) as unknown as AppTemplatePruneEntry['pruneOptionalSectionBlocks'],
+      z.custom<AppTemplatePruneEntry['pruneOptionalSectionBlocks']>(
+        (value) => typeof value === 'function',
+      ),
+    ),
   }
 }

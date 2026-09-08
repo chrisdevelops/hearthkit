@@ -52,19 +52,24 @@ function readErrorName(error: unknown): string | undefined {
   return undefined
 }
 
+/** True when a thrown value is an object carrying the named property, which is all reading it by name needs. */
+function hasErrorProperty(error: unknown, propertyName: string): error is Record<string, unknown> {
+  return typeof error === 'object' && error !== null && propertyName in error
+}
+
 function readStringProperty(error: unknown, propertyName: string): string | undefined {
-  if (typeof error !== 'object' || error === null || !(propertyName in error)) {
+  if (!hasErrorProperty(error, propertyName)) {
     return undefined
   }
-  const value = (error as Record<string, unknown>)[propertyName]
+  const value = error[propertyName]
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function readIntegerProperty(error: unknown, propertyName: string): number | undefined {
-  if (typeof error !== 'object' || error === null || !(propertyName in error)) {
+  if (!hasErrorProperty(error, propertyName)) {
     return undefined
   }
-  const value = (error as Record<string, unknown>)[propertyName]
+  const value = error[propertyName]
   return typeof value === 'number' && Number.isInteger(value) ? value : undefined
 }
 

@@ -19,6 +19,13 @@ fi
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 REL="${FILE#"$REPO_ROOT"/}"
 
+# Paths outside the repo are not owned by anyone: a gate-writer may prove its gates satisfiable
+# with a throwaway implementation in the scratchpad, and nothing there can reach main.
+case "$FILE" in
+  "$REPO_ROOT"/*) ;;
+  *) exit 0 ;;
+esac
+
 block() {
   echo "Ownership violation: role '$ROLE' may not edit '$REL'. $1" >&2
   exit 2

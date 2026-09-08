@@ -31,6 +31,7 @@ export async function readPaymentsPackageManifest(): Promise<PaymentsPackageMani
   } catch (error) {
     throw new Error(
       `gate expected a package manifest at ${fileURLToPath(paymentsPackageManifestUrl)} (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 

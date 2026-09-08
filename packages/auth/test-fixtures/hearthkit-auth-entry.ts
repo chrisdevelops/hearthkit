@@ -63,6 +63,7 @@ export async function importHearthkitAuthNamespace(): Promise<Record<string, unk
   } catch (error) {
     throw new Error(
       `gate could not load the public entry point of @hearthkit/auth (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 }

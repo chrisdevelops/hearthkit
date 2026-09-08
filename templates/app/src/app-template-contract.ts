@@ -31,8 +31,11 @@ export const appTemplateTailwindVersion = '4.3.3'
 /** Exact @playwright/test version the template pins for the smoke test. */
 export const appTemplatePlaywrightVersion = '1.62.1'
 
-/** Node major version the template runs on, in the container image, in CI, and in the engines field. */
+/** Node major version the template runs on, in the container image and in CI. */
 export const appTemplateNodeMajorVersion = 24
+
+/** Exact Node version pinned in .nvmrc and the engines field; the container image tag carries the same value. */
+export const appTemplateNodeVersion = '24.20.0'
 
 // The character class carries `[`, `]`, `(`, `)` and `@` because Next.js route conventions put them
 // in real directory names: `app/api/auth/[...all]/route.ts` is the catch-all the auth section needs,
@@ -54,6 +57,7 @@ export const appTemplateGuaranteedPaths = [
   '.env.example',
   '.github/workflows/ci.yml',
   '.github/workflows/deploy.yml',
+  '.nvmrc',
   '.oxlintrc.json',
   'Dockerfile',
   'README.md',
@@ -100,6 +104,7 @@ export const appGeneratedProjectGuaranteedPaths = [
   '.github/workflows/ci.yml',
   '.github/workflows/deploy.yml',
   '.gitignore',
+  '.nvmrc',
   '.oxlintrc.json',
   'Dockerfile',
   'README.md',

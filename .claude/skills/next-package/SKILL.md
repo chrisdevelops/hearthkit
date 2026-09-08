@@ -24,6 +24,7 @@ Review its report and read the two files yourself. Check:
 - Nothing beyond the plan entry appears, unless justified under "Questions for the orchestrator".
 - Names follow `CLAUDE.md`. Vocabulary matches dependency contracts.
 - The "Out of scope" section names the deferred feature it must not block, if any.
+- **Caps:** `CONTRACT.md` under 200 lines. Public exports limited to the plan-named functions, the env fragment, the input, output and failure schemas, the Drizzle schema where one exists, and branded ID schemas an app must construct. Third-party error strings and gate-only constants are not contract; they belong in `test-fixtures/`. Over a cap is a rejection.
 
 If a question needs the user, ask the user now and stop. If the contract needs changes, resume the same subagent with specific corrections (at most two rounds, then escalate to the user). When approved, update STATUS step to `gates`.
 
@@ -36,7 +37,8 @@ Review its report and read the gate files yourself. Check:
 - One gate per happy path and per failure mode in the contract. Map them; missing ones are a rejection.
 - Real services from compose. No mocks except Resend HTTP.
 - Imports come from the package's public entry point.
-- Small. If it is producing dozens of tests, it is unit testing. Reject.
+- Small. **Cap: 20 gates and 3 fixture files per package.** Over the cap is unit testing. Reject.
+- Satisfiable. The gate-writer may prove it with a throwaway implementation outside the repo (the scratchpad); the ownership hook allows paths outside the repo root.
 
 Run `pnpm --filter @hearthkit/<name> test` yourself. Every gate must fail for lack of implementation. If any pass, reject. When approved, update STATUS step to `implement`.
 
@@ -71,7 +73,7 @@ Read `git diff --stat` and skim the implementation for `CLAUDE.md` violations: b
 1. `pnpm changeset` with a summary in plain words; minor bump for a new package, patch for fixes.
 2. Commit everything on `pkg/<name>` with a message in the form `feat(<name>): implement <name> contract` or similar. No trailers.
 3. `gh pr create` with the contract's Purpose paragraph as the body. Let CI run.
-4. Update STATUS: step `commit`, last commit hash, and tick the package in the phase checklist once the PR is merged. If this completes a phase, run the phase's definition of done from `docs/PLAN.md` section 11 and record the result under "Verified facts this session".
+4. Update STATUS: step `commit`, last commit hash, and tick the package in the phase checklist once the PR is merged. If this completes a phase, run the phase's definition of done from `docs/PLAN.md` section 11 and record the result at the top of `docs/HISTORY.md`. Add at most one line to STATUS "Traps" if a new failure shape was found. STATUS stays under 150 lines; anything longer moves to `docs/HISTORY.md`.
 5. Report to the user: package name, PR link, gate count, anything deferred or noteworthy. Stop. Do not start the next package without being asked.
 
 ## Rules for the orchestrator

@@ -35,6 +35,7 @@ export async function importHearthkitStorageNamespace(): Promise<Record<string, 
   } catch (error) {
     throw new Error(
       `gate could not load the public entry point of @hearthkit/storage (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 }

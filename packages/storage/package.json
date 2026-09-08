@@ -16,7 +16,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": "24.20.0"
   },
   "scripts": {
     "test": "vitest run",
@@ -25,10 +25,10 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.1121.0",
     "@aws-sdk/s3-request-presigner": "3.1121.0",
+    "@hearthkit/config": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@hearthkit/config": "workspace:*",
     "@types/node": "24.13.3",
     "typescript": "7.0.2",
     "vitest": "4.1.11"

@@ -31,6 +31,7 @@ export async function readAuthPackageManifest(): Promise<AuthPackageManifest> {
   } catch (error) {
     throw new Error(
       `gate expected a package manifest at ${fileURLToPath(authPackageManifestUrl)} (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     )
   }
 

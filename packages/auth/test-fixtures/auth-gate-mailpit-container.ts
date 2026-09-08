@@ -141,6 +141,7 @@ export async function startGateMailpitContainer(purpose: string): Promise<GateMa
   } catch (error) {
     throw new Error(
       `gate could not start its own Mailpit container from ${gateMailpitImageName}: ${error instanceof Error ? error.message : String(error)}. Docker must be running for this gate file.`,
+      { cause: error },
     )
   }
 

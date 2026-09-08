@@ -27,10 +27,10 @@ import { useCallback, useEffect, useState } from 'react'
 /** Never prerendered: the route segment config is stated for every section page and handler alike. */
 export const dynamic = 'force-dynamic'
 
-/** What the session endpoint answers with; only the fields this page renders are named. */
-type AuthSessionSnapshotBody = {
-  user?: { id?: string; name?: string; email?: string } | null
-} | null
+/** True for a JSON object, which is the only shape this page reads the session answer as; only the fields it renders are read. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 export default function AccountSectionPage() {
   const [signedInUser, setSignedInUser] = useState<{
@@ -50,13 +50,17 @@ export default function AccountSectionPage() {
       return
     }
 
-    const snapshot = JSON.parse(bodyText) as AuthSessionSnapshotBody
-    const user = snapshot?.user
-    if (user === undefined || user === null || typeof user.email !== 'string') {
+    const snapshot: unknown = JSON.parse(bodyText)
+    const user = isJsonObject(snapshot) ? snapshot.user : undefined
+    if (!isJsonObject(user) || typeof user.email !== 'string') {
       setSignedInUser(null)
       return
     }
-    setSignedInUser({ id: user.id ?? '', name: user.name ?? '', email: user.email })
+    setSignedInUser({
+      id: typeof user.id === 'string' ? user.id : '',
+      name: typeof user.name === 'string' ? user.name : '',
+      email: user.email,
+    })
   }, [])
 
   const signOut = useCallback(async (): Promise<void> => {

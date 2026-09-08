@@ -46,6 +46,37 @@ type CheckoutSessionCreated = {
   stripeLivemode: boolean
 }
 
+/** True for a JSON object, which is what every route answer this flow reads is. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** The checkout route's answer read field by field, failing the flow on any field the assertions below need. */
+function readCheckoutSessionCreated(bodyText: string): CheckoutSessionCreated {
+  const body: unknown = JSON.parse(bodyText)
+  if (
+    !isJsonObject(body) ||
+    typeof body.kind !== 'string' ||
+    typeof body.stripeCheckoutSessionId !== 'string' ||
+    typeof body.checkoutUrl !== 'string' ||
+    typeof body.stripeCustomerId !== 'string' ||
+    typeof body.priceName !== 'string' ||
+    typeof body.stripeLivemode !== 'boolean'
+  ) {
+    throw new Error(
+      `the flow expected POST /api/payments/checkout to answer a created session, received ${bodyText.slice(0, 200)}`,
+    )
+  }
+  return {
+    kind: body.kind,
+    stripeCheckoutSessionId: body.stripeCheckoutSessionId,
+    checkoutUrl: body.checkoutUrl,
+    stripeCustomerId: body.stripeCustomerId,
+    priceName: body.priceName,
+    stripeLivemode: body.stripeLivemode,
+  }
+}
+
 /**
  * The `t=<unix seconds>,v1=<hmac>` header Stripe sends and the SDK verifies, computed here with no
  * network. The signed payload is the timestamp, a full stop, and the exact bytes of the body, so the
@@ -118,7 +149,7 @@ test('a checkout redirect reaches Stripe with the right session, and its complet
   await page.route('**/api/payments/checkout', async (route) => {
     const checkoutResponse = await route.fetch()
     const checkoutBodyText = await checkoutResponse.text()
-    checkoutSessionCreated = JSON.parse(checkoutBodyText) as CheckoutSessionCreated
+    checkoutSessionCreated = readCheckoutSessionCreated(checkoutBodyText)
     await route.fulfill({ response: checkoutResponse, body: checkoutBodyText })
   })
 
@@ -185,11 +216,8 @@ test('a checkout redirect reaches Stripe with the right session, and its complet
     data: rawRequestBody,
   })
   expect(webhookResponse.status()).toBe(200)
-  const webhookResult = (await webhookResponse.json()) as {
-    kind: string
-    webhookOutcome?: string
-    ignoredReason?: string
-  }
+  const webhookBody: unknown = await webhookResponse.json()
+  const webhookResult = isJsonObject(webhookBody) ? webhookBody : {}
   expect(webhookResult.kind, JSON.stringify(webhookResult)).toBe('payments-webhook-processed')
   expect(webhookResult.webhookOutcome).toBe('purchase-recorded')
 

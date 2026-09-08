@@ -14,9 +14,9 @@ import { resolveAppEmailTransport } from '../../../../app-email-transport.ts'
 /** Never prerendered: `next build` runs with an empty environment and this handler reads config. */
 export const dynamic = 'force-dynamic'
 
-/** Request body of this route: one recipient per call, matching sendTransactionalEmail's own rule. */
-type TestMessageRequestBody = {
-  recipientEmailAddress?: unknown
+/** True for a JSON object body, which is the only shape this route reads fields out of. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 // Every failure @hearthkit/email can return, mapped to what it means over HTTP. A missing or
@@ -33,11 +33,14 @@ const testMessageStatusByFailureKind: Readonly<Record<string, number>> = {
 
 /** Sends the test message, or answers the owning package's own failure with its message unchanged. */
 export async function POST(request: Request): Promise<Response> {
-  let requestBody: TestMessageRequestBody
+  let requestBody: unknown
   try {
-    requestBody = (await request.json()) as TestMessageRequestBody
+    requestBody = await request.json()
   } catch {
     return Response.json({ message: 'the request body was not JSON' }, { status: 400 })
+  }
+  if (!isJsonObject(requestBody)) {
+    return Response.json({ message: 'the request body was not a JSON object' }, { status: 400 })
   }
 
   const recipientEmailAddress = requestBody.recipientEmailAddress

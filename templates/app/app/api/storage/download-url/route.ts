@@ -12,18 +12,21 @@ import { requireAppStorageConnection } from '../../../../app-storage-connection.
 /** Never prerendered: `next build` runs with an empty environment and this handler reads config. */
 export const dynamic = 'force-dynamic'
 
-/** What the storage page posts here: one key it read out of the listing. */
-type DownloadUrlRequestBody = {
-  objectKey?: unknown
+/** True for a JSON object body, which is the only shape this route reads fields out of. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Signs a download URL for one object key, or answers the owning package's own failure unchanged. */
 export async function POST(request: Request): Promise<Response> {
-  let requestBody: DownloadUrlRequestBody
+  let requestBody: unknown
   try {
-    requestBody = (await request.json()) as DownloadUrlRequestBody
+    requestBody = await request.json()
   } catch {
     return Response.json({ message: 'the request body was not JSON' }, { status: 400 })
+  }
+  if (!isJsonObject(requestBody)) {
+    return Response.json({ message: 'the request body was not a JSON object' }, { status: 400 })
   }
 
   const storageObjectKey = storageObjectKeySchema.safeParse(requestBody.objectKey)

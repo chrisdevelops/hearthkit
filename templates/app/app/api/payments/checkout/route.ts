@@ -19,9 +19,9 @@ import { requireAppRuntimeConfig } from '../../../../app-runtime-config.ts'
 /** Never prerendered: the route segment config is stated for every section page and handler alike. */
 export const dynamic = 'force-dynamic'
 
-/** Request body of this route: the catalog price the buyer chose. */
-type CheckoutRequestBody = {
-  priceName?: unknown
+/** True for a JSON object body, which is the only shape this route reads fields out of. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 // Stripe rejects a relative redirect, and success_url carries the {CHECKOUT_SESSION_ID} placeholder
@@ -34,11 +34,14 @@ function appAbsoluteUrl(routePath: string): string {
 
 /** Creates the Checkout Session, or answers the owning package's own failure unchanged. */
 export async function POST(request: Request): Promise<Response> {
-  let requestBody: CheckoutRequestBody
+  let requestBody: unknown
   try {
-    requestBody = (await request.json()) as CheckoutRequestBody
+    requestBody = await request.json()
   } catch {
     return Response.json({ message: 'the request body was not JSON' }, { status: 400 })
+  }
+  if (!isJsonObject(requestBody)) {
+    return Response.json({ message: 'the request body was not a JSON object' }, { status: 400 })
   }
 
   const priceName = requestBody.priceName
