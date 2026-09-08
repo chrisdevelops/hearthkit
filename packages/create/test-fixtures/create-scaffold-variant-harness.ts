@@ -485,6 +485,19 @@ export async function runScaffoldVariant(
 
     if (needsStorage) {
       resources.storageBucketName = `${projectName}-uploads`
+      // The `local` alias lives in the container's own mc config, so a fresh compose start has no
+      // credentialed one and `mc mb` is denied; set it every run rather than inheriting one.
+      await runDockerCommand([
+        'exec',
+        sharedMinioContainerName,
+        'mc',
+        'alias',
+        'set',
+        'local',
+        'http://127.0.0.1:9000',
+        sharedInfraCredential,
+        sharedInfraCredential,
+      ])
       await runDockerCommand([
         'exec',
         sharedMinioContainerName,
