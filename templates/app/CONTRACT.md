@@ -288,7 +288,7 @@ Scripts — `appTemplateGuaranteedScriptNames` ship, `appTemplateRepoOnlyScriptN
 - `start` runs `start-standalone-server.ts` (ships). **Not `next start`**, which is a real bug this template shipped with: Next 16.3.3 warns verbatim `"next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.` It serves, so nothing failed — but `next start` serves `.next/` while the container serves `.next/standalone/` plus two hand-copied directories. Those are **different artifacts**, so "local and container behave the same" was false, and guiding rule 1 says a project is a Dockerfile plus environment variables. See below for why the script exists rather than a literal path.
 - `lint` is `oxlint --type-aware .` (ships).
 - `typecheck` is `next typegen && tsc --noEmit` (ships).
-- `test:e2e` is `NODE_OPTIONS=--import=@hearthkit/cli/register-node-modules-type-stripping playwright test` (ships). Node 24 refuses to strip types from `.ts` files under `node_modules`, and the payments flow spec imports `@hearthkit/payments/payments-contract`; the preload, shipped by `@hearthkit/cli`, registers a load hook that strips them and is a no-op in the workspace.
+- `test:e2e` is `NODE_OPTIONS=--import=@hearthkit/config/register-node-modules-type-stripping playwright test` (ships). Node 24 refuses to strip types from `.ts` files under `node_modules`, and the payments flow spec imports `@hearthkit/payments/payments-contract`; the preload, shipped by `@hearthkit/config` rather than `@hearthkit/cli` because an empty selection prunes `cli`, registers a load hook that strips them and is a no-op in the workspace.
 - `test` is `vitest run`, the fast shape gates (hearthkit-only).
 - `verify:container` runs `appTemplateVerifyContainerScriptPath`, the batched Docker and smoke run (hearthkit-only).
 - `db:generate` is `drizzle-kit generate`, contributed by `@hearthkit/auth` and present only when it is selected.
@@ -486,7 +486,7 @@ Read off the owning packages' contracts on 2026-09-06, not from plan section 4, 
 
 Taken from `docs/STATUS.md` and not re-derived: Next 16.3.3 with `typescript@7.0.2`, `next.config.ts`, and `output: 'standalone'` builds, typechecks, and serves; `next build` rewrites `jsx` to `react-jsx` and appends `.next/dev/types/**/*.ts` to `include`; Tailwind 4.3.3 `@source` follows pnpm symlinks in both layouts Phase 4 can hit, through `@tailwindcss/postcss`; `baseUrl` is removed in TypeScript 7, failing with TS5102.
 
-Checked 2026-09-07: "Node.js refuses to handle TypeScript files inside folders under a node_modules path" — https://nodejs.org/docs/latest-v24.x/api/typescript.html — which is why `test:e2e` preloads `@hearthkit/cli/register-node-modules-type-stripping`.
+Checked 2026-09-07: "Node.js refuses to handle TypeScript files inside folders under a node_modules path" — https://nodejs.org/docs/latest-v24.x/api/typescript.html — which is why `test:e2e` preloads `@hearthkit/config/register-node-modules-type-stripping`.
 
 ## Still not verified
 

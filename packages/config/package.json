@@ -7,7 +7,8 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./register-node-modules-type-stripping": "./src/register-node-modules-type-stripping.js"
   },
   "files": [
     "src"

@@ -5,7 +5,10 @@ Entries were moved here unchanged from `docs/STATUS.md` on 2026-09-07.
 
 ## 2026-09-07: completion plan step 3, `create`, stopped at the three-round cap
 
-Branch `pkg/create`, committed, not yet a PR. State at the stop:
+Branch `pkg/create`. Resolved 2026-09-08: the user authorized a fourth round moving the hook to
+`@hearthkit/config` (subpath `register-node-modules-type-stripping`; cli gains config as a direct
+dependency). After it, all three scaffold variants pass: 20 of 20 in the scaffold tier, verified by
+the orchestrator. State at the stop on 2026-09-07:
 
 - Contract approved (101 lines). Rulings: `organizations` is a tenth declared rewrite target
   `organizations-flag-literal` (the one value substitution in source); `templateDirectoryPath` is a

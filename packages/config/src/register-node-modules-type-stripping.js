@@ -1,6 +1,6 @@
-// The only JavaScript file in @hearthkit/cli, and the single permitted exception to the repo rule
-// "TypeScript for every script". Node 24.20.0 refuses to strip types from any `.ts` file that sits
-// under a `node_modules` directory (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING, thrown from
+// The only JavaScript file in @hearthkit/config, and the single permitted exception to the repo
+// rule "TypeScript for every script". Node 24.20.0 refuses to strip types from any `.ts` file that
+// sits under a `node_modules` directory (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING, thrown from
 // node:internal/modules/typescript), and no CLI flag lifts that restriction, so the moment a
 // package that ships TypeScript source is installed into a project, every entry point that loads it
 // from bare Node becomes unrunnable: the `hearthkit` bin, the `create-hearthkit-project` bin, and
@@ -10,12 +10,16 @@
 // it does, as a side effect of being imported, is install a loader hook that strips the types
 // itself. Everything else in this package stays TypeScript.
 //
+// It lives in @hearthkit/config rather than in @hearthkit/cli because every scaffolded project and
+// every hearthkit package depends on @hearthkit/config, whereas a project that selects no optional
+// features prunes @hearthkit/cli and would preload a package it no longer has.
+//
 // Importing this module is the whole API. It is exported as
-// `@hearthkit/cli/register-node-modules-type-stripping` so the three entry points share one copy
-// rather than each carrying its own: `hearthkit-bin-entry.js` and `@hearthkit/create`'s
-// `create-bin-entry.js` import it and then dynamically import their TypeScript bin, and the app
-// template's `test:e2e` script preloads it into Playwright's workers with
-// `NODE_OPTIONS=--import=@hearthkit/cli/register-node-modules-type-stripping`.
+// `@hearthkit/config/register-node-modules-type-stripping` so the three consumers share one copy
+// rather than each carrying its own: @hearthkit/cli's `hearthkit-bin-entry.js` and
+// @hearthkit/create's `create-bin-entry.js` import it and then dynamically import their TypeScript
+// bin, and the app template's `test:e2e` script preloads it into Playwright's workers with
+// `NODE_OPTIONS=--import=@hearthkit/config/register-node-modules-type-stripping`.
 //
 // API reference checked against the current Node 24 docs on 2026-09-07:
 // https://nodejs.org/docs/latest-v24.x/api/module.html

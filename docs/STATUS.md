@@ -6,11 +6,10 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 ## Position
 
 - Phase: 5 complete. Plan Version 2 merged (`docs/COMPLETION-PLAN.md` step 2, PR #19).
-- Current work: completion plan step 3, Phase 6 `create`, branch `pkg/create`, STOPPED at the
-  three-round cap with one scaffold variant failing. See Open issues.
-- Package loop: `create`, step `verify`, rounds 3 (cap reached).
+- Current work: completion plan step 3, Phase 6 `create`, branch `pkg/create`, PR open, awaiting CI.
+- Package loop: `create`, step `commit`, rounds 4 (round 4 authorized by the user 2026-09-08).
 - Last commit on `main`: 0a30378 (PR #19, plan Version 2). Branch `pkg/create` at 6cd71b7.
-- Next: user decides the Open issue below, then one implementor round on `pkg/create`, verify, PR.
+- Next: merge the step 3 PR once CI is green on its head, then step 4 (first release).
 
 ## Phase checklist
 
@@ -44,19 +43,15 @@ implement, verify, commit.
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- **Where the type-stripping hook lives.** The `no-package` scaffold variant fails because the
-  template `test:e2e` script preloads `@hearthkit/cli/register-node-modules-type-stripping` and an
-  empty selection prunes `@hearthkit/cli` (it is only in optional packages `devDependencyNames`).
-  Recommended: move the hook module to `@hearthkit/config`, which every project and every package
-  already depends on; cli and create bins import it from there; template script and CONTRACT.md
-  lines follow. Alternative: rewrite `scripts.test:e2e` to plain `playwright test` for the empty
-  selection like `scripts.dev`, which leaves a project that adds a package later without the hook.
-  Needs a fourth implementor round, which the cap forbids without the user. ("2026-09-07: completion
-  plan step 3" in HISTORY.)
+- None.
 
 ## Traps
 
 One line each. The full account is in `docs/HISTORY.md` under the quoted heading.
+
+- **Node refuses type stripping under `node_modules`.** Anything that runs installed `.ts` under plain
+  node needs the `@hearthkit/config/register-node-modules-type-stripping` preload; workspace runs
+  never show it. ("NODE REFUSES TYPE STRIPPING UNDER node_modules")
 
 - **CI run must match the branch head.** After any docs commit, find the run by `headSha` equal to
   `git rev-parse HEAD`; rerunning an older run does not move it. ("A RERUN LANDED ON THE WRONG COMMIT")
@@ -79,7 +74,5 @@ One line each. The full account is in `docs/HISTORY.md` under the quoted heading
   client, never extract them. ("UNBOUND METHOD in the gate's own fixture")
 - **Mailpit is shared by package gates.** Template flows use an isolated Mailpit so exact-count
   assertions in `email` are not disturbed. ("Mailpit isolation held in both directions")
-- **Quoted documentation must be quoted in full.** Twice a truncated doc string reversed a ruling once
-  the next sentence was read. ("ORCHESTRATOR PROCESS NOTE, SECOND OF ITS KIND")
 - **`stripe` writes a `<claude-code-hint>` line to stderr** when it detects Claude Code. Benign, not
   from this repo. ("`stripe@22.6.1` WRITES AN AGENT-DIRECTED TAG")

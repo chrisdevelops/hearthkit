@@ -7,8 +7,7 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./register-node-modules-type-stripping": "./src/register-node-modules-type-stripping.js"
+    }
   },
   "bin": {
     "hearthkit": "./src/hearthkit-bin-entry.js"
@@ -27,6 +26,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hearthkit/config": "workspace:*",
     "@hearthkit/db": "workspace:*",
     "@hearthkit/payments": "workspace:*",
     "zod": "4.4.3"

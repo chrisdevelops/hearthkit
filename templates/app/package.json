@@ -15,7 +15,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
-    "test:e2e": "NODE_OPTIONS=--import=@hearthkit/cli/register-node-modules-type-stripping playwright test",
+    "test:e2e": "NODE_OPTIONS=--import=@hearthkit/config/register-node-modules-type-stripping playwright test",
     "verify:container": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/verify-app-container.ts"
   },
   "dependencies": {

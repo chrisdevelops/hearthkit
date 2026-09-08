@@ -78,6 +78,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@hearthkit/config':
+        specifier: workspace:*
+        version: link:../config
       '@hearthkit/db':
         specifier: workspace:*
         version: link:../db
