@@ -6,10 +6,10 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 ## Position
 
 - Phase: 5 complete in code; tickable when `docs/COMPLETION-PLAN.md` step 2 (plan Version 2) merges.
-- Current work: `docs/COMPLETION-PLAN.md` **step 1, hygiene**, on branch `chore/hygiene`.
+- Current work: none in flight. `docs/COMPLETION-PLAN.md` step 1 (hygiene) merged as PR #18.
 - Package loop: none in flight.
-- Last commit on `main`: f2c26d8 (STATUS after PR #16 merged the template's conditional sections).
-- Next: step 2 (plan Version 2), then step 3 (Phase 6, `create`).
+- Last commit on `main`: 8fa8810 (PR #18, hygiene pass).
+- Next: **step 2 (plan Version 2)** on branch `docs/plan-v2`, then step 3 (Phase 6, `create`).
 
 ## Phase checklist
 
