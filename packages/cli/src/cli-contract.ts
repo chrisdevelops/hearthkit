@@ -3,6 +3,10 @@ import {
   postgresConnectionStringSchema,
   projectDatabaseNameSchema,
 } from '@hearthkit/db'
+import {
+  paymentsFailureSchema,
+  paymentsSyncedPriceSchema,
+} from '@hearthkit/payments/payments-contract'
 import { z } from 'zod'
 
 /** Unique literal prefix of the error message for an unknown command, unknown flag, or schema-invalid argument; exit code 2. */
@@ -35,6 +39,15 @@ export const cliNextDevUnavailableErrorPrefix = 'hearthkit cli next dev unavaila
 /** Unique literal prefix of the stderr line printed when at least one doctor check did not pass; exit code 1. */
 export const cliDoctorFailedErrorPrefix = 'hearthkit doctor failed:'
 
+/** Unique literal prefix of the error message when the payments catalog file (--catalog or ./payments-catalog.ts) does not exist; the message carries the resolved path. */
+export const cliPaymentsCatalogNotFoundErrorPrefix = 'hearthkit cli payments catalog not found:'
+
+/** Unique literal prefix of the error message when the payments catalog file exists but cannot be imported or exports no catalog under the expected name. */
+export const cliPaymentsCatalogUnloadableErrorPrefix = 'hearthkit cli payments catalog unloadable:'
+
+/** Unique literal prefix of the error message when @hearthkit/payments returned a failure while building the client or syncing; the payments message follows the prefix. */
+export const cliPaymentsSyncFailedErrorPrefix = 'hearthkit cli payments sync failed:'
+
 /** Unique literal prefix of the one-time stderr warning printed by hearthkit db create that the credentials are shown once and never persisted. */
 export const cliDbCreateCredentialsWarningPrefix = 'hearthkit db create warning:'
 
@@ -55,6 +68,18 @@ export const cliDevInfraUpCompleteLinePrefix = 'hearthkit dev infra up complete:
 
 /** Unique literal prefix of the single stdout success line of hearthkit dev infra down. */
 export const cliDevInfraDownCompleteLinePrefix = 'hearthkit dev infra down complete:'
+
+/** Unique literal prefix of the single stdout success line of hearthkit payments sync; the line carries the created, replaced and unchanged price counts. */
+export const cliPaymentsSyncCompleteLinePrefix = 'hearthkit payments sync complete:'
+
+/** Name of the env variable hearthkit payments sync reads for the Stripe key; the same variable @hearthkit/payments declares, read with the empty-string-is-unset rule. */
+export const stripeSecretKeyEnvVariableName = 'STRIPE_SECRET_KEY'
+
+/** Default catalog module path, relative to cwd, when hearthkit payments sync is run without --catalog; the file templates/app ships. */
+export const defaultPaymentsCatalogPath = './payments-catalog.ts'
+
+/** Named export hearthkit payments sync reads off the catalog module first, matching templates/app/payments-catalog.ts; a default export is the fallback when this name is absent. */
+export const paymentsCatalogModuleExportName = 'appPaymentsCatalog'
 
 /** Name of the operator env variable holding the admin connection; overridden by --admin-database-url, overrides the local default. */
 export const adminDatabaseUrlEnvVariableName = 'HEARTHKIT_ADMIN_DATABASE_URL'
@@ -142,7 +167,7 @@ export type GenerateLocalInfraComposeOptions = z.infer<
 /** Signature of generateLocalInfraCompose: pure and deterministic, returns compose YAML using the localInfraServiceImageByName and localStorageBucketInitImage pins. */
 export type GenerateLocalInfraCompose = (options: GenerateLocalInfraComposeOptions) => string
 
-/** Every command path the Phase 2 CLI dispatches; later phases append payments sync, infra apply, vps bootstrap additively. */
+/** Every command path the CLI dispatches; later phases append infra apply and vps bootstrap additively. */
 export const cliCommandPathSchema = z.enum([
   'db create',
   'db drop',
@@ -153,12 +178,13 @@ export const cliCommandPathSchema = z.enum([
   'dev infra up',
   'dev infra down',
   'doctor',
+  'payments sync',
 ])
 
 /** Command path union; unknown paths are a cli-usage-invalid failure, never a silent no-op. */
 export type CliCommandPath = z.infer<typeof cliCommandPathSchema>
 
-/** A parsed invocation after flag and env resolution; admin and database URLs are already resolved per the contract's precedence. */
+/** A parsed invocation after flag and env resolution; admin and database URLs are already resolved per the contract's precedence, and catalogPath is absolute. */
 export const cliCommandInvocationSchema = z.discriminatedUnion('commandPath', [
   z.object({
     commandPath: z.literal('db create'),
@@ -191,6 +217,10 @@ export const cliCommandInvocationSchema = z.discriminatedUnion('commandPath', [
   z.object({ commandPath: z.literal('dev infra up') }),
   z.object({ commandPath: z.literal('dev infra down') }),
   z.object({ commandPath: z.literal('doctor'), jsonOutput: z.boolean() }),
+  z.object({
+    commandPath: z.literal('payments sync'),
+    catalogPath: z.string().min(1),
+  }),
 ])
 
 /** Parsed invocation union; the shape command handlers receive after resolution succeeds. */
@@ -283,9 +313,25 @@ export const cliFailureSchema = z.discriminatedUnion('kind', [
     failedCheckNames: z.array(doctorCheckNameSchema).min(1),
     message: z.string().startsWith(cliDoctorFailedErrorPrefix),
   }),
+  z.object({
+    kind: z.literal('cli-payments-catalog-not-found'),
+    catalogPath: z.string().min(1),
+    message: z.string().startsWith(cliPaymentsCatalogNotFoundErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('cli-payments-catalog-unloadable'),
+    catalogPath: z.string().min(1),
+    loadFailureDetail: z.string().min(1),
+    message: z.string().startsWith(cliPaymentsCatalogUnloadableErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('cli-payments-sync-failed'),
+    paymentsFailure: paymentsFailureSchema,
+    message: z.string().startsWith(cliPaymentsSyncFailedErrorPrefix),
+  }),
 ])
 
-/** Discriminated failure union; db-command-failed wraps the DbFailure verbatim and its message is the db message unchanged. */
+/** Discriminated failure union; db-command-failed wraps the DbFailure verbatim with the db message unchanged, cli-payments-sync-failed wraps the PaymentsFailure verbatim behind its own prefix. */
 export type CliFailure = z.infer<typeof cliFailureSchema>
 
 /** Success shapes per command; each mirrors what the single stdout line reports so gates can check either channel. */
@@ -327,6 +373,15 @@ export const cliCommandSuccessSchema = z.discriminatedUnion('kind', [
     kind: z.literal('doctor-report'),
     checks: z.array(doctorCheckResultSchema).min(1),
     allDoctorChecksPassed: z.literal(true),
+  }),
+  z.object({
+    kind: z.literal('payments-sync-command-succeeded'),
+    catalogPath: z.string().min(1),
+    syncedPrices: z.array(paymentsSyncedPriceSchema).min(1),
+    createdPriceCount: z.number().int().min(0),
+    replacedPriceCount: z.number().int().min(0),
+    unchangedPriceCount: z.number().int().min(0),
+    stripeLivemode: z.boolean(),
   }),
 ])
 

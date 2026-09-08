@@ -6,6 +6,8 @@ import {
   cliDbRestoreCompleteLinePrefix,
   cliDevInfraDownCompleteLinePrefix,
   cliDevInfraUpCompleteLinePrefix,
+  cliPaymentsSyncCompleteLinePrefix,
+  stripeSecretKeyEnvVariableName,
   type CliCommandInvocation,
   type CliCommandResult,
   type CliExitCode,
@@ -93,9 +95,24 @@ export function reportCliOutcome(options: {
       writeStandardErrorLine(result.message)
       return operationalFailureExitCode
 
+    case 'payments-sync-command-succeeded':
+      writeStandardOutputLine(
+        `${cliPaymentsSyncCompleteLinePrefix} ${String(result.createdPriceCount)} created, ${String(result.replacedPriceCount)} replaced, ${String(result.unchangedPriceCount)} unchanged from ${result.catalogPath}`,
+      )
+      return successExitCode
+
     case 'cli-usage-invalid':
       writeStandardErrorLine(result.message)
       return usageFailureExitCode
+
+    // The payments message names the field it rejected, never the variable, so the guidance above it
+    // does: an unset key is the only way the env object can be wrong here.
+    case 'cli-payments-sync-failed':
+      writeStandardErrorLine(
+        `hearthkit payments sync needs a Stripe test-mode key in ${stripeSecretKeyEnvVariableName}; the message below is @hearthkit/payments' own`,
+      )
+      writeStandardErrorLine(result.message)
+      return operationalFailureExitCode
 
     default:
       writeStandardErrorLine(result.message)

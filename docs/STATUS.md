@@ -6,10 +6,10 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 ## Position
 
 - Phase: 5 complete. Plan Version 2 merged (`docs/COMPLETION-PLAN.md` step 2, PR #19).
-- Current work: none in flight.
-- Package loop: none in flight.
-- Last commit on `main`: 0a30378 (PR #19, plan Version 2).
-- Next: **step 3 (Phase 6, `create`)** on branch `pkg/create` through the `next-package` loop.
+- Current work: completion plan step 3, Phase 6 `create`, branch `pkg/create`, PR open, awaiting CI.
+- Package loop: `create`, step `commit`, rounds 4 (round 4 authorized by the user 2026-09-08).
+- Last commit on `main`: 0a30378 (PR #19, plan Version 2). Branch `pkg/create` at 6cd71b7.
+- Next: merge the step 3 PR once CI is green on its head, then step 4 (first release).
 
 ## Phase checklist
 
@@ -35,9 +35,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes |
-| ------- | ---- | ------------------ | ----- |
-| none    |      |                    |       |
+| Package | Step      | Implementor rounds | Notes                                       |
+| ------- | --------- | ------------------ | ------------------------------------------- |
+| create  | implement | 2                  | branch `pkg/create`, completion plan step 3 |
 
 ## Open issues
 
@@ -48,6 +48,10 @@ Items that blocked a loop and need a human decision. Remove when resolved.
 ## Traps
 
 One line each. The full account is in `docs/HISTORY.md` under the quoted heading.
+
+- **Node refuses type stripping under `node_modules`.** Anything that runs installed `.ts` under plain
+  node needs the `@hearthkit/config/register-node-modules-type-stripping` preload; workspace runs
+  never show it. ("NODE REFUSES TYPE STRIPPING UNDER node_modules")
 
 - **CI run must match the branch head.** After any docs commit, find the run by `headSha` equal to
   `git rev-parse HEAD`; rerunning an older run does not move it. ("A RERUN LANDED ON THE WRONG COMMIT")
@@ -70,7 +74,5 @@ One line each. The full account is in `docs/HISTORY.md` under the quoted heading
   client, never extract them. ("UNBOUND METHOD in the gate's own fixture")
 - **Mailpit is shared by package gates.** Template flows use an isolated Mailpit so exact-count
   assertions in `email` are not disturbed. ("Mailpit isolation held in both directions")
-- **Quoted documentation must be quoted in full.** Twice a truncated doc string reversed a ruling once
-  the next sentence was read. ("ORCHESTRATOR PROCESS NOTE, SECOND OF ITS KIND")
 - **`stripe` writes a `<claude-code-hint>` line to stderr** when it detects Claude Code. Benign, not
   from this repo. ("`stripe@22.6.1` WRITES AN AGENT-DIRECTED TAG")

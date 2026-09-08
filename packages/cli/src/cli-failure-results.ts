@@ -1,4 +1,5 @@
 import type { DbFailure } from '@hearthkit/db'
+import type { PaymentsFailure } from '@hearthkit/payments/payments-contract'
 import {
   cliAdminUrlInvalidErrorPrefix,
   cliComposeFileUnwritableErrorPrefix,
@@ -8,6 +9,9 @@ import {
   cliDoctorFailedErrorPrefix,
   cliInfraComposeFailedErrorPrefix,
   cliNextDevUnavailableErrorPrefix,
+  cliPaymentsCatalogNotFoundErrorPrefix,
+  cliPaymentsCatalogUnloadableErrorPrefix,
+  cliPaymentsSyncFailedErrorPrefix,
   cliProjectManifestMissingErrorPrefix,
   cliUsageErrorPrefix,
   type CliFailure,
@@ -132,5 +136,40 @@ export function doctorChecksFailedFailure(
     checks,
     failedCheckNames,
     message: `${cliDoctorFailedErrorPrefix} ${failedCheckNames.join(', ')}`,
+  }
+}
+
+/** No file sits at the resolved catalog path, so nothing was imported and no Stripe key was read. */
+export function paymentsCatalogNotFoundFailure(
+  catalogPath: string,
+): CliFailureOf<'cli-payments-catalog-not-found'> {
+  return {
+    kind: 'cli-payments-catalog-not-found',
+    catalogPath,
+    message: `${cliPaymentsCatalogNotFoundErrorPrefix} ${catalogPath} does not exist; pass --catalog or add the file`,
+  }
+}
+
+/** The catalog file exists but importing it threw, or it exports no catalog under either accepted name. */
+export function paymentsCatalogUnloadableFailure(
+  catalogPath: string,
+  loadFailureDetail: string,
+): CliFailureOf<'cli-payments-catalog-unloadable'> {
+  return {
+    kind: 'cli-payments-catalog-unloadable',
+    catalogPath,
+    loadFailureDetail,
+    message: `${cliPaymentsCatalogUnloadableErrorPrefix} ${catalogPath}: ${loadFailureDetail}`,
+  }
+}
+
+/** Carries a @hearthkit/payments failure out behind this package's own prefix, with the payments message unchanged after it. */
+export function paymentsSyncFailedFailure(
+  paymentsFailure: PaymentsFailure,
+): CliFailureOf<'cli-payments-sync-failed'> {
+  return {
+    kind: 'cli-payments-sync-failed',
+    paymentsFailure,
+    message: `${cliPaymentsSyncFailedErrorPrefix} ${paymentsFailure.message}`,
   }
 }

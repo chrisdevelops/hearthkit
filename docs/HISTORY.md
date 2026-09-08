@@ -3,6 +3,81 @@
 Journal of verified facts and traps, newest at the top. Search it; do not read it top to bottom.
 Entries were moved here unchanged from `docs/STATUS.md` on 2026-09-07.
 
+## 2026-09-07: completion plan step 3, `create`, stopped at the three-round cap
+
+Branch `pkg/create`. Resolved 2026-09-08: the user authorized a fourth round moving the hook to
+`@hearthkit/config` (subpath `register-node-modules-type-stripping`; cli gains config as a direct
+dependency). After it, all three scaffold variants pass: 20 of 20 in the scaffold tier, verified by
+the orchestrator. State at the stop on 2026-09-07:
+
+- Contract approved (101 lines). Rulings: `organizations` is a tenth declared rewrite target
+  `organizations-flag-literal` (the one value substitution in source); `templateDirectoryPath` is a
+  programmatic-only option and the published tarball bundles `templates/app` at `prepack`, keeping
+  only `src/app-template-contract.ts` under `src/`; no `.env` is written. Six gaps found by the
+  gate-writer's satisfiability run were folded in: manifest location at publish time,
+  `pnpm.overrides` for tarballs, `appTemplateNeverCopiedFileNames`, `installOutputExcerpt`, marker
+  disambiguation, removal of `app-workflow-content-missing` and `appTemplatePrunerModulePath`.
+- Gates: 20 in `create` (17 fast, 3 scaffold variants behind `HEARTHKIT_SCAFFOLD_GATES=1`), 4 new
+  `payments sync` gates in `cli`, template pruned from 28 to 18. All 20 verified failing before
+  implementation.
+- Fast gates green after round 3: cli 46, create 17, template 18; `pnpm typecheck` 11 projects,
+  `pnpm lint` 0 findings, `pnpm format:check` clean. `verify:container` passes; it was broken on
+  `main` since step 1.1 because `pnpm pack` rewrites `workspace:*` to `0.0.0`, and the materializer
+  now writes `pnpm.overrides` like the scaffold harness.
+- Scaffold tier after round 3 plus two fixture fixes: `every-package` and `auth-with-organizations`
+  pass end to end (install, typecheck, build, boot, Playwright flows including live Stripe
+  checkout). `no-package` fails: its `test:e2e` script preloads
+  `@hearthkit/cli/register-node-modules-type-stripping`, and the empty selection has no
+  `@hearthkit/cli` because the template lists it only under each optional package's
+  `devDependencyNames`. `ERR_MODULE_NOT_FOUND: Cannot find package '@hearthkit/cli'`.
+
+### NODE REFUSES TYPE STRIPPING UNDER node_modules
+
+The plan-level finding of this step. Node 24.20.0 throws
+`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` for any `.ts` under a `node_modules` path segment, and
+no flag lifts it (docs: "Node.js refuses to handle TypeScript files inside folders under a
+node_modules path", https://nodejs.org/docs/latest-v24.x/api/typescript.html). Every prior check ran
+inside the workspace, where pnpm links resolve to real paths outside `node_modules`, so it was never
+seen. In an installed project every `hearthkit` command and `pnpm create @hearthkit` were
+unrunnable. Ruling: keep shipping source, no build step; one JavaScript module registers a
+`module.registerHooks` load hook that runs `module.stripTypeScriptTypes` on exactly that set, and
+the two bins plus the template's `test:e2e` script (Playwright workers are separate processes and
+the payments spec imports `@hearthkit/payments/payments-contract`) load it. Proven by hand: installed
+`hearthkit doctor`, `db migrate`, `dev infra down` and the create bin all run with empty stderr. The
+hook currently lives in `@hearthkit/cli`, which is why the empty variant fails; see STATUS Open
+issues.
+
+### TYPE PACKAGES ARE RUNTIME DEPENDENCIES WHEN SOURCE SHIPS
+
+A consumer's `tsc` and `next build` compile the packages' `.ts` source, so `@types/pg` (db) and
+`@types/nodemailer` (email) must be in `dependencies`. The first scaffolded project failed typecheck
+with eight `TS7016`/`TS7006` errors until they were. Audit of every other runtime dependency: all
+ship their own types. React types stay dev: `react` is a peer dependency and the template declares
+`@types/react`.
+
+### pnpm 10 PASSES `--` THROUGH TO THE SCRIPT
+
+`pnpm run s -- --reporter=json` hands the script `["--","--reporter=json"]`;
+`pnpm run s --reporter=json` hands it `["--reporter=json"]`. A probe using `node -e` shifted argv by
+one and gave the opposite answer. Playwright treated the literal `--` as a filter and wrote no JSON
+report.
+
+### Other facts
+
+- `stripe@22.6.1` prints its Claude Code hint at module init, so `payments sync` imports the SDK
+  lazily inside the command; the bin's "no stderr on success" gate would fail otherwise.
+- `@hearthkit/create` is not a devDependency of the template: a static import drags cli source into
+  the template's TypeScript program where Next's globals make `NODE_ENV` required on `ProcessEnv`
+  (13 spawn errors), and it would ship into every generated project's devDependencies. The
+  materializer spawns the create bin from the workspace path instead.
+- `packages/create/tsconfig.json` uses `module: preserve` and `moduleResolution: bundler` because the
+  gate fixture re-exports the template manifest from a package without `"type": "module"`.
+- Playwright's JSON reporter reports `spec.file` relative to `testDir`, so expected paths drop `e2e/`.
+- The orchestrator edited one gate line by hand (`installStderrExcerpt` to `installOutputExcerpt`, a
+  rename the contract revision forced) and ran prettier on three CONTRACT.md files; both are
+  ownership deviations. The cli CONTRACT.md is at 296 lines, over the 200 cap before this step, and
+  cli now has 13 fixture files; both left for step 5.
+
 ## Verified facts this session
 
 - **PHASE 5's TEMPLATE SECTIONS MERGED AS `c698c1a` (PR #16), AND THE DoD EVIDENCE IS A REAL PURCHASE

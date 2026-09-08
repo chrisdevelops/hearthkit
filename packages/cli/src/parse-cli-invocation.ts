@@ -1,7 +1,9 @@
+import { isAbsolute, resolve } from 'node:path'
 import { postgresConnectionStringSchema, projectDatabaseNameSchema } from '@hearthkit/db'
 import {
   cliCommandPathSchema,
   defaultMigrationsFolderPath,
+  defaultPaymentsCatalogPath,
   type CliCommandInvocation,
   type CliCommandPath,
   type CliFailure,
@@ -25,6 +27,7 @@ const valueFlagNames = [
   '--database-url',
   '--migrations-folder',
   '--backup-file',
+  '--catalog',
 ] as const
 
 /** Flags that stand alone; giving one a value is a usage failure rather than a silently ignored word. */
@@ -41,6 +44,7 @@ const allowedFlagNamesByCommandPath: Record<CliCommandPath, readonly string[]> =
   'dev infra up': [],
   'dev infra down': [],
   doctor: ['--json'],
+  'payments sync': ['--catalog'],
 }
 
 /** How many words follow the command itself; checked before any word is handed to a schema. */
@@ -54,6 +58,7 @@ const commandArgumentCountByPath: Record<CliCommandPath, number> = {
   'dev infra up': 0,
   'dev infra down': 0,
   doctor: 0,
+  'payments sync': 0,
 }
 
 /** A parsed invocation ready to run, or the failure to report; parsing never throws and never runs a command. */
@@ -257,6 +262,19 @@ function buildCliInvocation(options: {
     return {
       kind: 'cli-invocation-parsed',
       invocation: { commandPath, jsonOutput: options.presentBooleanFlagNames.has('--json') },
+    }
+  }
+
+  if (commandPath === 'payments sync') {
+    const givenCatalogPath = flagValues.get('--catalog') ?? defaultPaymentsCatalogPath
+    return {
+      kind: 'cli-invocation-parsed',
+      invocation: {
+        commandPath,
+        catalogPath: isAbsolute(givenCatalogPath)
+          ? givenCatalogPath
+          : resolve(context.workingDirectoryPath, givenCatalogPath),
+      },
     }
   }
 

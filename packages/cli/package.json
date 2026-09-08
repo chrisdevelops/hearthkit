@@ -10,7 +10,7 @@
     }
   },
   "bin": {
-    "hearthkit": "./src/hearthkit-bin.ts"
+    "hearthkit": "./src/hearthkit-bin-entry.js"
   },
   "files": [
     "src"
@@ -26,7 +26,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hearthkit/config": "workspace:*",
     "@hearthkit/db": "workspace:*",
+    "@hearthkit/payments": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {

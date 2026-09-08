@@ -22,6 +22,9 @@ export {
   cliDoctorFailedErrorPrefix,
   cliInfraComposeFailedErrorPrefix,
   cliNextDevUnavailableErrorPrefix,
+  cliPaymentsCatalogNotFoundErrorPrefix,
+  cliPaymentsCatalogUnloadableErrorPrefix,
+  cliPaymentsSyncFailedErrorPrefix,
   cliProjectManifestMissingErrorPrefix,
   cliUsageErrorPrefix,
 } from './cli-contract.ts'
@@ -35,15 +38,19 @@ export {
   cliDbRestoreCompleteLinePrefix,
   cliDevInfraDownCompleteLinePrefix,
   cliDevInfraUpCompleteLinePrefix,
+  cliPaymentsSyncCompleteLinePrefix,
 } from './cli-contract.ts'
 
-/** Contract values: this package's env fragment and the defaults its resolution rules fall back to. */
+/** Contract values: this package's env fragment, the defaults its resolution rules fall back to, and the catalog vocabulary payments sync reads. */
 export {
   adminDatabaseUrlEnvVariableName,
   cliEnvSchemaFragment,
   defaultBackupDirectoryPath,
   defaultLocalAdminDatabaseUrl,
   defaultMigrationsFolderPath,
+  defaultPaymentsCatalogPath,
+  paymentsCatalogModuleExportName,
+  stripeSecretKeyEnvVariableName,
 } from './cli-contract.ts'
 
 /** Contract values: the local infra vocabulary, including the single place each service image is pinned. */

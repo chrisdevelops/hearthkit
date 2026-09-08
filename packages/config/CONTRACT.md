@@ -42,6 +42,10 @@ The public entry is `src/index.ts`, a thin named re-export (no `export *`, per r
 - Functions and values: `loadHearthkitConfig`, `requireHearthkitConfig`, `configEnvSchemaFragment`, `configInvalidErrorPrefix`, `configFragmentConflictErrorPrefix`, `configFailureSchema`, `configLoadResultSchema`, `configVariableIssueSchema`, `envSchemaFragmentSchema`, `envVariableNameSchema`
 - Types: `ConfigFailure`, `ConfigVariableIssue`, `EnvSchemaFragment`, `EnvSource`, `EnvVariableName`, `HearthkitConfigOf`, `LoadHearthkitConfigOptions`
 
+### Subpath export: `@hearthkit/config/register-node-modules-type-stripping`
+
+The package ships one JavaScript module, `register-node-modules-type-stripping.js`, at that subpath. Importing it (for example through `NODE_OPTIONS=--import=...`) registers a `module.registerHooks` load hook that strips types from `.ts` files under a `node_modules` path segment, the set Node 24 refuses to load: "Node.js refuses to handle TypeScript files inside folders under a node_modules path" — https://nodejs.org/docs/latest-v24.x/api/typescript.html. It is a no-op inside the workspace, where nothing hearthkit lives under `node_modules`. Consumers: the `hearthkit` bin, the `create` bin, and the template's `test:e2e` script. It lives in `config` rather than `cli` because every project depends on `config` while an empty selection prunes `cli`. It is the one permitted exception to "TypeScript for every script" (ruled 2026-09-07, placed in `config` 2026-09-08).
+
 ## Failure modes
 
 Top-level failures (`ConfigFailure`, discriminated on `kind`):
