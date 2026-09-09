@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/create",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Scaffolds a new project from the hearthkit app template: pnpm create @hearthkit",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/create",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/config",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "One validated schema for all hearthkit environment variables, composed from per-package fragments",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/config",
   "repository": {
