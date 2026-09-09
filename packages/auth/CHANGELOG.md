@@ -1,5 +1,14 @@
 # @hearthkit/auth
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [49983c4]
+  - @hearthkit/config@0.1.1
+  - @hearthkit/db@0.1.1
+  - @hearthkit/email@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

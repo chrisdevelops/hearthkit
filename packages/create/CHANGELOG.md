@@ -1,5 +1,16 @@
 # @hearthkit/create
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [49983c4]
+  - @hearthkit/config@0.1.1
+  - @hearthkit/cli@0.1.1
+  - @hearthkit/db@0.1.1
+  - @hearthkit/observability@0.1.1
+  - @hearthkit/ui@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes
