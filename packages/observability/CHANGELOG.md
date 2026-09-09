@@ -1,5 +1,12 @@
 # @hearthkit/observability
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [49983c4]
+  - @hearthkit/config@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @hearthkit/config
 
+## 0.1.1
+
+### Patch Changes
+
+- 49983c4: Confirms the release workflow publishes through npm trusted publishing with no token (completion plan step 4.2).
+
 ## 0.1.0
 
 ### Minor Changes
