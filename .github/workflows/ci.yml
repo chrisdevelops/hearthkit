@@ -44,8 +44,12 @@ jobs:
           # putting the versioned bin dir first makes pg_dump/pg_restore resolve to 17.
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
-      # Plan section 10: a PR that changes a package without a changeset does not merge.
+      # Plan section 10: a PR that changes a package without a changeset does not merge. The one
+      # exception is the "Version Packages" PR the release workflow opens from
+      # changeset-release/main: it consumes the changesets while bumping every manifest, which is
+      # exactly the shape this check rejects.
       - run: pnpm changeset status --since=origin/main
+        if: github.head_ref != 'changeset-release/main'
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm format:check
