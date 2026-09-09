@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/payments",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Stripe subscriptions and one-time purchases: catalog sync, hosted checkout, the hosted customer portal, and the webhook handler",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/payments",
   "repository": {
