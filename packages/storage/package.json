@@ -2,6 +2,12 @@
   "name": "@hearthkit/storage",
   "version": "0.0.0",
   "description": "S3-compatible object storage with presigned uploads and downloads for MinIO and Cloudflare R2",
+  "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/storage",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrisdevelops/hearthkit.git",
+    "directory": "packages/storage"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -19,6 +25,7 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepublishOnly": "node ../../scripts/assert-package-publishable.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

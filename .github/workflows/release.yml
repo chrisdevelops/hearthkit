@@ -1,0 +1,50 @@
+name: release
+
+# Completion plan step 4.1, plan section 7. On every push to main the changesets action does one of
+# two things: when unreleased changesets exist it opens or refreshes the "Version Packages" pull
+# request (running `pnpm changeset version`); when none exist and package versions are ahead of the
+# registry it publishes them (running `pnpm changeset publish`, which delegates to `pnpm publish`
+# so `workspace:*` ranges are rewritten to the fixed-group version in every tarball).
+#
+# Authentication is npm trusted publishing: the job's OIDC token (`id-token: write`) is exchanged
+# for a short-lived npm credential inside the npm CLI, so there is no NPM_TOKEN secret anywhere in
+# this repo. That exchange needs npm CLI 11.5.1 or later, which the assert step below checks
+# before anything is published, and each package has to list this workflow file by name as its
+# trusted publisher on npmjs.com (runbook in docs/COMPLETION-PLAN.md 4.2). Provenance attestations
+# are generated automatically on that path.
+
+on:
+  push:
+    branches: [main]
+
+# Two overlapping runs would race on the version PR and on the publish.
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write # the version PR commit and the release tags
+  pull-requests: write # the "Version Packages" pull request
+  id-token: write # npm trusted publishing (OIDC)
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `changeset version` and `changeset publish` both read git history.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          # The registry npm authenticates against. No NODE_AUTH_TOKEN is set for the publish:
+          # trusted publishing supplies the credential.
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - name: Assert the npm CLI supports trusted publishing
+        run: node scripts/assert-npm-supports-trusted-publishing.ts
+      - uses: changesets/action@v2
+        with:
+          version-script: pnpm changeset version
+          publish-script: pnpm changeset publish

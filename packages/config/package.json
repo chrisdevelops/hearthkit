@@ -2,6 +2,12 @@
   "name": "@hearthkit/config",
   "version": "0.0.0",
   "description": "One validated schema for all hearthkit environment variables, composed from per-package fragments",
+  "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/config",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrisdevelops/hearthkit.git",
+    "directory": "packages/config"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -20,6 +26,7 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepublishOnly": "node ../../scripts/assert-package-publishable.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

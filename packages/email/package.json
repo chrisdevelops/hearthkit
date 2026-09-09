@@ -2,6 +2,12 @@
   "name": "@hearthkit/email",
   "version": "0.0.0",
   "description": "Transactional email from React Email templates over a swappable SMTP or Resend transport",
+  "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/email",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrisdevelops/hearthkit.git",
+    "directory": "packages/email"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -23,6 +29,7 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepublishOnly": "node ../../scripts/assert-package-publishable.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
