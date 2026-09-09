@@ -2,6 +2,12 @@
   "name": "@hearthkit/db",
   "version": "0.0.0",
   "description": "Drizzle client, migration runner, and project-database lifecycle for Postgres 17",
+  "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/db",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrisdevelops/hearthkit.git",
+    "directory": "packages/db"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -19,6 +25,7 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepublishOnly": "node ../../scripts/assert-package-publishable.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

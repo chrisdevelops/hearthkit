@@ -2,6 +2,12 @@
   "name": "@hearthkit/create",
   "version": "0.0.0",
   "description": "Scaffolds a new project from the hearthkit app template: pnpm create @hearthkit",
+  "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/create",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrisdevelops/hearthkit.git",
+    "directory": "packages/create"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -23,6 +29,7 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepublishOnly": "node ../../scripts/assert-package-publishable.ts",
     "test": "vitest run",
     "test:scaffold": "HEARTHKIT_SCAFFOLD_GATES=1 vitest run",
     "typecheck": "tsc --noEmit",

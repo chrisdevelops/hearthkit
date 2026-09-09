@@ -2,6 +2,12 @@
   "name": "@hearthkit/auth",
   "version": "0.0.0",
   "description": "Better Auth wired to the hearthkit Drizzle client and email transport, with magic link, password and organizations",
+  "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/auth",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrisdevelops/hearthkit.git",
+    "directory": "packages/auth"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -23,6 +29,7 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepublishOnly": "node ../../scripts/assert-package-publishable.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
