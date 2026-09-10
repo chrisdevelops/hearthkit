@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import {
-  expectContractNumberExport,
   expectResultKind,
+  organizationRouteAbsentHttpStatus,
+  organizationRouteUnauthorizedHttpStatus,
 } from '../test-fixtures/auth-gate-expectations.ts'
 import { defineGateFileContext } from '../test-fixtures/auth-gate-file-context.ts'
 import {
@@ -24,12 +25,7 @@ import {
   loadHearthkitAuthEntry,
   type HearthkitAuthEntry,
 } from '../test-fixtures/hearthkit-auth-entry.ts'
-import {
-  authBrowserClientSchema,
-  organizationRouteAbsentHttpStatus,
-  organizationRouteUnauthorizedHttpStatus,
-  type AuthServerInstance,
-} from './auth-contract.ts'
+import { authBrowserClientSchema, type AuthServerInstance } from './auth-contract.ts'
 
 /**
  * Contacts no service. createAuthBrowserClient cannot fail and reaches nothing until a hook or a call
@@ -151,14 +147,10 @@ describe('createAuthBrowserClient', () => {
   it('gets the route-absent status from a server built with organizations off and the unauthorized control from one built with it on, for the same organization create call', async () => {
     const { authEntry, listener, organizationsEnabledInstance, userScopedInstance } =
       await gateFile.read()
-    const absentStatus = expectContractNumberExport(
-      organizationRouteAbsentHttpStatus,
-      'organizationRouteAbsentHttpStatus',
-    )
-    const unauthorizedStatus = expectContractNumberExport(
-      organizationRouteUnauthorizedHttpStatus,
-      'organizationRouteUnauthorizedHttpStatus',
-    )
+    // Both statuses are fixture constants, not package exports: they are HTTP facts about Better
+    // Auth's router, and this gate is their only reader.
+    const absentStatus: number = organizationRouteAbsentHttpStatus
+    const unauthorizedStatus: number = organizationRouteUnauthorizedHttpStatus
 
     listener.routeGateRequestsTo(userScopedInstance)
     // ONE client, built in user-scoped mode, used for both halves. That is what makes this the same

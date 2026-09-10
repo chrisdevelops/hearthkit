@@ -1,43 +1,13 @@
-/** Public entry point of @hearthkit/auth: a named re-export of exactly the surface the contract lists, so no internal module is importable by consumers. */
-
-/** Checks the OAuth pairing at boot; the fragment cannot carry that rule, because config discards a refinement attached to one. */
-export { resolveAuthRuntimeConfig } from './resolve-auth-runtime-config.ts'
-
-/** Builds the Better Auth server instance; synchronous, and opens no connection. */
-export { createAuthServerInstance } from './create-auth-server-instance.ts'
-
-/** The five method handlers a Next.js catch-all route file re-exports; cannot fail. */
-export { createAuthRouteHandlers } from './create-auth-route-handlers.ts'
-
-/** The Better Auth browser client carrying the session hooks; cannot fail, and contacts nothing until a call runs. */
-export { createAuthBrowserClient } from './create-auth-browser-client.ts'
-
-/** Who is signed in for this request; a missing or expired cookie is a result, not a failure. */
-export { readAuthSession } from './read-auth-session.ts'
-
-/** Creates the user and the first session in one call. */
-export { signUpWithPassword } from './sign-up-with-password.ts'
-
-/** Signs an existing user in; a wrong password and an unknown address are reported alike. */
-export { signInWithPassword } from './sign-in-with-password.ts'
-
-/** Sends the one-time sign-in link through @hearthkit/email; the link itself is never returned. */
-export { requestMagicLinkSignIn } from './request-magic-link-sign-in.ts'
-
-/** Consumes a magic link from the whole URL; the token is spent on the first call. */
-export { completeMagicLinkSignIn } from './complete-magic-link-sign-in.ts'
-
-/** Server-side organization provisioning; needs no session headers and gives the named user an owner membership. */
-export { createAuthOrganization } from './create-auth-organization.ts'
-
-/** Server-side membership provisioning; the user must already exist, because this invites nobody. */
-export { addAuthOrganizationMember } from './add-auth-organization-member.ts'
-
-/** One query against information_schema reporting which of the seven auth tables exist. */
-export { verifyAuthTablesExist } from './verify-auth-tables-exist.ts'
-
-/** The Drizzle table map, always carrying all seven tables whatever the organizations flag is. */
-export { hearthkitAuthDrizzleSchema } from './hearthkit-auth-drizzle-schema.ts'
+/**
+ * The ./auth-contract subpath of @hearthkit/auth: a named re-export of the twenty-two contract values
+ * that live in auth-contract.ts and every public type, and nothing that reaches an implementation
+ * module. It exists because @hearthkit/payments imports the AuthUserId and AuthOrganizationId types
+ * from it and templates/app imports authApiBasePath and hearthkitAuthTableNames from it, while the
+ * `.` entry drags in @hearthkit/email's `.` entry with its .tsx template modules, plus
+ * better-auth/next-js and better-auth/react, none of which a bare `node` process will load. This file
+ * and auth-contract.ts import only zod at runtime, so either loads under bare node with no side
+ * effect.
+ */
 
 /** Contract values: this package's env fragment, the failure union every function returns, and the resolved config the server functions take. */
 export {

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import {
+  betterAuthOrganizationAlreadyExistsErrorCode,
   expectAuthFailure,
-  expectContractStringExport,
   expectResultKind,
 } from '../test-fixtures/auth-gate-expectations.ts'
 import { defineGateFileContext } from '../test-fixtures/auth-gate-file-context.ts'
@@ -26,7 +26,6 @@ import {
 } from '../test-fixtures/hearthkit-auth-entry.ts'
 import {
   addAuthOrganizationMemberResultSchema,
-  betterAuthOrganizationAlreadyExistsErrorCode,
   createAuthOrganizationResultSchema,
   type AuthServerInstance,
 } from './auth-contract.ts'
@@ -145,18 +144,12 @@ describe('createAuthOrganization', () => {
     // A slug collision is a caller error, not an unavailable database: it and every other code
     // outside the four-code allowlist stay here, where authErrorCode keeps this from being a dead end.
     const failure = expectAuthFailure(result, 'auth-request-failed')
-    // Asserted through the exported symbol, never a hand-typed literal, because the organization
-    // plugin's $ERROR_CODES carries ORGANIZATION_SLUG_ALREADY_TAKEN one line away from the code this
-    // endpoint actually throws. Reading the library confirms the wrong answer, so the gate and the
-    // implementation have to share one spelling. Measured at better-auth@1.7.2: APIError, statusCode
-    // 400, error.body?.code ORGANIZATION_ALREADY_EXISTS, message `Organization already exists`.
-    expect(failure.authErrorCode).toBe(
-      expectContractStringExport(
-        betterAuthOrganizationAlreadyExistsErrorCode,
-        'betterAuthOrganizationAlreadyExistsErrorCode',
-      ),
-    )
-    // No constant for this one: 400 is measured here and nowhere else in the contract.
+    // The expected code is a fixture constant, not a package export: it is Better Auth's spelling and
+    // a gate is its only reader. The organization plugin's $ERROR_CODES carries the near-miss
+    // ORGANIZATION_SLUG_ALREADY_TAKEN one line away from the code this endpoint actually throws, so
+    // reading the library confirms the wrong answer. Measured at better-auth@1.7.2: APIError,
+    // statusCode 400, error.body?.code ORGANIZATION_ALREADY_EXISTS, message `Organization already exists`.
+    expect(failure.authErrorCode).toBe(betterAuthOrganizationAlreadyExistsErrorCode)
     expect(failure.authErrorStatus).toBe(400)
     expect(failure.authFailureDetail.length).toBeGreaterThan(0)
   })

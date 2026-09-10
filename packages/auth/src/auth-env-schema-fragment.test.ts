@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { expectResultKind } from '../test-fixtures/auth-gate-expectations.ts'
 import {
   readAuthPackageManifest,
-  runAuthContractUnderBareNode,
+  runAuthContractModulesUnderBareNode,
 } from '../test-fixtures/auth-package-entry-points.ts'
 import {
+  hearthkitAuthContractSubpathValueExportNames,
+  hearthkitAuthEntryValueExportNames,
+  importHearthkitAuthContractSubpathNamespace,
   importHearthkitAuthNamespace,
   loadHearthkitAuthEntry,
 } from '../test-fixtures/hearthkit-auth-entry.ts'
@@ -30,65 +33,6 @@ const optionalAuthVariableNames = [
   'GOOGLE_CLIENT_SECRET',
   'GITHUB_CLIENT_ID',
   'GITHUB_CLIENT_SECRET',
-] as const
-
-// CONTRACT.md's entry point rule is mechanical: src/index.ts re-exports every value
-// src/auth-contract.ts exports, with no exceptions. So the required list is read off the contract
-// module's own namespace rather than typed out here. A hand-written list would fall behind the day
-// someone forgot to extend it; a derived list cannot.
-//
-// A module namespace carries value exports only. Every `export type` in auth-contract.ts is erased
-// before this file runs, so the types CONTRACT.md also asks the entry point to re-export are outside
-// what this gate can see and are covered by typecheck instead.
-function contractValueExportNames(contractModule: Record<string, unknown>): string[] {
-  return Object.keys(contractModule).toSorted()
-}
-
-// Named in so many words by CONTRACT.md: the nine message prefixes, the env fragment, the failure
-// union and the ten per-function result schemas. Spelled out as strings so renaming one in the
-// contract fails this gate loudly, instead of quietly shrinking the derived list above to a set an
-// entry point already satisfies.
-const contractExportNamesTheContractNamesOutright = [
-  'authOauthConfigIncompleteErrorPrefix',
-  'authInvalidCredentialsErrorPrefix',
-  'authMagicLinkInvalidErrorPrefix',
-  'authInputInvalidErrorPrefix',
-  'authEmailAlreadyRegisteredErrorPrefix',
-  'authEmailSendFailedErrorPrefix',
-  'authOrganizationsDisabledErrorPrefix',
-  'authDatabaseUnavailableErrorPrefix',
-  'authRequestFailedErrorPrefix',
-  'authEnvSchemaFragment',
-  'authFailureSchema',
-  'hearthkitAuthTableNames',
-  'resolveAuthRuntimeConfigResultSchema',
-  'createAuthServerInstanceResultSchema',
-  'readAuthSessionResultSchema',
-  'signUpWithPasswordResultSchema',
-  'signInWithPasswordResultSchema',
-  'requestMagicLinkSignInResultSchema',
-  'completeMagicLinkSignInResultSchema',
-  'createAuthOrganizationResultSchema',
-  'addAuthOrganizationMemberResultSchema',
-  'verifyAuthTablesExistResultSchema',
-] as const
-
-// Not exported by auth-contract.ts, so the derived list cannot cover them: the twelve public
-// functions and the Drizzle table map.
-const entryPointOnlyExportNames = [
-  'resolveAuthRuntimeConfig',
-  'createAuthServerInstance',
-  'createAuthRouteHandlers',
-  'createAuthBrowserClient',
-  'readAuthSession',
-  'signUpWithPassword',
-  'signInWithPassword',
-  'requestMagicLinkSignIn',
-  'completeMagicLinkSignIn',
-  'createAuthOrganization',
-  'addAuthOrganizationMember',
-  'verifyAuthTablesExist',
-  'hearthkitAuthDrizzleSchema',
 ] as const
 
 describe('authEnvSchemaFragment', () => {
@@ -161,30 +105,28 @@ describe('authEnvSchemaFragment', () => {
 })
 
 describe('@hearthkit/auth entry point', () => {
-  it('re-exports by name every value auth-contract.ts exports, plus the twelve functions and the Drizzle schema', async () => {
+  it('exports exactly the thirty-five allowlisted values and nothing else, each contract value the one auth-contract.ts already exports', async () => {
     const namespace = await importHearthkitAuthNamespace()
     const contractModule = authContract as unknown as Record<string, unknown>
-    const requiredExportNames = contractValueExportNames(contractModule)
 
-    const renamedInTheContract = contractExportNamesTheContractNamesOutright.filter(
-      (exportName) => !requiredExportNames.includes(exportName),
-    )
+    // A module namespace carries value exports only, so every `export type` is already erased here and
+    // the types CONTRACT.md keeps on the entry point are covered by typecheck instead. Both lists are
+    // compared whole rather than name by name, so a failure names every wrong export at once instead
+    // of stopping at the first and hiding the rest behind a rerun.
+    const actualValueExportNames = Object.keys(namespace)
+      .filter((exportName) => namespace[exportName] !== undefined)
+      .toSorted()
     expect(
-      renamedInTheContract,
-      'auth-contract.ts must still export the constants and schemas CONTRACT.md names outright',
-    ).toEqual([])
+      actualValueExportNames,
+      'src/index.ts must export exactly the allowlist in CONTRACT.md "Package entry point"',
+    ).toEqual([...hearthkitAuthEntryValueExportNames].toSorted())
 
-    // Both lists are compared whole rather than one name at a time, so a failure names every export
-    // that is wrong instead of stopping at the first and hiding the rest behind a rerun.
-    const missingFromTheEntryPoint = requiredExportNames.filter(
-      (exportName) => namespace[exportName] === undefined,
-    )
-    expect(
-      missingFromTheEntryPoint,
-      'src/index.ts must re-export these by name from auth-contract.ts',
-    ).toEqual([])
-
-    const rebuiltInsteadOfReExported = requiredExportNames.filter(
+    // The twenty-two contract values must be the identical values auth-contract.ts exports, not a
+    // second copy: an app comparing entry.hearthkitAuthTableNames against the subpath's value is
+    // comparing the same thing. The prefixes, the Better Auth literals, the HTTP statuses, the limits,
+    // the options schemas and the per-variant failure shapes stay internal, so they are absent from
+    // the list above and a re-export of one of them fails the whole-list comparison by name.
+    const rebuiltInsteadOfReExported = hearthkitAuthContractSubpathValueExportNames.filter(
       (exportName) => namespace[exportName] !== contractModule[exportName],
     )
     expect(
@@ -192,27 +134,62 @@ describe('@hearthkit/auth entry point', () => {
       'these must be the identical value auth-contract.ts exports, not a second copy of it',
     ).toEqual([])
 
-    const missingImplementationExports = entryPointOnlyExportNames.filter(
-      (exportName) => namespace[exportName] === undefined,
-    )
+    // Everything else on the allowlist comes from an implementation module: the twelve functions, plus
+    // hearthkitAuthDrizzleSchema, which is the Drizzle table map and therefore an object. Whether it
+    // carries the right tables is the conformance gate's job, not this one's.
+    const wrongShape = hearthkitAuthEntryValueExportNames.filter((exportName) => {
+      const isContractValue = hearthkitAuthContractSubpathValueExportNames.includes(
+        exportName as (typeof hearthkitAuthContractSubpathValueExportNames)[number],
+      )
+      if (isContractValue) {
+        return false
+      }
+      if (exportName === 'hearthkitAuthDrizzleSchema') {
+        return typeof namespace[exportName] !== 'object' || namespace[exportName] === null
+      }
+      return typeof namespace[exportName] !== 'function'
+    })
     expect(
-      missingImplementationExports,
-      'src/index.ts must re-export the public functions and the Drizzle schema by name',
+      wrongShape,
+      'every allowlisted name outside the twenty-two contract values must be one of the twelve functions, or the Drizzle schema object',
     ).toEqual([])
   })
 
-  it('publishes ./auth-contract as a second subpath that a bare node process can load', async () => {
+  it('publishes ./auth-contract as a second subpath carrying the twenty-two contract values, loadable by a bare node process', async () => {
     const manifest = await readAuthPackageManifest()
     expect(manifest.packageName).toBe('@hearthkit/auth')
     expect(Object.keys(manifest.exportsMap).toSorted()).toEqual(['.', './auth-contract'])
     expect(JSON.stringify(manifest.exportsMap['./auth-contract'])).toContain(
-      './src/auth-contract.ts',
+      './src/auth-contract-entry.ts',
     )
 
+    const subpathNamespace = await importHearthkitAuthContractSubpathNamespace()
+    const contractModule = authContract as unknown as Record<string, unknown>
+    const subpathValueExportNames = Object.keys(subpathNamespace)
+      .filter((exportName) => subpathNamespace[exportName] !== undefined)
+      .toSorted()
+    expect(
+      subpathValueExportNames,
+      'src/auth-contract-entry.ts must export exactly the twenty-two allowlisted names that live in auth-contract.ts',
+    ).toEqual([...hearthkitAuthContractSubpathValueExportNames].toSorted())
+
+    const rebuiltInsteadOfReExported = hearthkitAuthContractSubpathValueExportNames.filter(
+      (exportName) => subpathNamespace[exportName] !== contractModule[exportName],
+    )
+    expect(
+      rebuiltInsteadOfReExported,
+      'these must be the identical value auth-contract.ts exports, not a second copy of it',
+    ).toEqual([])
+
     // The reason the subpath exists: the `.` entry reaches @hearthkit/email's .tsx templates and
-    // better-auth/react, which bare node refuses, while this file imports zod at runtime and nothing
-    // else and must load on its own for @hearthkit/payments to consume it.
-    const bareNodeRun = await runAuthContractUnderBareNode()
-    expect(bareNodeRun.exitCode, bareNodeRun.standardError).toBe(0)
+    // better-auth/react, which bare node refuses, while both of these files import zod at runtime and
+    // nothing else. Each is run on its own so a failure names the file, and stderr must be empty as
+    // well as the exit code zero, because a module that warns on load still breaks a bare consumer.
+    for (const bareNodeRun of await runAuthContractModulesUnderBareNode()) {
+      expect(bareNodeRun.exitCode, `${bareNodeRun.modulePath}: ${bareNodeRun.standardError}`).toBe(
+        0,
+      )
+      expect(bareNodeRun.standardError, `${bareNodeRun.modulePath} wrote to stderr`).toBe('')
+    }
   })
 })

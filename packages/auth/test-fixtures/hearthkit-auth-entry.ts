@@ -36,6 +36,81 @@ export type HearthkitAuthEntry = {
   hearthkitAuthDrizzleSchema: HearthkitAuthDrizzleSchema
 }
 
+/**
+ * The thirty-five value exports CONTRACT.md "Package entry point" allows src/index.ts to have,
+ * spelled out because the allowlist is a decision no module namespace can be derived from: the
+ * thirteen plan-named implementation outputs first, then the twenty-two contract values that live in
+ * auth-contract.ts. Every other value auth-contract.ts exports is internal and must stay off the
+ * entry point.
+ */
+export const hearthkitAuthEntryValueExportNames = [
+  'resolveAuthRuntimeConfig',
+  'createAuthServerInstance',
+  'createAuthRouteHandlers',
+  'createAuthBrowserClient',
+  'readAuthSession',
+  'signUpWithPassword',
+  'signInWithPassword',
+  'requestMagicLinkSignIn',
+  'completeMagicLinkSignIn',
+  'createAuthOrganization',
+  'addAuthOrganizationMember',
+  'verifyAuthTablesExist',
+  'hearthkitAuthDrizzleSchema',
+  'authEnvSchemaFragment',
+  'authFailureSchema',
+  'authRuntimeConfigSchema',
+  'resolveAuthRuntimeConfigResultSchema',
+  'createAuthServerInstanceResultSchema',
+  'readAuthSessionResultSchema',
+  'signUpWithPasswordResultSchema',
+  'signInWithPasswordResultSchema',
+  'requestMagicLinkSignInResultSchema',
+  'completeMagicLinkSignInResultSchema',
+  'createAuthOrganizationResultSchema',
+  'addAuthOrganizationMemberResultSchema',
+  'verifyAuthTablesExistResultSchema',
+  'authApiBasePath',
+  'hearthkitAuthTableNames',
+  'authUserIdSchema',
+  'authOrganizationIdSchema',
+  'authUserEmailSchema',
+  'authPasswordSchema',
+  'authUserNameSchema',
+  'authOrganizationNameSchema',
+  'authOrganizationSlugSchema',
+] as const
+
+/**
+ * The twenty-two allowlisted names the ./auth-contract subpath carries: the list above minus the
+ * thirteen implementation outputs, which live in modules that reach @hearthkit/email's .tsx templates
+ * and better-auth/react, neither of which a bare node process will load.
+ */
+export const hearthkitAuthContractSubpathValueExportNames = [
+  'authEnvSchemaFragment',
+  'authFailureSchema',
+  'authRuntimeConfigSchema',
+  'resolveAuthRuntimeConfigResultSchema',
+  'createAuthServerInstanceResultSchema',
+  'readAuthSessionResultSchema',
+  'signUpWithPasswordResultSchema',
+  'signInWithPasswordResultSchema',
+  'requestMagicLinkSignInResultSchema',
+  'completeMagicLinkSignInResultSchema',
+  'createAuthOrganizationResultSchema',
+  'addAuthOrganizationMemberResultSchema',
+  'verifyAuthTablesExistResultSchema',
+  'authApiBasePath',
+  'hearthkitAuthTableNames',
+  'authUserIdSchema',
+  'authOrganizationIdSchema',
+  'authUserEmailSchema',
+  'authPasswordSchema',
+  'authUserNameSchema',
+  'authOrganizationNameSchema',
+  'authOrganizationSlugSchema',
+] as const
+
 // The twelve functions CONTRACT.md lists under Public functions, spelled out so a rename fails here by
 // name instead of surfacing as "x is not a function" inside whichever gate ran first.
 const expectedFunctionNames = [
@@ -63,6 +138,24 @@ export async function importHearthkitAuthNamespace(): Promise<Record<string, unk
   } catch (error) {
     throw new Error(
       `gate could not load the public entry point of @hearthkit/auth (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
+}
+
+/**
+ * Imports the ./auth-contract subpath at call time, so a subpath that still points at a module nobody
+ * has written yet fails one gate instead of breaking collection for a whole file. @hearthkit/payments
+ * and templates/app both consume this subpath, so it carries its own allowlist.
+ */
+export async function importHearthkitAuthContractSubpathNamespace(): Promise<
+  Record<string, unknown>
+> {
+  try {
+    return (await import('@hearthkit/auth/auth-contract')) as Record<string, unknown>
+  } catch (error) {
+    throw new Error(
+      `gate could not load the ./auth-contract subpath of @hearthkit/auth (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     )
   }

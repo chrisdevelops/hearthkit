@@ -14,14 +14,20 @@ export type AuthPackageManifest = {
   exportsMap: Record<string, unknown>
 }
 
-/** Outcome of running one file under a plain node process, with stderr kept so a failure explains itself. */
+/** Outcome of running one file under a plain node process, with the path and stderr kept so a failure explains itself. */
 export type BareNodeRun = {
+  modulePath: string
   exitCode: number | null
   standardError: string
 }
 
 const authPackageManifestUrl = new URL('../package.json', import.meta.url)
-const authContractModuleUrl = new URL('../src/auth-contract.ts', import.meta.url)
+// Both must load under bare node: auth-contract-entry.ts is what the ./auth-contract subpath resolves
+// to, and it re-exports from auth-contract.ts, which the implementation and these gates import direct.
+const bareNodeAuthModuleUrls = [
+  new URL('../src/auth-contract.ts', import.meta.url),
+  new URL('../src/auth-contract-entry.ts', import.meta.url),
+] as const
 
 /** The manifest as JSON, or a named error saying it does not exist yet, which is the pre-implementation state. */
 export async function readAuthPackageManifest(): Promise<AuthPackageManifest> {
@@ -47,14 +53,24 @@ export async function readAuthPackageManifest(): Promise<AuthPackageManifest> {
 }
 
 /**
- * Runs src/auth-contract.ts under a plain node process, which is what the ./auth-contract subpath
- * exists to make possible: the `.` entry imports @hearthkit/email's `.` entry and therefore .tsx
- * template modules, plus better-auth/react and better-auth/next-js, while the contract file imports
- * zod at runtime and nothing else and must load on its own. @hearthkit/payments consumes this subpath
- * in the next loop for AuthUserId and AuthOrganizationId without dragging React in behind them.
+ * Runs every JSX-free auth module under a plain node process, one run per module, which is what the
+ * ./auth-contract subpath exists to make possible: the `.` entry imports @hearthkit/email's `.` entry
+ * and therefore .tsx template modules, plus better-auth/react and better-auth/next-js, while these two
+ * files import zod at runtime and nothing else and must load on their own. @hearthkit/payments and
+ * templates/app consume the subpath for AuthUserId, AuthOrganizationId, authApiBasePath and
+ * hearthkitAuthTableNames without dragging React in behind them.
  */
-export async function runAuthContractUnderBareNode(): Promise<BareNodeRun> {
-  const child = spawn(process.execPath, [fileURLToPath(authContractModuleUrl)], {
+export async function runAuthContractModulesUnderBareNode(): Promise<readonly BareNodeRun[]> {
+  const runs: BareNodeRun[] = []
+  for (const moduleUrl of bareNodeAuthModuleUrls) {
+    runs.push(await runOneFileUnderBareNode(moduleUrl))
+  }
+  return runs
+}
+
+async function runOneFileUnderBareNode(moduleUrl: URL): Promise<BareNodeRun> {
+  const modulePath = fileURLToPath(moduleUrl)
+  const child = spawn(process.execPath, [modulePath], {
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   const standardErrorChunks: string[] = []
@@ -64,7 +80,7 @@ export async function runAuthContractUnderBareNode(): Promise<BareNodeRun> {
   return new Promise<BareNodeRun>((resolve, reject) => {
     child.once('error', reject)
     child.once('close', (exitCode) => {
-      resolve({ exitCode, standardError: standardErrorChunks.join('') })
+      resolve({ modulePath, exitCode, standardError: standardErrorChunks.join('') })
     })
   })
 }

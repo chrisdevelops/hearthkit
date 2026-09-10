@@ -16,8 +16,8 @@
       "default": "./src/index.ts"
     },
     "./auth-contract": {
-      "types": "./src/auth-contract.ts",
-      "default": "./src/auth-contract.ts"
+      "types": "./src/auth-contract-entry.ts",
+      "default": "./src/auth-contract-entry.ts"
     }
   },
   "files": [
