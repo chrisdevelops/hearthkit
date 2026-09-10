@@ -11,7 +11,8 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
   Email done (PR #30) and ui done (PR #32), published as 0.3.0 via #31 on 2026-09-10. Auth done
   (PR #33, merged 2026-09-10); the Version Packages PR the bot opens for it is not merged yet.
 - Package loop: none in flight.
-- Last commit on `main`: 9e3f1f6, PR #33 (auth export-surface refactor).
+- Last commit on `main`: 9e3f1f6, PR #33 (auth export-surface refactor). The brief for the payments
+  session is `docs/next-session-payments.md`; that PR deletes it.
 - Published: every `@hearthkit/*` package at 0.3.0 on npm with provenance and an MIT license.
 - Next: step 5 finishes with `refactor/exports-payments` through the `next-package` loop, then
   step 6. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15
