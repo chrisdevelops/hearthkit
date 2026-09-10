@@ -1,19 +1,10 @@
-/** Public entry point of @hearthkit/email: a named re-export of exactly the surface the contract lists, so no internal module is importable by consumers. */
-
-/** Narrows the validated environment into the transport union at boot, naming every missing variable at once. */
-export { resolveEmailTransportConfig } from './resolve-email-transport-config.ts'
-
-/** Renders both parts of one message from one template; contacts nothing, so it needs no transport. */
-export { renderTransactionalEmail } from './render-transactional-email.ts'
-
-/** Renders then sends to exactly one recipient over a transport built and closed inside the call. */
-export { sendTransactionalEmail } from './send-transactional-email.ts'
-
-/** The shipped one-time sign-in link template, named magic-link-sign-in. */
-export { magicLinkEmailTemplate } from './magic-link-email-template.tsx'
-
-/** The shipped one-time password reset template, named password-reset. */
-export { passwordResetEmailTemplate } from './password-reset-email-template.tsx'
+/**
+ * The ./email-contract subpath of @hearthkit/email: a JSX-free named re-export of the ten contract
+ * values and every public type, and nothing that reaches a template. It exists because the `.` entry
+ * transitively imports the `.tsx` template modules, which a bare `node` process refuses to load,
+ * while this file and email-contract.ts import only zod plus a type-only react specifier that is
+ * erased. That is the subpath @hearthkit/auth imports and a bare node process can load.
+ */
 
 /** Contract values: the env fragment config composes, the failure union schema, and the transport input every send takes. */
 export {
@@ -65,7 +56,7 @@ export type {
   TransactionalEmailTemplate,
 } from './email-contract.ts'
 
-/** Contract types: the option, result and function shapes of every function above. */
+/** Contract types: the option, result and function shapes of the three functions the `.` entry exports. */
 export type {
   RenderTransactionalEmail,
   RenderTransactionalEmailOptions,

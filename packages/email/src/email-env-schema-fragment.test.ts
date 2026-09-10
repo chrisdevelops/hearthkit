@@ -6,11 +6,14 @@ import {
   runEmailContractUnderBareNode,
 } from '../test-fixtures/email-package-entry-points.ts'
 import {
+  hearthkitEmailContractSubpathValueExportNames,
+  hearthkitEmailEntryValueExportNames,
+  importHearthkitEmailContractSubpathNamespace,
   importHearthkitEmailNamespace,
   loadHearthkitEmailEntry,
 } from '../test-fixtures/hearthkit-email-entry.ts'
 import * as emailContract from './email-contract.ts'
-import { defaultResendBaseUrl } from './email-contract.ts'
+import { defaultResendBaseUrl, transactionalEmailTemplateSchema } from './email-contract.ts'
 
 const completeSmtpEmailEnv = {
   EMAIL_TRANSPORT: 'smtp',
@@ -28,49 +31,6 @@ const everyEmailVariableName = [
   'EMAIL_SMTP_PORT',
   'EMAIL_SMTP_USER',
   'EMAIL_TRANSPORT',
-] as const
-
-// The rule packages/email/CONTRACT.md states for the entry point is mechanical: every value
-// email-contract.ts exports is re-exported from src/index.ts, with no exceptions. So the required list
-// is read off the contract module's own namespace rather than typed out here. A hand-written list
-// would have to be extended by hand every time the contract grows an export, and would silently fall
-// behind the day someone forgot; a derived list cannot.
-//
-// A module namespace carries value exports only. Every `export type` in email-contract.ts is erased
-// before this file runs, so the types CONTRACT.md also asks the entry point to re-export are outside
-// what this gate can see and are covered by typecheck instead.
-function contractValueExportNames(contractModule: Record<string, unknown>): string[] {
-  return Object.keys(contractModule).toSorted()
-}
-
-// CONTRACT.md names these in so many words: the six message-prefix constants and the six result
-// schemas a caller needs to validate a narrowed result. They are spelled out as strings so that
-// renaming one in the contract fails this gate loudly, instead of quietly shrinking the derived list
-// to a set an entry point already satisfies.
-const contractExportNamesTheContractNamesOutright = [
-  'emailTransportConfigIncompleteErrorPrefix',
-  'emailRecipientInvalidErrorPrefix',
-  'emailTemplateRenderFailedErrorPrefix',
-  'emailTransportUnreachableErrorPrefix',
-  'emailTransportRejectedErrorPrefix',
-  'emailSendFailedErrorPrefix',
-  'emailEnvSchemaFragment',
-  'emailFailureSchema',
-  'emailTransportConfigResolvedSchema',
-  'transactionalEmailRenderedSchema',
-  'transactionalEmailSentSchema',
-  'resolveEmailTransportConfigResultSchema',
-  'renderTransactionalEmailResultSchema',
-  'sendTransactionalEmailResultSchema',
-] as const
-
-// Not exported by email-contract.ts, so the derived list above cannot cover them.
-const entryPointOnlyExportNames = [
-  'resolveEmailTransportConfig',
-  'renderTransactionalEmail',
-  'sendTransactionalEmail',
-  'magicLinkEmailTemplate',
-  'passwordResetEmailTemplate',
 ] as const
 
 describe('emailEnvSchemaFragment', () => {
@@ -163,30 +123,33 @@ describe('emailEnvSchemaFragment', () => {
 })
 
 describe('@hearthkit/email entry point', () => {
-  it('re-exports by name every value email-contract.ts exports, plus the three functions and the two templates', async () => {
+  it('exports exactly the fifteen allowlisted values and nothing else, each schema the value email-contract.ts already exports', async () => {
     const namespace = await importHearthkitEmailNamespace()
     const contractModule = emailContract as unknown as Record<string, unknown>
-    const requiredExportNames = contractValueExportNames(contractModule)
 
-    const renamedInTheContract = contractExportNamesTheContractNamesOutright.filter(
-      (exportName) => !requiredExportNames.includes(exportName),
-    )
+    // A module namespace carries value exports only, so every `export type` is already erased here and
+    // the types CONTRACT.md keeps on the entry point are covered by typecheck instead. Both lists are
+    // compared whole rather than name by name, so a failure names every wrong export at once instead
+    // of stopping at the first and hiding the rest behind a rerun.
+    const actualValueExportNames = Object.keys(namespace)
+      .filter((exportName) => namespace[exportName] !== undefined)
+      .toSorted()
     expect(
-      renamedInTheContract,
-      'email-contract.ts must still export the constants and schemas CONTRACT.md names outright',
-    ).toEqual([])
+      actualValueExportNames,
+      'src/index.ts must export exactly the allowlist in CONTRACT.md "Package entry point"',
+    ).toEqual([...hearthkitEmailEntryValueExportNames].toSorted())
 
-    // Both lists are compared whole rather than one name at a time, so a failure names every export
-    // that is wrong instead of stopping at the first and hiding the rest behind a rerun.
-    const missingFromTheEntryPoint = requiredExportNames.filter(
-      (exportName) => namespace[exportName] === undefined,
+    // Split by origin: the ten schemas come from email-contract.ts, the three functions and the two
+    // templates come from their own implementation modules. A schema renamed in the contract falls out
+    // of the first group and fails the second assertion by name, so neither check can go quiet.
+    const fromTheContractModule = hearthkitEmailEntryValueExportNames.filter(
+      (exportName) => contractModule[exportName] !== undefined,
     )
-    expect(
-      missingFromTheEntryPoint,
-      'src/index.ts must re-export these by name from email-contract.ts',
-    ).toEqual([])
+    const fromAnImplementationModule = hearthkitEmailEntryValueExportNames.filter(
+      (exportName) => contractModule[exportName] === undefined,
+    )
 
-    const rebuiltInsteadOfReExported = requiredExportNames.filter(
+    const rebuiltInsteadOfReExported = fromTheContractModule.filter(
       (exportName) => namespace[exportName] !== contractModule[exportName],
     )
     expect(
@@ -194,25 +157,47 @@ describe('@hearthkit/email entry point', () => {
       'these must be the identical value email-contract.ts exports, not a second copy of it',
     ).toEqual([])
 
-    const missingImplementationExports = entryPointOnlyExportNames.filter(
-      (exportName) => namespace[exportName] === undefined,
+    // The two templates are objects, so they are checked against the contract's own template schema
+    // rather than by typeof; everything else email-contract.ts does not export is a public function.
+    const notAFunctionOrATemplate = fromAnImplementationModule.filter((exportName) =>
+      exportName === 'magicLinkEmailTemplate' || exportName === 'passwordResetEmailTemplate'
+        ? !transactionalEmailTemplateSchema.safeParse(namespace[exportName]).success
+        : typeof namespace[exportName] !== 'function',
     )
     expect(
-      missingImplementationExports,
-      'src/index.ts must re-export the public functions and the shipped templates by name',
+      notAFunctionOrATemplate,
+      'every allowlisted name email-contract.ts does not export must be one of the three functions or the two templates',
     ).toEqual([])
   })
 
-  it('publishes ./email-contract as a second subpath that a bare node process can load without touching a template', async () => {
+  it('publishes ./email-contract as a second subpath carrying the ten schemas, loadable by a bare node process without touching a template', async () => {
     const manifest = await readEmailPackageManifest()
     expect(manifest.packageName).toBe('@hearthkit/email')
     expect(Object.keys(manifest.exportsMap).toSorted()).toEqual(['.', './email-contract'])
     expect(JSON.stringify(manifest.exportsMap['./email-contract'])).toContain(
-      './src/email-contract.ts',
+      './src/email-contract-entry.ts',
     )
 
+    const subpathNamespace = await importHearthkitEmailContractSubpathNamespace()
+    const contractModule = emailContract as unknown as Record<string, unknown>
+    const subpathValueExportNames = Object.keys(subpathNamespace)
+      .filter((exportName) => subpathNamespace[exportName] !== undefined)
+      .toSorted()
+    expect(
+      subpathValueExportNames,
+      'src/email-contract-entry.ts must export exactly the ten allowlisted names that live in email-contract.ts',
+    ).toEqual([...hearthkitEmailContractSubpathValueExportNames].toSorted())
+
+    const rebuiltInsteadOfReExported = hearthkitEmailContractSubpathValueExportNames.filter(
+      (exportName) => subpathNamespace[exportName] !== contractModule[exportName],
+    )
+    expect(
+      rebuiltInsteadOfReExported,
+      'these must be the identical value email-contract.ts exports, not a second copy of it',
+    ).toEqual([])
+
     // The reason the subpath exists: the `.` entry transitively imports .tsx template modules, which
-    // bare node refuses, while this file imports zod and a type-only react specifier and must run.
+    // bare node refuses, while these files import zod and a type-only react specifier and must run.
     const bareNodeRun = await runEmailContractUnderBareNode()
     expect(bareNodeRun.exitCode, bareNodeRun.standardError).toBe(0)
   })

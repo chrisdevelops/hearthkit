@@ -37,7 +37,9 @@ export default defineConfig({
       },
       {
         find: /^@hearthkit\/email\/email-contract$/,
-        replacement: fileURLToPath(new URL('../email/src/email-contract.ts', import.meta.url)),
+        replacement: fileURLToPath(
+          new URL('../email/src/email-contract-entry.ts', import.meta.url),
+        ),
       },
       {
         find: /^@hearthkit\/config$/,
