@@ -25,7 +25,7 @@ export default defineConfig({
       },
       {
         find: /^@hearthkit\/auth\/auth-contract$/,
-        replacement: fileURLToPath(new URL('./src/auth-contract.ts', import.meta.url)),
+        replacement: fileURLToPath(new URL('./src/auth-contract-entry.ts', import.meta.url)),
       },
       {
         find: /^@hearthkit\/db$/,

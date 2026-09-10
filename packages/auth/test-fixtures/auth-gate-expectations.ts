@@ -72,15 +72,19 @@ export function expectContractStringExport(value: unknown, exportName: string): 
 }
 
 /**
- * The same guard for a numeric constant, such as the pair of HTTP statuses the organizations flag is
- * asserted through. A comparison against an undefined import would fail anyway, but it would fail
- * saying "expected 404 to be undefined", which points at the server rather than at the rename.
+ * Better Auth's own literals and statuses, measured at better-auth@1.7.2 and kept here rather than on
+ * @hearthkit/auth's surface: a gate is their only reader, so publishing them would make an upstream
+ * spelling part of this package's public contract. Re-measure them on every dependency bump.
  */
-export function expectContractNumberExport(value: unknown, exportName: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(
-      `gate expected ${exportName} to be a number exported by auth-contract.ts, received ${String(value)}`,
-    )
-  }
-  return value
-}
+
+/** The `error` query parameter value a rejected magic link redirect carries; the only place the rejection is spelled. */
+export const betterAuthInvalidTokenErrorValue = 'INVALID_TOKEN'
+
+/** `error.body?.code` when createOrganization is called with a slug that is already taken; adjacent to the near-miss ORGANIZATION_SLUG_ALREADY_TAKEN, which this endpoint never throws. */
+export const betterAuthOrganizationAlreadyExistsErrorCode = 'ORGANIZATION_ALREADY_EXISTS'
+
+/** The status a server built with organizations off answers an organization route with: the route is not mounted at all. */
+export const organizationRouteAbsentHttpStatus = 404
+
+/** The status a server built with organizations on answers the same route with when the request carries no session. */
+export const organizationRouteUnauthorizedHttpStatus = 401

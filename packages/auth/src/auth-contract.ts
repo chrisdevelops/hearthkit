@@ -61,8 +61,8 @@ export const betterAuthInvalidCredentialsErrorCode = 'INVALID_EMAIL_OR_PASSWORD'
 export const betterAuthEmailAlreadyRegisteredErrorCode = 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
 
 // This maps to no named failure. It arrives inside auth-request-failed as `authErrorCode`, which is
-// what stops that catch-all being a dead end, and it is exported so a caller and a gate share one
-// spelling. `ORGANIZATION_SLUG_ALREADY_TAKEN` is a second, distinct entry in the same organization
+// what stops that catch-all being a dead end. Internal, not part of the package entry: its only
+// reader is a gate. `ORGANIZATION_SLUG_ALREADY_TAKEN` is a second, distinct entry in the same organization
 // $ERROR_CODES object, one line away, and is NOT what this endpoint throws — the same decoy shape as
 // `USER_ALREADY_EXISTS` beside `USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL`. `SLUG_TAKEN` is not an error
 // code in this library at all; an earlier revision of this contract illustrated the case with it.
@@ -72,8 +72,9 @@ export const betterAuthEmailAlreadyRegisteredErrorCode = 'USER_ALREADY_EXISTS_US
 /** Better Auth error code when an organization slug is already used, read from error.body?.code; HTTP 400. */
 export const betterAuthOrganizationAlreadyExistsErrorCode = 'ORGANIZATION_ALREADY_EXISTS'
 
-// Exported for symmetry with the code above and with the 404/401 pair below: every HTTP status this
-// contract pins has a name, so no gate writes one of these numbers bare. It arrives on
+// Named for symmetry with the code above and with the 404/401 pair below: every HTTP status this
+// contract pins has a name, so no gate writes one of these numbers bare. Internal, like the code
+// above; a gate is its only reader. It arrives on
 // auth-request-failed as `authErrorStatus`, which is read from `error.statusCode` — never from
 // `error.status`, which holds the string name rather than the number.
 /** HTTP status of the organization slug collision, measured at the pin; pairs with the error code above. */
@@ -507,8 +508,8 @@ export type ResolveAuthRuntimeConfigOptions = {
   requestedSocialProviders?: readonly SocialAuthProviderName[]
 }
 
-/** Success shape of resolveAuthRuntimeConfig; every requested and every half-configured provider was complete. */
-export const authRuntimeConfigResolvedSchema = z.object({
+/** Success shape of resolveAuthRuntimeConfig; module-private, reachable only through the result union below. */
+const authRuntimeConfigResolvedSchema = z.object({
   kind: z.literal('auth-runtime-config-resolved'),
   authRuntimeConfig: authRuntimeConfigSchema,
 })
@@ -549,8 +550,8 @@ export type CreateAuthServerInstanceOptions = {
   magicLinkExpirySeconds?: number
 }
 
-/** Success shape of createAuthServerInstance; the instance carries the organization endpoints only when the flag was on. */
-export const authServerInstanceCreatedSchema = z.object({
+/** Success shape of createAuthServerInstance; module-private, the instance carries the organization endpoints only when the flag was on. */
+const authServerInstanceCreatedSchema = z.object({
   kind: z.literal('auth-server-instance-created'),
   authServerInstance: authServerInstanceSchema,
   organizationsEnabled: z.boolean(),
@@ -679,15 +680,15 @@ export type ReadAuthSessionOptions = {
   requestHeaders: Headers
 }
 
-/** Success shape of readAuthSession when a valid session cookie was present. */
-export const authSessionActiveSchema = z.object({
+/** Success shape of readAuthSession when a valid session cookie was present; module-private. */
+const authSessionActiveSchema = z.object({
   kind: z.literal('auth-session-active'),
   authSession: authSessionSchema,
   authUser: authUserSchema,
 })
 
-/** Success shape of readAuthSession when nobody is signed in; this is a normal answer, not a failure. */
-export const authSessionAbsentSchema = z.object({
+/** Success shape of readAuthSession when nobody is signed in; module-private, and a normal answer rather than a failure. */
+const authSessionAbsentSchema = z.object({
   kind: z.literal('auth-session-absent'),
 })
 
@@ -720,8 +721,8 @@ export type SignUpWithPasswordOptions = {
   name: string
 }
 
-/** Success shape of signUpWithPassword; a session is always created, because this package pins automatic sign in on. */
-export const authSignedUpSchema = z.object({
+/** Success shape of signUpWithPassword; module-private, a session is always created because automatic sign in is pinned on. */
+const authSignedUpSchema = z.object({
   kind: z.literal('auth-signed-up'),
   authUser: authUserSchema,
   authSessionCookie: authSessionCookieSchema,
@@ -752,8 +753,8 @@ export type SignInWithPasswordOptions = {
   password: string
 }
 
-/** Success shape of signInWithPassword; the cookie is the credential the next call needs. */
-export const authSignedInSchema = z.object({
+/** Success shape of signInWithPassword and completeMagicLinkSignIn; module-private, the cookie is the credential the next call needs. */
+const authSignedInSchema = z.object({
   kind: z.literal('auth-signed-in'),
   authUser: authUserSchema,
   authSessionCookie: authSessionCookieSchema,
@@ -784,8 +785,8 @@ export type RequestMagicLinkSignInOptions = {
   callbackUrl?: string
 }
 
-/** Success shape of requestMagicLinkSignIn; the link itself is never returned, only the fact that the message was accepted. */
-export const authMagicLinkSentSchema = z.object({
+/** Success shape of requestMagicLinkSignIn; module-private, the link itself is never returned, only that the message was accepted. */
+const authMagicLinkSentSchema = z.object({
   kind: z.literal('auth-magic-link-sent'),
   to: authUserEmailSchema,
   transportMessageId: z.custom<TransportMessageId>(
@@ -846,8 +847,8 @@ export type CreateAuthOrganizationOptions = {
   ownerAuthUserId: string
 }
 
-/** Success shape of createAuthOrganization; the owner already has a membership row when this returns. */
-export const authOrganizationCreatedSchema = z.object({
+/** Success shape of createAuthOrganization; module-private, the owner already has a membership row when this returns. */
+const authOrganizationCreatedSchema = z.object({
   kind: z.literal('auth-organization-created'),
   authOrganizationId: authOrganizationIdSchema,
   organizationName: authOrganizationNameSchema,
@@ -885,8 +886,8 @@ export type AddAuthOrganizationMemberOptions = {
   memberRole: AuthMemberRole
 }
 
-/** Success shape of addAuthOrganizationMember; one membership row now joins the user to the organization. */
-export const authOrganizationMemberAddedSchema = z.object({
+/** Success shape of addAuthOrganizationMember; module-private, one membership row now joins the user to the organization. */
+const authOrganizationMemberAddedSchema = z.object({
   kind: z.literal('auth-organization-member-added'),
   authMemberId: authMemberIdSchema,
   authOrganizationId: authOrganizationIdSchema,
@@ -918,14 +919,14 @@ export type VerifyAuthTablesExistOptions = {
   drizzleClient: NodePgDatabase<Record<string, unknown>>
 }
 
-/** Result shape when every auth table is present in the public schema, in both user-scoped and org-scoped mode. */
-export const authTablesPresentSchema = z.object({
+/** Result shape when every auth table is present in the public schema; module-private, holds in both modes. */
+const authTablesPresentSchema = z.object({
   kind: z.literal('auth-tables-present'),
   presentTableNames: z.array(hearthkitAuthTableNameSchema).min(1),
 })
 
-/** Result shape when at least one auth table is absent; this is a successful check reporting a negative answer. */
-export const authTablesMissingSchema = z.object({
+/** Result shape when at least one auth table is absent; module-private, a successful check reporting a negative answer. */
+const authTablesMissingSchema = z.object({
   kind: z.literal('auth-tables-missing'),
   missingTableNames: z.array(hearthkitAuthTableNameSchema).min(1),
 })

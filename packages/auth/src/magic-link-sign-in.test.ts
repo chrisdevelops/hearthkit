@@ -1,5 +1,9 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { expectAuthFailure, expectResultKind } from '../test-fixtures/auth-gate-expectations.ts'
+import {
+  betterAuthInvalidTokenErrorValue,
+  expectAuthFailure,
+  expectResultKind,
+} from '../test-fixtures/auth-gate-expectations.ts'
 import { defineGateFileContext } from '../test-fixtures/auth-gate-file-context.ts'
 import {
   findGateMailpitMessageBySubject,
@@ -26,7 +30,6 @@ import {
   type HearthkitAuthEntry,
 } from '../test-fixtures/hearthkit-auth-entry.ts'
 import {
-  betterAuthInvalidTokenErrorValue,
   completeMagicLinkSignInResultSchema,
   magicLinkTokenQueryParameterName,
   requestMagicLinkSignInResultSchema,
