@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "description": "Opinionated stack for shipping many small TypeScript web projects",
+  "license": "MIT",
   "engines": {
     "node": "24.20.0"
   },
