@@ -55,6 +55,14 @@ export async function runDoctorCommand(context: CliRuntimeContext): Promise<CliC
     await readPostgresClientToolsCheck(context),
     await readAdminDatabaseReachableCheck(context),
     readCliEnvVariablesCheck(context),
+    // hearthkit infra apply shells out to this binary; nothing else in the CLI needs it, so its
+    // absence is reported rather than skipped or inferred from another check.
+    await readCommandAvailabilityCheck({
+      checkName: 'tofu-cli-available',
+      commandName: 'tofu',
+      commandArguments: ['version'],
+      context,
+    }),
   ]
 
   const singleLineChecks = checks.map((check) => ({

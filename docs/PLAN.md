@@ -39,7 +39,7 @@ Guiding rules that every decision below follows:
 | Deploy          | Dokploy on Ubuntu VPS                              | 0.30.2                                |
 | Errors          | GlitchTip self-hosted                              | latest                                |
 | Uptime          | Uptime Kuma self-hosted, Sentry free tier external | latest                                |
-| Cloud           | OpenTofu, Cloudflare provider                      | latest                                |
+| Cloud           | OpenTofu 1.12.6, Cloudflare provider 5.24.0        | exact pins                            |
 | Testing         | Vitest, Playwright                                 | latest                                |
 | Releases        | Changesets                                         | latest                                |
 
@@ -58,13 +58,12 @@ hearthkit/
     email/            @hearthkit/email
     payments/         @hearthkit/payments
     storage/          @hearthkit/storage
-    cli/              @hearthkit/cli        (bin: hearthkit)
+    cli/              @hearthkit/cli        (bin: hearthkit; ships tofu/cloudflare/, the v1 provider module)
     create/           @hearthkit/create     (pnpm create @hearthkit)
   templates/
     app/              Next.js app template consumed by create
   infra/
-    tofu/             Provider interface (PROVIDER-CONTRACT.md) and its implementations
-      cloudflare/     The one v1 implementation: Cloudflare DNS, R2, token, CORS
+    tofu/             Provider interface only (PROVIDER-CONTRACT.md); implementations ship in the cli
     vps/              Shared-service compose files and bootstrap assets
   docs/
     PLAN.md           This file: what hearthkit is
@@ -307,17 +306,17 @@ Backups: a scheduled job on the VPS runs `hearthkit db backup` for every databas
 
 `infra/tofu/PROVIDER-CONTRACT.md` defines the contract every provider implements. The CLI and the generated project depend on the contract, not on a provider.
 
-- Inputs: `project_name`, `zone_name`, `host_ip`.
+- Inputs: `project_name`, `zone_name`, `zone_id`, `account_id`, `host_ip`. No data source: the ids are inputs, which is what lets a gate plan against a dummy token with no account.
 - Outputs: `hostname`, `storage_endpoint`, `storage_bucket`, `storage_access_key_id`, `storage_secret_access_key`, `dsn_hint`.
 
-`infra/tofu/cloudflare/` is the one implementation in v1, selected by `HEARTHKIT_INFRA_PROVIDER=cloudflare`. It creates:
+`packages/cli/tofu/cloudflare/` is the one implementation in v1, shipped in the published `@hearthkit/cli` files and selected by `HEARTHKIT_INFRA_PROVIDER=cloudflare`. The CLI runs it with `tofu -chdir` and `TF_DATA_DIR=<project>/infra/.terraform`. It creates:
 
 - A DNS record pointing the project's hostname at the VPS.
 - An R2 bucket named after the project.
 - A scoped R2 API token, output as the storage credentials.
 - CORS rules on the bucket for presigned browser uploads.
 
-State stored in an R2 bucket dedicated to OpenTofu state, encrypted with OpenTofu's state encryption. HCL is allowed only under `infra/tofu/`. A second provider is a v1.1 decision; the interface is what keeps it open.
+State stored in an R2 bucket dedicated to OpenTofu state, encrypted with OpenTofu's state encryption. HCL is allowed only inside a provider module directory, which in v1 is `packages/cli/tofu/cloudflare/`. A second provider is a v1.1 decision; the interface is what keeps it open.
 
 ### 8.3 Monitoring
 

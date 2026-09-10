@@ -135,9 +135,29 @@ describe('the tree createHearthkitProject writes', () => {
       }
     }
 
-    // One assignment, the project name, and nothing Phase 7 has not decided yet.
+    // Five assignments: the project name filled in, and the four inputs create cannot know left
+    // blank under a one-line comment each, which is what hearthkit infra apply refuses to run on.
+    // The file is pinned line by line, in order, so nothing else can appear in it. Comment prose is
+    // normalised to `#` rather than quoted: the contract fixes that a comment is there and says
+    // where the value comes from, not the words it uses.
     const tfvarsText = await readProjectFileText(projectDirectoryPath, 'infra/tofu.tfvars')
-    expect(tfvarsText.trim()).toBe(`project_name = "${created.projectName}"`)
+    const tfvarsLinesWithCommentProseNormalised = tfvarsText
+      .split('\n')
+      .map((line) => (line.startsWith('# ') && line.trim().length > 2 ? '#' : line))
+    expect(tfvarsLinesWithCommentProseNormalised).toEqual([
+      '#',
+      `project_name = "${created.projectName}"`,
+      '#',
+      'zone_name = ""',
+      '#',
+      'zone_id = ""',
+      '#',
+      'account_id = ""',
+      '#',
+      'host_ip = ""',
+      // The file ends with a newline and nothing after it.
+      '',
+    ])
   })
 
   it('keeps every section and derives all three infra services when every package is selected', async () => {

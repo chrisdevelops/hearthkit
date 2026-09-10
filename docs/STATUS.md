@@ -10,7 +10,7 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Current work: step 5 (export-surface refactor) is complete. Storage (PR #28, published 0.2.0 via
   #29), email (PR #30) and ui (PR #32), published as 0.3.0 via #31 on 2026-09-10, auth (PR #33) and
   payments (PR #35). Published as 0.4.0 via #34 on 2026-09-10.
-- Package loop: none in flight.
+- Package loop: step 6.1 in flight on `infra/tofu-cloudflare`, step `commit`, round 1.
 - Last commit on `main`: c0d25a2, PR #34 (Version Packages, 0.4.0).
 - Published: every `@hearthkit/*` package at 0.4.0 on npm with provenance and an MIT license.
 - Next: step 6.1 (Phase 7, infrastructure), branch `infra/tofu-cloudflare`; its brief is
@@ -45,9 +45,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes |
-| ------- | ---- | ------------------ | ----- |
-| none    |      |                    |       |
+| Package                                                        | Step      | Implementor rounds | Notes                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------- | --------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| infra 6.1 (`packages/cli/tofu/cloudflare` + cli `infra apply`) | implement | 1                  | branch `infra/tofu-cloudflare`; brief `docs/next-session-infra.md`. Rulings 2026-09-10: module ships inside the cli tarball; secret never written to `.env.production.example`, printed once; state creds on all three tofu runs; per-bucket group is `Workers R2 Storage Bucket Item Write` |
 
 ## Open issues
 

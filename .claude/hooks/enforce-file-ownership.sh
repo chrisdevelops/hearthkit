@@ -35,6 +35,8 @@ case "$ROLE" in
   contract-author)
     case "$REL" in
       packages/*/CONTRACT.md|templates/*/CONTRACT.md) exit 0 ;;
+      # Step 6.1: the infra provider contract lives outside packages/ and templates/.
+      infra/tofu/PROVIDER-CONTRACT.md) exit 0 ;;
       packages/*/src/*-contract.ts|templates/*/src/*-contract.ts) exit 0 ;;
       *) block "contract-author edits only CONTRACT.md and *-contract.ts, under packages/ or templates/." ;;
     esac
@@ -65,6 +67,7 @@ case "$ROLE" in
       */test-fixtures/*) block "Gate fixtures are owned by gate-writer. Report the problem instead." ;;
       *-contract.ts) block "Contracts are owned by contract-author. Report the problem instead." ;;
       */CONTRACT.md) block "Contracts are owned by contract-author. Report the problem instead." ;;
+      infra/tofu/PROVIDER-CONTRACT.md) block "Contracts are owned by contract-author. Report the problem instead." ;;
       .claude/*) block "Agent configuration is owned by the user." ;;
       docs/PLAN.md|docs/STATUS.md) block "Plan and status are owned by the orchestrator." ;;
       *) exit 0 ;;

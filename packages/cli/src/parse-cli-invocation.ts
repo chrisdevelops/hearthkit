@@ -45,6 +45,7 @@ const allowedFlagNamesByCommandPath: Record<CliCommandPath, readonly string[]> =
   'dev infra down': [],
   doctor: ['--json'],
   'payments sync': ['--catalog'],
+  'infra apply': [],
 }
 
 /** How many words follow the command itself; checked before any word is handed to a schema. */
@@ -59,6 +60,7 @@ const commandArgumentCountByPath: Record<CliCommandPath, number> = {
   'dev infra down': 0,
   doctor: 0,
   'payments sync': 0,
+  'infra apply': 0,
 }
 
 /** A parsed invocation ready to run, or the failure to report; parsing never throws and never runs a command. */
@@ -254,7 +256,12 @@ function buildCliInvocation(options: {
 }): CliInvocationParse {
   const { commandPath, commandArguments, flagValues, context } = options
 
-  if (commandPath === 'dev' || commandPath === 'dev infra up' || commandPath === 'dev infra down') {
+  if (
+    commandPath === 'dev' ||
+    commandPath === 'dev infra up' ||
+    commandPath === 'dev infra down' ||
+    commandPath === 'infra apply'
+  ) {
     return { kind: 'cli-invocation-parsed', invocation: { commandPath } }
   }
 

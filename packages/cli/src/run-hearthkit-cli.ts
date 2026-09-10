@@ -6,6 +6,7 @@ import { runDbLifecycleCommand } from './run-db-lifecycle-command.ts'
 import { runDevCommand } from './run-dev-command.ts'
 import { runDevInfraDownCommand, runDevInfraUpCommand } from './run-dev-infra-command.ts'
 import { runDoctorCommand } from './run-doctor-checks.ts'
+import { runInfraApplyCommand } from './run-infra-apply-command.ts'
 import { runPaymentsSyncCommand } from './run-payments-sync-command.ts'
 
 /**
@@ -55,6 +56,9 @@ async function runCliCommandInvocation(options: {
   }
   if (invocation.commandPath === 'payments sync') {
     return runPaymentsSyncCommand({ catalogPath: invocation.catalogPath, context })
+  }
+  if (invocation.commandPath === 'infra apply') {
+    return runInfraApplyCommand(context)
   }
   // Everything left is a db command, and it has to be: a command path added to the enum without a
   // handler here fails to typecheck against DbLifecycleInvocation rather than falling through.

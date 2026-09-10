@@ -48,6 +48,22 @@ export const cliPaymentsCatalogUnloadableErrorPrefix = 'hearthkit cli payments c
 /** Unique literal prefix of the error message when @hearthkit/payments returned a failure while building the client or syncing; the payments message follows the prefix. */
 export const cliPaymentsSyncFailedErrorPrefix = 'hearthkit cli payments sync failed:'
 
+/** Unique literal prefix of the error message when HEARTHKIT_INFRA_PROVIDER is unset, empty, or not cloudflare; checked before any tofu process starts. */
+export const cliInfraProviderUnsupportedErrorPrefix = 'hearthkit cli infra provider unsupported:'
+
+/** Unique literal prefix of the error message when any of the four infra apply secret variables is unset or empty, or the passphrase is shorter than 16 characters; the message names every failing variable. */
+export const cliInfraEnvMissingErrorPrefix = 'hearthkit cli infra env missing:'
+
+/** Unique literal prefix of the error message when infra/tofu.tfvars is absent or any of its five inputs is blank; the message names every blank or absent input. */
+export const cliInfraTfvarsIncompleteErrorPrefix = 'hearthkit cli infra tfvars incomplete:'
+
+/** Unique literal prefix of the error message when the project has no .env.production.example for infra apply to rewrite. */
+export const cliInfraEnvProductionExampleMissingErrorPrefix =
+  'hearthkit cli infra env production example missing:'
+
+/** Unique literal prefix of the error message when tofu is not on PATH, or tofu init, apply or output exited nonzero or omitted an output; tofu's stderr follows with the four secrets scrubbed. */
+export const cliInfraTofuFailedErrorPrefix = 'hearthkit cli infra tofu failed:'
+
 /** Unique literal prefix of the one-time stderr warning printed by hearthkit db create that the credentials are shown once and never persisted. */
 export const cliDbCreateCredentialsWarningPrefix = 'hearthkit db create warning:'
 
@@ -71,6 +87,90 @@ export const cliDevInfraDownCompleteLinePrefix = 'hearthkit dev infra down compl
 
 /** Unique literal prefix of the single stdout success line of hearthkit payments sync; the line carries the created, replaced and unchanged price counts. */
 export const cliPaymentsSyncCompleteLinePrefix = 'hearthkit payments sync complete:'
+
+/** Unique literal prefix of the single stdout success line of hearthkit infra apply; the line carries the hostname and the rewritten example file path, never a secret. */
+export const cliInfraApplyCompleteLinePrefix = 'hearthkit infra apply complete:'
+
+/** Name of the env variable selecting the infrastructure provider module for hearthkit infra apply; only the value cloudflare is accepted. */
+export const infraProviderEnvVariableName = 'HEARTHKIT_INFRA_PROVIDER'
+
+/** Name of the env variable holding the operator's Cloudflare API token; passed to the child environment of tofu apply only, never written to a file. */
+export const cloudflareApiTokenEnvVariableName = 'CLOUDFLARE_API_TOKEN'
+
+/** Name of the env variable holding the R2 access key id for the hearthkit-tofu-state bucket; becomes AWS_ACCESS_KEY_ID in the tofu child environment only. */
+export const tofuStateAccessKeyIdEnvVariableName = 'HEARTHKIT_TOFU_STATE_ACCESS_KEY_ID'
+
+/** Name of the env variable holding the R2 secret for the hearthkit-tofu-state bucket; becomes AWS_SECRET_ACCESS_KEY in the tofu child environment only. */
+export const tofuStateSecretAccessKeyEnvVariableName = 'HEARTHKIT_TOFU_STATE_SECRET_ACCESS_KEY'
+
+/** Name of the env variable holding the OpenTofu state encryption passphrase, 16 characters or more; becomes TF_VAR_state_passphrase in the tofu child environment only. */
+export const tofuStatePassphraseEnvVariableName = 'HEARTHKIT_TOFU_STATE_PASSPHRASE'
+
+/** Minimum length of HEARTHKIT_TOFU_STATE_PASSPHRASE, OpenTofu's pbkdf2 key provider minimum; checked by the CLI before tofu runs. */
+export const tofuStatePassphraseMinimumLength = 16
+
+/** Name of the operator-created R2 bucket that holds every project's OpenTofu state; one per Cloudflare account, never created by the CLI. */
+export const tofuStateBucketName = 'hearthkit-tofu-state'
+
+/** Path, relative to cwd, of the tfvars file @hearthkit/create writes and hearthkit infra apply reads; it must assign all five module inputs. */
+export const defaultInfraTfvarsPath = './infra/tofu.tfvars'
+
+/** Path, relative to cwd, of the only file hearthkit infra apply writes; .env.production itself is never written. */
+export const envProductionExamplePath = './.env.production.example'
+
+/** The only value HEARTHKIT_INFRA_PROVIDER accepts today; a second provider is added here additively. */
+export const infraProviderNameSchema = z.enum(['cloudflare'])
+
+/** Infrastructure provider name union; selects the module directory under infra/tofu. */
+export type InfraProviderName = z.infer<typeof infraProviderNameSchema>
+
+/** The four secret env variables hearthkit infra apply requires; cli-infra-env-missing names every one that is unset, empty, or too short, together. */
+export const infraApplyRequiredEnvVariableNameSchema = z.enum([
+  cloudflareApiTokenEnvVariableName,
+  tofuStateAccessKeyIdEnvVariableName,
+  tofuStateSecretAccessKeyEnvVariableName,
+  tofuStatePassphraseEnvVariableName,
+])
+
+/** Required infra apply env variable name union; the values scrubbed from tofu stderr are exactly these four variables' values. */
+export type InfraApplyRequiredEnvVariableName = z.infer<
+  typeof infraApplyRequiredEnvVariableNameSchema
+>
+
+/** The five operator-facing module inputs infra/tofu.tfvars must assign non-blank; matches infra/tofu/PROVIDER-CONTRACT.md. */
+export const tofuInputVariableNameSchema = z.enum([
+  'project_name',
+  'zone_name',
+  'zone_id',
+  'account_id',
+  'host_ip',
+])
+
+/** Module input name union; cli-infra-tfvars-incomplete lists every blank or absent one. */
+export type TofuInputVariableName = z.infer<typeof tofuInputVariableNameSchema>
+
+/** The three tofu subcommands hearthkit infra apply runs, in this order; cli-infra-tofu-failed names the one that failed. */
+export const tofuSubcommandSchema = z.enum(['init', 'apply', 'output'])
+
+/** Tofu subcommand union; a tofu binary missing from PATH is reported as init. */
+export type TofuSubcommand = z.infer<typeof tofuSubcommandSchema>
+
+/** The four .env.production.example lines hearthkit infra apply rewrites in place, and no other; STORAGE_SECRET_ACCESS_KEY is deliberately absent because no secret is ever written to a file, and STORAGE_REGION is always auto. */
+export const infraApplyRewrittenEnvVariableNames = [
+  'STORAGE_ENDPOINT',
+  'STORAGE_BUCKET',
+  'STORAGE_ACCESS_KEY_ID',
+  'STORAGE_REGION',
+] as const
+
+/** The five STORAGE_* NAME=value lines hearthkit infra apply prints once on stdout after the complete line, in this order, for pasting into Dokploy; the secret is among them and is persisted nowhere. */
+export const infraApplyPrintedEnvVariableNames = [
+  'STORAGE_ENDPOINT',
+  'STORAGE_BUCKET',
+  'STORAGE_ACCESS_KEY_ID',
+  'STORAGE_SECRET_ACCESS_KEY',
+  'STORAGE_REGION',
+] as const
 
 /** Name of the env variable hearthkit payments sync reads for the Stripe key; the same variable @hearthkit/payments declares, read with the empty-string-is-unset rule. */
 export const stripeSecretKeyEnvVariableName = 'STRIPE_SECRET_KEY'
@@ -167,7 +267,7 @@ export type GenerateLocalInfraComposeOptions = z.infer<
 /** Signature of generateLocalInfraCompose: pure and deterministic, returns compose YAML using the localInfraServiceImageByName and localStorageBucketInitImage pins. */
 export type GenerateLocalInfraCompose = (options: GenerateLocalInfraComposeOptions) => string
 
-/** Every command path the CLI dispatches; later phases append infra apply and vps bootstrap additively. */
+/** Every command path the CLI dispatches; step 6.2 appends vps bootstrap additively. */
 export const cliCommandPathSchema = z.enum([
   'db create',
   'db drop',
@@ -179,6 +279,7 @@ export const cliCommandPathSchema = z.enum([
   'dev infra down',
   'doctor',
   'payments sync',
+  'infra apply',
 ])
 
 /** Command path union; unknown paths are a cli-usage-invalid failure, never a silent no-op. */
@@ -221,12 +322,13 @@ export const cliCommandInvocationSchema = z.discriminatedUnion('commandPath', [
     commandPath: z.literal('payments sync'),
     catalogPath: z.string().min(1),
   }),
+  z.object({ commandPath: z.literal('infra apply') }),
 ])
 
 /** Parsed invocation union; the shape command handlers receive after resolution succeeds. */
 export type CliCommandInvocation = z.infer<typeof cliCommandInvocationSchema>
 
-/** The eight doctor check names; a check may be skipped only when its prerequisite check failed. */
+/** The nine doctor check names; a check may be skipped only when its prerequisite check failed. */
 export const doctorCheckNameSchema = z.enum([
   'node-version-supported',
   'pnpm-command-available',
@@ -236,6 +338,7 @@ export const doctorCheckNameSchema = z.enum([
   'postgres-client-tools-version',
   'admin-database-reachable',
   'cli-env-variables-valid',
+  'tofu-cli-available',
 ])
 
 /** Doctor check name union; stable identifiers gates and --json consumers key on. */
@@ -329,9 +432,37 @@ export const cliFailureSchema = z.discriminatedUnion('kind', [
     paymentsFailure: paymentsFailureSchema,
     message: z.string().startsWith(cliPaymentsSyncFailedErrorPrefix),
   }),
+  z.object({
+    kind: z.literal('cli-infra-provider-unsupported'),
+    providerValue: z.string().optional(),
+    message: z.string().startsWith(cliInfraProviderUnsupportedErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('cli-infra-env-missing'),
+    missingVariableNames: z.array(infraApplyRequiredEnvVariableNameSchema).min(1),
+    detail: z.string().min(1),
+    message: z.string().startsWith(cliInfraEnvMissingErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('cli-infra-tfvars-incomplete'),
+    tfvarsPath: z.string().min(1),
+    incompleteVariableNames: z.array(tofuInputVariableNameSchema).min(1),
+    message: z.string().startsWith(cliInfraTfvarsIncompleteErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('cli-infra-env-production-example-missing'),
+    envProductionExamplePath: z.string().min(1),
+    message: z.string().startsWith(cliInfraEnvProductionExampleMissingErrorPrefix),
+  }),
+  z.object({
+    kind: z.literal('cli-infra-tofu-failed'),
+    tofuSubcommand: tofuSubcommandSchema,
+    detail: z.string().min(1),
+    message: z.string().startsWith(cliInfraTofuFailedErrorPrefix),
+  }),
 ])
 
-/** Discriminated failure union; db-command-failed wraps the DbFailure verbatim with the db message unchanged, cli-payments-sync-failed wraps the PaymentsFailure verbatim behind its own prefix. */
+/** Discriminated failure union; db-command-failed wraps the DbFailure verbatim with the db message unchanged, cli-payments-sync-failed wraps the PaymentsFailure verbatim behind its own prefix, and the five cli-infra kinds are the only ones infra apply returns besides cli-usage-invalid. */
 export type CliFailure = z.infer<typeof cliFailureSchema>
 
 /** Success shapes per command; each mirrors what the single stdout line reports so gates can check either channel. */
@@ -382,6 +513,12 @@ export const cliCommandSuccessSchema = z.discriminatedUnion('kind', [
     replacedPriceCount: z.number().int().min(0),
     unchangedPriceCount: z.number().int().min(0),
     stripeLivemode: z.boolean(),
+  }),
+  z.object({
+    kind: z.literal('infra-apply-command-succeeded'),
+    hostname: z.string().min(1),
+    envProductionExamplePath: z.string().min(1),
+    storageEnvLines: z.array(z.string().min(1)).length(infraApplyPrintedEnvVariableNames.length),
   }),
 ])
 

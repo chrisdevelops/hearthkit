@@ -20,7 +20,8 @@
     "hearthkit": "./src/hearthkit-bin-entry.js"
   },
   "files": [
-    "src"
+    "src",
+    "tofu"
   ],
   "publishConfig": {
     "access": "public"

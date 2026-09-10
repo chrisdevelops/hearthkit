@@ -8,15 +8,25 @@ import {
   cliDockerUnavailableErrorPrefix,
   cliDoctorFailedErrorPrefix,
   cliInfraComposeFailedErrorPrefix,
+  cliInfraEnvMissingErrorPrefix,
+  cliInfraEnvProductionExampleMissingErrorPrefix,
+  cliInfraProviderUnsupportedErrorPrefix,
+  cliInfraTfvarsIncompleteErrorPrefix,
+  cliInfraTofuFailedErrorPrefix,
   cliNextDevUnavailableErrorPrefix,
   cliPaymentsCatalogNotFoundErrorPrefix,
   cliPaymentsCatalogUnloadableErrorPrefix,
   cliPaymentsSyncFailedErrorPrefix,
   cliProjectManifestMissingErrorPrefix,
   cliUsageErrorPrefix,
+  infraProviderEnvVariableName,
+  infraProviderNameSchema,
   type CliFailure,
   type DoctorCheckName,
   type DoctorCheckResult,
+  type InfraApplyRequiredEnvVariableName,
+  type TofuInputVariableName,
+  type TofuSubcommand,
 } from './cli-contract.ts'
 
 /** Every failure this package returns is built here, so each message keeps its unique literal prefix in one place. */
@@ -172,4 +182,73 @@ export function paymentsSyncFailedFailure(
     paymentsFailure,
     message: `${cliPaymentsSyncFailedErrorPrefix} ${paymentsFailure.message}`,
   }
+}
+
+/** HEARTHKIT_INFRA_PROVIDER is unset, empty, or names a provider this CLI has no module for; no tofu process was started. */
+export function infraProviderUnsupportedFailure(
+  providerValue: string | undefined,
+): CliFailureOf<'cli-infra-provider-unsupported'> {
+  const acceptedValues = infraProviderNameSchema.options.join(', ')
+  return {
+    kind: 'cli-infra-provider-unsupported',
+    ...(providerValue === undefined ? {} : { providerValue }),
+    message: `${cliInfraProviderUnsupportedErrorPrefix} ${infraProviderEnvVariableName} ${
+      providerValue === undefined ? 'is not set' : `is ${JSON.stringify(providerValue)}`
+    }; hearthkit infra apply accepts ${acceptedValues}`,
+  }
+}
+
+/** One or more of the four secret variables is unset, empty, or too short; every failing one is named together. */
+export function infraEnvMissingFailure(options: {
+  missingVariableNames: InfraApplyRequiredEnvVariableName[]
+  detail: string
+}): CliFailureOf<'cli-infra-env-missing'> {
+  return {
+    kind: 'cli-infra-env-missing',
+    missingVariableNames: options.missingVariableNames,
+    detail: options.detail,
+    message: `${cliInfraEnvMissingErrorPrefix} ${options.detail}`,
+  }
+}
+
+/** infra/tofu.tfvars is absent, or leaves module inputs blank; every incomplete name travels together. */
+export function infraTfvarsIncompleteFailure(options: {
+  tfvarsPath: string
+  incompleteVariableNames: TofuInputVariableName[]
+}): CliFailureOf<'cli-infra-tfvars-incomplete'> {
+  return {
+    kind: 'cli-infra-tfvars-incomplete',
+    tfvarsPath: options.tfvarsPath,
+    incompleteVariableNames: options.incompleteVariableNames,
+    message: `${cliInfraTfvarsIncompleteErrorPrefix} ${options.tfvarsPath} leaves ${options.incompleteVariableNames.join(', ')} blank or absent`,
+  }
+}
+
+/** The project has no .env.production.example, which is the one file infra apply writes its outputs into. */
+export function infraEnvProductionExampleMissingFailure(
+  envProductionExamplePath: string,
+): CliFailureOf<'cli-infra-env-production-example-missing'> {
+  return {
+    kind: 'cli-infra-env-production-example-missing',
+    envProductionExamplePath,
+    message: `${cliInfraEnvProductionExampleMissingErrorPrefix} ${envProductionExamplePath} does not exist; scaffold it with pnpm create @hearthkit or add the file`,
+  }
+}
+
+/** tofu is not on PATH, or one subcommand exited nonzero or omitted an output; the detail is tofu's own words with every secret already redacted. */
+export function infraTofuFailedFailure(options: {
+  tofuSubcommand: TofuSubcommand
+  detail: string
+}): CliFailureOf<'cli-infra-tofu-failed'> {
+  return {
+    kind: 'cli-infra-tofu-failed',
+    tofuSubcommand: options.tofuSubcommand,
+    detail: options.detail,
+    message: `${cliInfraTofuFailedErrorPrefix} tofu ${options.tofuSubcommand}: ${collapseToOneLine(options.detail)}`,
+  }
+}
+
+/** Squeezes a failure detail onto one line, because the message is the last line stderr carries before the exit. */
+function collapseToOneLine(detail: string): string {
+  return detail.replaceAll(/\s+/g, ' ').trim()
 }

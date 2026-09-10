@@ -12,7 +12,7 @@ Opinionated stack for shipping many small TypeScript web projects. Full plan: `d
 
 ## Stack
 
-TypeScript, Node 24 LTS, pnpm, Next.js 16, React, Tailwind v4, shadcn, Drizzle 0.45 (stable), Postgres 17, Better Auth 1.7, Resend + React Email, Stripe, Cloudflare R2 (MinIO locally), Vitest, Playwright, Changesets, OpenTofu, Dokploy. Exact versions are pinned in `package.json` files. Do not upgrade without a Changeset and passing gates.
+TypeScript, Node 24 LTS, pnpm, Next.js 16, React, Tailwind v4, shadcn, Drizzle 0.45 (stable), Postgres 17, Better Auth 1.7, Resend + React Email, Stripe, Cloudflare R2 (MinIO locally), Vitest, Playwright, Changesets, OpenTofu 1.12.6, Dokploy. Exact versions are pinned in `package.json` files. Do not upgrade without a Changeset and passing gates.
 
 ## Repo layout
 
