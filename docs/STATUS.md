@@ -5,12 +5,14 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 ## Position
 
-- Phase: 6 in progress. `create` merged (completion plan step 3, PR #20).
+- Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
+  plan step 4, PRs #21, #24, #25).
 - Current work: none in flight.
 - Package loop: none in flight.
-- Last commit on `main`: 08c9000 (PR #20, `create`).
-- Next: **step 4 (first release 0.1.0)**: `chore/release-workflow` branch, then the user runbook in
-  `docs/COMPLETION-PLAN.md` 4.2.
+- Last commit on `main`: 92bcca7 (PR #25, Version Packages 0.1.1).
+- Published: every `@hearthkit/*` package at 0.1.1 on npm with provenance.
+- Next: **step 5 (export-surface refactor)**, one branch per package in the order storage, email,
+  ui, auth, payments, through the `next-package` loop.
 
 ## Phase checklist
 
@@ -25,7 +27,8 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 - [x] Phase 5: `storage` (PR #10, #11), `email` (PR #12), `auth` (PR #13), `payments` (PR #14),
       template sections and flows (PR #15, #16). 308 gates green, 6 Playwright flows green. DoD
       narrowed to the superset by plan Version 2 (completion plan step 2).
-- [ ] Phase 6: `create` done (PR #20, step 3); first release 0.1.0 (step 4) pending
+- [x] Phase 6: `create` (PR #20, step 3); 0.1.0 published, `pnpm create @hearthkit` verified from
+      the registry, trusted publishing confirmed at 0.1.1 (PR #21, #24, #25, step 4)
 - [ ] Export-surface refactor (completion plan step 5)
 - [ ] Phase 7: `infra/tofu/cloudflare`, `hearthkit vps bootstrap`, backups (step 6)
 - [ ] Phase 8: `AGENTS.md`, skills, MCP config, runbooks (step 7)
@@ -36,9 +39,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step      | Implementor rounds | Notes                                       |
-| ------- | --------- | ------------------ | ------------------------------------------- |
-| create  | implement | 2                  | branch `pkg/create`, completion plan step 3 |
+| Package | Step | Implementor rounds | Notes |
+| ------- | ---- | ------------------ | ----- |
+| none    |      |                    |       |
 
 ## Open issues
 
@@ -75,5 +78,6 @@ One line each. The full account is in `docs/HISTORY.md` under the quoted heading
   client, never extract them. ("UNBOUND METHOD in the gate's own fixture")
 - **Mailpit is shared by package gates.** Template flows use an isolated Mailpit so exact-count
   assertions in `email` are not disturbed. ("Mailpit isolation held in both directions")
-- **`stripe` writes a `<claude-code-hint>` line to stderr** when it detects Claude Code. Benign, not
-  from this repo. ("`stripe@22.6.1` WRITES AN AGENT-DIRECTED TAG")
+- **npm trusted publishers default to staged publishing.** Tick "Allow `npm publish`" under Allowed
+  actions on every package, or the release run fails with `OIDC permission denied for this
+action`. ("npm trusted publishers default to staged publishing")

@@ -3,6 +3,58 @@
 Journal of verified facts and traps, newest at the top. Search it; do not read it top to bottom.
 Entries were moved here unchanged from `docs/STATUS.md` on 2026-09-07.
 
+## 2026-09-09: completion plan step 4, first release 0.1.0 and trusted publishing confirmed at 0.1.1
+
+Orchestrator work with the user running the account steps. Evidence, in order:
+
+- PR #21 (`chore/release-workflow`, head 5193c99, CI run 34382207493 green, no skipped gates):
+  `.github/workflows/release.yml` on `changesets/action@v2` (the branch for `@changesets/cli` 3;
+  inputs are `version-script` and `publish-script`), permissions contents, pull-requests and
+  id-token write, no `NPM_TOKEN`. `scripts/assert-npm-supports-trusted-publishing.ts` asserts npm
+  11.5.1 or later before the action runs (the runner had 11.19.0).
+  `scripts/assert-package-publishable.ts` is `prepublishOnly` in all ten packages: fails on
+  private, version 0.0.0, missing `src/index.ts`, or an `exports`/`bin` target that is absent or
+  outside `files`; accepts config's one JavaScript module. Verified under `pnpm publish --dry-run`.
+  `repository` and `homepage` on every manifest. The CI changeset check skips on
+  `changeset-release/main`.
+- Repo made public; `can_approve_pull_request_reviews` set true so the action can open PRs.
+- 0.1.0: `pnpm changeset version` locally (ten packages), committed as 77bf165, published by the
+  user with `pnpm changeset publish` while logged in as the org owner, pushed with ten tags. The
+  registry answered 404 on the packuments for about two minutes after publish while the tarball
+  URLs already returned 200; `npm access list packages hearthkit` showed all ten at once.
+- 4.3, verified against the registry from an empty scratchpad directory with no `package.json` or
+  `pnpm-workspace.yaml` above it: `pnpm create @hearthkit@0.1.0 my-app --packages auth` exited 0
+  (seven `@hearthkit/*` at 0.1.0 installed, Postgres and Mailpit up, database created). The first
+  attempt failed at `infra up` because the repo's own compose Postgres held port 5432; stopping the
+  repo compose fixed it, and it was restarted afterwards. `npm view @hearthkit/create version`
+  printed 0.1.0, and 0.1.1 after the confirmation.
+- Confirmation: PR #24 (real patch changeset on config; an empty changeset bumps nothing and
+  cannot publish 0.1.1) merged, the action opened Version Packages PR #25, merged. Release run
+  34405598187 on 92bcca7 first failed with `E403 OIDC permission denied for this action` on config
+  and ui, then succeeded on rerun after the fix below. All ten at 0.1.1 with provenance
+  attestations, ten tags, ten GitHub releases.
+
+Traps found:
+
+- **npm trusted publishers default to staged publishing.** The npmjs.com form has an "Allowed
+  actions" section where only `npm stage publish` is allowed unless "Allow `npm publish`" is
+  ticked. The workflow publishes directly, so the box must be ticked on every package or the
+  registry returns `OIDC permission denied for this action` even when owner, repository and
+  workflow filename are exact. The plan's 4.2 runbook predates this field.
+- **The Version Packages PR gets no CI.** The action pushes with the built-in `GITHUB_TOKEN`, and
+  GitHub does not run workflows on those pushes, so PR #25 showed no checks. The CI run on `main`
+  after merge is the coverage; the changeset-check skip on `changeset-release/main` is moot for
+  the PR itself.
+- **Changesets for the private template are not inert.** Changesets 3 ignores
+  `@hearthkit/app-template` in `changeset version`, so five `app-template-*` changesets survived
+  the 0.1.0 version, and `changeset status` showed nothing pending, but the action still saw
+  pending files and opened an empty Version Packages PR on every push to main (#23). They were
+  deleted in PR #24; their text is in git history. Open question for the plan: whether template
+  changes should carry changesets at all, since the private package is ignored either way.
+- **The publish itself was blocked by the Claude Code auto-mode classifier.** The user ran
+  `pnpm changeset publish` by hand. Expect the same for any future manual publish.
+- No `LICENSE` file or `license` field exists; npm shows "none". Left for the user to decide.
+
 ## 2026-09-07: completion plan step 3, `create`, stopped at the three-round cap
 
 Branch `pkg/create`. Resolved 2026-09-08: the user authorized a fourth round moving the hook to
