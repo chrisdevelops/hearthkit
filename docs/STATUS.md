@@ -7,12 +7,13 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 - Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
   plan step 4, PRs #21, #24, #25).
-- Current work: step 5, `refactor/exports-storage` (storage export-surface refactor).
-- Package loop: storage, step `commit`, rounds 1.
-- Last commit on `main`: PR #27 (Version Packages 0.1.2, MIT license in every tarball).
+- Current work: step 5 (export-surface refactor), storage done (PR #28); Version Packages PR #29
+  (0.2.0) is open and unmerged. Merging it publishes.
+- Package loop: none in flight.
+- Last commit on `main`: PR #28 (storage entry point trimmed from 44 to 15 value exports).
 - Published: every `@hearthkit/*` package at 0.1.2 on npm with provenance and an MIT license.
-- Next: **step 5 (export-surface refactor)**, one branch per package in the order storage, email,
-  ui, auth, payments, through the `next-package` loop.
+- Next: step 5 continues with `refactor/exports-email`, then ui, auth, payments, each through the
+  `next-package` loop. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates, 6 flows.
 
 ## Phase checklist
 
@@ -39,9 +40,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                                                            |
-| ------- | ------ | ------------------ | ------------------------------------------------------------------------------------------------ |
-| storage | commit | 1                  | branch `refactor/exports-storage`; 44 → 15 value exports, 21 gates green, 6 flows green, PR open |
+| Package | Step | Implementor rounds | Notes |
+| ------- | ---- | ------------------ | ----- |
+| none    |      |                    |       |
 
 ## Open issues
 
