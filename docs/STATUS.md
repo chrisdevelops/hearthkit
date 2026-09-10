@@ -9,10 +9,10 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
   plan step 4, PRs #21, #24, #25).
 - Current work: step 5 (export-surface refactor) is complete. Storage (PR #28, published 0.2.0 via
   #29), email (PR #30) and ui (PR #32), published as 0.3.0 via #31 on 2026-09-10, auth (PR #33) and
-  payments (PR #35). The Version Packages PR the bot keeps open (#34) is not merged yet.
+  payments (PR #35). Published as 0.4.0 via #34 on 2026-09-10.
 - Package loop: none in flight.
-- Last commit on `main`: 8fbf31c, PR #35 (payments export-surface refactor).
-- Published: every `@hearthkit/*` package at 0.3.0 on npm with provenance and an MIT license.
+- Last commit on `main`: c0d25a2, PR #34 (Version Packages, 0.4.0).
+- Published: every `@hearthkit/*` package at 0.4.0 on npm with provenance and an MIT license.
 - Next: step 6 (Phase 7, infrastructure), branch `infra/tofu-cloudflare` first. Step 5 results.
   Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15 on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
   Ui: 59 → 47 on `.` and 17 → 5 on `./ui-contract`, CONTRACT.md 189 lines, 19 gates, 6 flows.
@@ -86,6 +86,8 @@ One line each. The full account is in `docs/HISTORY.md` under the quoted heading
 - **npm trusted publishers default to staged publishing.** Tick "Allow `npm publish`" under Allowed
   actions on every package, or the release run fails with `OIDC permission denied for this
 action`. ("npm trusted publishers default to staged publishing")
+- **The registry lags the release log by minutes.** `Successfully published` is the action's view; `npm view`
+  can answer the old version for up to three minutes afterwards. Poll before calling a publish failed.
 - **A bare-string Vite alias is a prefix replacement.** `'@hearthkit/email'` also rewrites
   `@hearthkit/email/email-contract` to `.../index.ts/email-contract`; anchor every alias with
   `/^name$/` and let subpaths fall through to package.json self-reference. ("PR #30")
