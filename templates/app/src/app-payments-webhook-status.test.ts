@@ -211,14 +211,10 @@ describe(`POST /api/payments/webhook`, () => {
     // gate written against it would pass for the wrong reason.
     const webhookResult = webhookResponseBodySchema.parse(JSON.parse(responseBodyText))
     expect(webhookResult.kind).toBe('payments-webhook-signature-invalid')
+    // The reason enum is internal to @hearthkit/payments since step 5, so the literal is compared
+    // directly; a renamed reason still fails here, because the contract states the two spellings.
     if (webhookResult.signatureFailureReason !== undefined) {
-      const { webhookSignatureFailureReasonSchema } =
-        (await import('@hearthkit/payments/payments-contract')) as {
-          webhookSignatureFailureReasonSchema: { parse: (input: unknown) => unknown }
-        }
-      expect(webhookSignatureFailureReasonSchema.parse(webhookResult.signatureFailureReason)).toBe(
-        'signature-verification-failed',
-      )
+      expect(webhookResult.signatureFailureReason).toBe('signature-verification-failed')
     }
 
     // The secret the route was configured with is never echoed, whatever else the body carries.
@@ -276,15 +272,9 @@ describe(`POST /api/payments/webhook`, () => {
     const webhookResult = webhookResponseBodySchema.parse(JSON.parse(responseBodyText))
     expect(webhookResult.kind).toBe('payments-webhook-ignored')
 
-    // The enum again rather than the wording, so a renamed reason fails here rather than drifting.
+    // The literal again rather than the wording of the message, for the same reason as above.
     if (webhookResult.ignoredReason !== undefined) {
-      const { paymentsWebhookIgnoredReasonSchema } =
-        (await import('@hearthkit/payments/payments-contract')) as {
-          paymentsWebhookIgnoredReasonSchema: { parse: (input: unknown) => unknown }
-        }
-      expect(paymentsWebhookIgnoredReasonSchema.parse(webhookResult.ignoredReason)).toBe(
-        'event-type-not-handled',
-      )
+      expect(webhookResult.ignoredReason).toBe('event-type-not-handled')
     }
   })
 })

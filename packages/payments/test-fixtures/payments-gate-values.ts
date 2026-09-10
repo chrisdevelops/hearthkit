@@ -188,3 +188,10 @@ export async function reserveDeadLoopbackPort(): Promise<number> {
 export function deadStripeApiBaseUrl(deadPortNumber: number): string {
   return `http://127.0.0.1:${deadPortNumber}`
 }
+
+/** stripe@22.6.1's whole wrong-secret message, read off its Webhooks.js; the wrong-secret gate must match this prefix, never the shared words `No signatures found`. */
+export const stripeWrongSecretSignatureMessagePrefix =
+  'No signatures found matching the expected signature for payload.'
+
+/** stripe@22.6.1's no-v1-entry message, read off the same Webhooks.js one line away; it is the decoy the wrong-secret gate proves did not come back. */
+export const stripeWrongSchemeSignatureMessage = 'No signatures found with expected scheme'

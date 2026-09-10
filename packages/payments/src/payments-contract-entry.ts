@@ -1,31 +1,15 @@
-/** Public entry point of @hearthkit/payments: a named re-export of exactly the surface the contract lists, so no internal module is importable by consumers. */
-
-/** Validates the catalog and builds the Stripe client; synchronous, and contacts nothing. */
-export { createPaymentsClient } from './create-payments-client.ts'
-
-/** Pushes the held catalog to Stripe; idempotent, so a second run reports every price unchanged. */
-export { syncPaymentsCatalog } from './sync-payments-catalog.ts'
-
-/** Creates a hosted Checkout Session, putting a Stripe customer on file when the reference has none. */
-export { createCheckoutSession } from './create-checkout-session.ts'
-
-/** Opens Stripe's hosted billing portal; it creates nothing, so it is the only producer of customer-not-found. */
-export { createCustomerPortalSession } from './create-customer-portal-session.ts'
-
-/** Verifies a delivery with a local HMAC and records it; it needs Postgres but never the network. */
-export { handleStripeWebhook } from './handle-stripe-webhook.ts'
-
-/** The most recent subscription row for a reference, whatever its status; having none is a normal answer. */
-export { readPaymentsSubscription } from './read-payments-subscription.ts'
-
-/** Every completed one-time purchase for a reference, newest first; an empty list is a success. */
-export { listPaymentsPurchases } from './list-payments-purchases.ts'
-
-/** One query against information_schema; it takes the Drizzle client so a health check needs no Stripe key. */
-export { verifyPaymentsTablesExist } from './verify-payments-tables-exist.ts'
-
-/** The Drizzle table map, always carrying all three tables whatever the organizations flag is. */
-export { hearthkitPaymentsDrizzleSchema } from './hearthkit-payments-drizzle-schema.ts'
+/**
+ * The ./payments-contract subpath of @hearthkit/payments: a named re-export of the eighteen contract
+ * values that live in payments-contract.ts and every public type, and nothing that reaches an
+ * implementation module. It exists because @hearthkit/cli imports paymentsFailureSchema and
+ * paymentsSyncedPriceSchema at runtime (plus the PaymentsFailure, PaymentsCatalog and
+ * PaymentsEnvValues types, and paymentsCatalogSchema in its fixture) and templates/app imports
+ * hearthkitPaymentsTableNames and the five wire constants, while the `.` entry imports stripe,
+ * drizzle-orm/pg-core and the Drizzle table definitions, none of which the cli's `hearthkit payments
+ * sync` or templates/app's drizzle.config.ts should have to load to read a schema. This file and
+ * payments-contract.ts import only zod at runtime, so either loads under bare node with no side
+ * effect.
+ */
 
 /** Contract values: this package's env fragment, the failure union every function returns, and the catalog schema an app parses payments-catalog.ts with. */
 export {

@@ -18,6 +18,8 @@ import {
 import {
   gatePaymentsCatalog,
   gateWrongStripeWebhookSecret,
+  stripeWrongSchemeSignatureMessage,
+  stripeWrongSecretSignatureMessagePrefix,
   uniqueGateBillingContactEmail,
   uniqueGateBillingReferenceId,
   uniqueGatePaymentsCatalogNames,
@@ -30,8 +32,6 @@ import {
 import {
   handleStripeWebhookResultSchema,
   stripeSignatureHeaderName,
-  stripeWrongSchemeSignatureMessage,
-  stripeWrongSecretSignatureMessagePrefix,
   type PaymentsClient,
 } from './payments-contract.ts'
 
@@ -137,20 +137,11 @@ describe('payments-webhook-signature-invalid', () => {
     // for payload.` is the wrong-secret message, and `No signatures found with expected scheme` is
     // thrown one line away for a header carrying no v1 entry, which is a different cause. A
     // substring test on `No signatures found` would satisfy both, so this matches the whole prefix
-    // and then proves the decoy is not what came back.
+    // and then proves the decoy is not what came back. Both strings are read off stripe@22.6.1 and
+    // live in the fixtures: their only reader is this gate, so they are not public surface.
     const stripeFailureDetail = failure.stripeFailureDetail ?? ''
-    expect(stripeFailureDetail).toContain(
-      expectContractStringExport(
-        stripeWrongSecretSignatureMessagePrefix,
-        'stripeWrongSecretSignatureMessagePrefix',
-      ),
-    )
-    expect(stripeFailureDetail).not.toContain(
-      expectContractStringExport(
-        stripeWrongSchemeSignatureMessage,
-        'stripeWrongSchemeSignatureMessage',
-      ),
-    )
+    expect(stripeFailureDetail).toContain(stripeWrongSecretSignatureMessagePrefix)
+    expect(stripeFailureDetail).not.toContain(stripeWrongSchemeSignatureMessage)
 
     // StripeSignatureVerificationError carries the raw webhook body on `.payload`, so it holds
     // whatever customer data the event held. The detail quotes the message and never the payload.
