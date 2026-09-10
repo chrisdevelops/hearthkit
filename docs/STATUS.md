@@ -39,9 +39,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes |
-| ------- | ---- | ------------------ | ----- |
-| storage | commit | 1 | branch `refactor/exports-storage`; 44 → 15 value exports, 21 gates green, 6 flows green, PR open |
+| Package | Step   | Implementor rounds | Notes                                                                                            |
+| ------- | ------ | ------------------ | ------------------------------------------------------------------------------------------------ |
+| storage | commit | 1                  | branch `refactor/exports-storage`; 44 → 15 value exports, 21 gates green, 6 flows green, PR open |
 
 ## Open issues
 
