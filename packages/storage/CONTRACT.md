@@ -63,9 +63,27 @@ All four are async and return their failures as values. None throws for a contra
 
 ### Package entry point
 
-`src/index.ts` is the package entry, a thin named re-export (no `export *`). It re-exports by name: the four public functions; `storageEnvSchemaFragment`; the six message-prefix constants; `defaultStorageRegionName`, `defaultPresignedUrlExpirySeconds`, `maximumPresignedUrlExpirySeconds`, `maximumListedObjectCount`; `storageFailureSchema` and `StorageFailure`; the branded schemas and types listed under Shared vocabulary; the range schemas `presignedUrlExpirySecondsSchema` and `listedObjectCountSchema`; the listing pieces `storedObjectSummarySchema`, `StoredObjectSummary`, `storedObjectsPageStatusSchema` and `StoredObjectsPageStatus`; and each function's options, success and result schemas and types from `storage-contract.ts`.
+`src/index.ts` is the package entry, a thin named re-export (no `export *`). Its value exports are a fixed allowlist of exactly these fifteen, and nothing else:
 
-The four success-only schemas are required, not optional: `presignedUploadUrlCreatedSchema`, `presignedDownloadUrlCreatedSchema`, `storedObjectDeletedSchema` and `storedObjectsListedSchema` must all be re-exported by name. The rule that leaves nothing to guess is that every value `storage-contract.ts` exports is re-exported from `src/index.ts`, with no exceptions, so a caller that has already narrowed a result on `kind` can validate the success arm on its own instead of rebuilding the schema.
+1. `createPresignedUploadUrl`
+2. `createPresignedDownloadUrl`
+3. `deleteStoredObject`
+4. `listStoredObjects`
+5. `storageEnvSchemaFragment`
+6. `storageFailureSchema`
+7. `storageConnectionSchema` — the input every function takes; an app builds it from config
+8. `createPresignedUploadUrlResultSchema`
+9. `createPresignedDownloadUrlResultSchema`
+10. `deleteStoredObjectResultSchema`
+11. `listStoredObjectsResultSchema`
+12. `storageObjectKeySchema`
+13. `storageObjectKeyPrefixSchema`
+14. `storageContentTypeSchema`
+15. `storageDownloadFileNameSchema`
+
+Type exports are not counted and stay: the branded types under Shared vocabulary, `StorageConnection`, `StorageFailure`, `StoredObjectSummary`, `StoredObjectsPageStatus`, and each function's options, result and function types.
+
+Every other value in `storage-contract.ts` is internal: the six message-prefix constants, `defaultStorageRegionName`, `defaultPresignedUrlExpirySeconds`, `maximumPresignedUrlExpirySeconds`, `maximumListedObjectCount`, the connection-part schemas (`storageEndpointUrlSchema`, `storageBucketNameSchema`, `storageRegionNameSchema`, `storageAccessKeyIdSchema`, `storageSecretAccessKeySchema`), `storageContinuationTokenSchema`, `presignedStorageUrlSchema`, `presignedUrlExpirySecondsSchema`, `listedObjectCountSchema`, the four options schemas, `storedObjectSummarySchema` and `storedObjectsPageStatusSchema`. The implementation and this package's own gates may import them from `storage-contract.ts` directly, but they are not part of the public surface and may change without a changeset. The four per-arm success schemas are module-private inside `storage-contract.ts` and are reachable only through the result unions; a caller that has narrowed a result on `kind` already holds the validated shape.
 
 ## Failure modes
 
@@ -93,11 +111,11 @@ Explicit non-failures the gates should also cover: deleting a key that never exi
 
 ## Dependencies
 
-- Packages: `@hearthkit/config` as a **devDependency only** (workspace). Nothing is imported from config at runtime — this package contributes `storageEnvSchemaFragment` for config to compose; it never consumes config itself.
+- Packages: `@hearthkit/config` as a `workspace:*` runtime dependency (`dependencies`, by the completion plan step 1 hygiene decision). This package's own `src` outside the gates does not import it — it contributes `storageEnvSchemaFragment` for config to compose — but the gates compose the env fragment through config.
 - Services for gates: MinIO from the repo-root `docker-compose.yml` (`http://localhost:9000`, `hearthkit` / `hearthkit`, image `minio/minio:RELEASE.2025-09-07T16-13-09Z`). The `storage-request-failed` gate needs no container: an in-process `node:http` server that answers 500 is enough, the same technique the observability gates use. The `storage-endpoint-unreachable` gate points the connection at a local port where nothing is listening.
 - Buckets for gates: the gates create their own with the SDK's `CreateBucketCommand` in a fixture, one uniquely named bucket per run, and delete its objects and then the bucket afterwards. This package creates no buckets (see Decisions 5), and a name that was never created is what the `storage-bucket-not-found` gate uses.
 - Runtime libraries (implementor adds, exact pins): `@aws-sdk/client-s3@3.1121.0`, `@aws-sdk/s3-request-presigner@3.1121.0`, `zod@4.4.3`.
-- Dev dependencies (implementor adds, exact pins): `vitest@4.1.11`, `typescript@7.0.2`, `@types/node@24.13.3`, and `@hearthkit/config` (workspace).
+- Dev dependencies (implementor adds, exact pins): `vitest@4.1.11`, `typescript@7.0.2`, `@types/node@24.13.3`. `@hearthkit/config` is not a devDependency; it sits under `dependencies` as `workspace:*` (see the Packages line above).
 - Client configuration the implementation must use: `forcePathStyle: true` (required by MinIO, accepted by R2), `endpoint` from the connection, `region` from the connection, and explicit static `credentials` from the connection, so no ambient AWS credential provider chain is ever consulted. The client must not outlive the call that created it: no module-level client, no pooled socket left open, so a CLI process or a Vitest run is never held open by this package and no credential is cached across calls.
 
 ## Out of scope
@@ -114,7 +132,7 @@ Explicit non-failures the gates should also cover: deleting a key that never exi
 
 ## Decisions
 
-The six decisions the loop asked to be settled here rather than left to the implementor.
+The decisions the loop asked to be settled here rather than left to the implementor.
 
 1. **Region is a fifth environment variable, `STORAGE_REGION`, optional, defaulting to `auto`.** The SDK requires a region even where the provider ignores it. A fixed constant would bake one provider's answer into shared code; a defaulted variable costs one line in `.env.example`, keeps the plan's four variables working unchanged, and follows guiding rule 4 (opinions live in scaffold flags and environment variables). It also leaves room for the cases that do care: MinIO configured with a site region, or any S3 provider that validates the value.
 2. **`deleteStoredObject` is idempotent and `storage-object-not-found` belongs to `createPresignedDownloadUrl` alone.** S3 delete succeeds for a key that never existed. Making delete `HEAD` first would buy a failure mode by breaking retry semantics — a retried delete after a successful one would start failing — and would still race. Instead the download presign, which must confirm the object anyway to avoid handing a browser a URL that 404s, is where the failure lives. That also makes the plan's "delete it, confirm it is gone" gate direct: the confirmation is a download presign returning `storage-object-not-found`.
@@ -122,6 +140,7 @@ The six decisions the loop asked to be settled here rather than left to the impl
 4. **Presigned URLs default to 900 seconds and accept 1 to 604800.** 900 matches the SDK default. 604800 is seven days, the Signature Version 4 ceiling: above it the signer rejects with its own message, so the contract checks the range first and returns `storage-parameter-out-of-range` instead. Callers override per call. Expiry is enforced by the server, not advisory — an expired URL comes back 403 — and it is checked when the request starts, so a transfer already in flight is not cut off.
 5. **This package requires a bucket to exist and never creates one.** Production buckets come from the OpenTofu module, which already names one per project. Gates create and destroy their own bucket with the SDK. That leaves one gap worth naming: a developer running `hearthkit dev` with `storage` installed gets a MinIO container with no bucket in it. Filling that gap belongs to the `cli` loop, not here — see the questions below.
 6. **`contentType` is required and pinned into the upload signature; there is no size constraint.** The S3 presigner adds `content-type` to its unsignable set by default, so setting `ContentType` on the command alone would be decorative — the client could send anything. The implementation must therefore pass `signableHeaders: new Set(['content-type'])` to `getSignedUrl` as well, which is what makes the pin real, and return the header in `requiredRequestHeaders` so callers and gates do not guess. The cost is that a browser must set the header explicitly and the bucket's CORS policy must allow it. The benefit is that the server decides what type is stored, which is the only content constraint a presigned `PUT` can carry: a client-chosen `text/html` in a bucket someone later makes public is a stored-XSS hazard. A content-length range is not expressible in a presigned `PUT` at all, so size is out of scope above.
+7. **The entry point is a fixed allowlist, not "everything the contract module exports".** Completion plan step 5 policy: an app imports the functions, the env fragment, the failure union, the connection input schema, the result schemas and the branded schemas it must construct to call a function. Gates and the implementation take message prefixes, defaults, maximums, range schemas and per-arm shapes from `storage-contract.ts` directly, so those never need a public name. A smaller surface means fewer symbols an app can couple to and fewer changesets for internal renames.
 
 ## Verified
 
@@ -142,8 +161,6 @@ Checked 2026-08-29 against current docs.
 
 Established by the orchestrator's spike against real MinIO on 2026-08-29 and built on rather than re-derived here: presigned `PUT` accepted from plain `fetch`; presigned `GET` round-tripping bytes; `forcePathStyle` required, giving `http://localhost:9000/<bucket>/<key>`; `ResponseContentDisposition` surviving presigning; list honouring `Prefix` and `MaxKeys` and returning a continuation token; an expired URL rejected with 403; `NoSuchBucket` / 404, `InvalidAccessKeyId` / 403 and `NotFound` / 404 for missing bucket, bad credentials and missing key; delete of a never-existing key succeeding; an unreachable endpoint throwing an `AggregateError` with an empty message.
 
-Not yet verifiable: `packages/storage` has no `package.json`, so nothing in this contract has been compiled or run. `storage-contract.ts` imports only `zod`, so it still has no runtime effect.
-
 ## Questions for the orchestrator
 
 Defaults were chosen so the gate-writer is not blocked; veto any of these and the contract will be revised.
@@ -152,4 +169,4 @@ Defaults were chosen so the gate-writer is not blocked; veto any of these and th
 2. **`createPresignedDownloadUrl` performs a `HEAD` (and a second bucket-level `HEAD` on the 404 path).** That is what makes the plan's third failure mode real and what supplies the returned metadata, but it costs a round trip on every download URL and adds a time-of-check race. The alternative is a purely local download presign with no `storage-object-not-found` anywhere in the package. Confirm the round trip.
 3. **Local buckets have no owner.** `hearthkit dev infra up` starts MinIO with no bucket in it, so a scaffolded app's first upload fails until someone creates one by hand. The gates work around this by creating their own. A fix belongs in the `cli` loop (a `mc mb` step, an init container in the generated compose, or a `hearthkit storage init` command) and should be recorded as an open item rather than smuggled into this package.
 4. **Two extra failure modes beyond the plan's three**, both argued in Decisions 3 and 4: `storage-endpoint-unreachable` and `storage-parameter-out-of-range`, plus the `storage-request-failed` catch-all that keeps the "never throws" promise honest. Confirm the widened union.
-5. **`pnpm format:check` was not run on these two files.** This agent has no shell tool in the current session, so the Prettier check the loop asks for could not be executed. Both files were written to the repo's Prettier settings by hand (no semicolons, single quotes, 100 columns, padded tables). Please run `pnpm format:check` at review time; if it fails, the fix is `pnpm format` on these two paths and nothing else.
+5. **Step 5 follow-ups outside this agent's ownership.** `src/index.ts` still re-exports the four per-arm success schemas that are now module-private, so it will not compile until the implementor trims it to the allowlist above; `storage-env-schema-fragment.test.ts` lists those four names in its minimum-export list, so the gate-writer must drop them there. Neither file may be edited by the contract-author.

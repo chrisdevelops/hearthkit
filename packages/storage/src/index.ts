@@ -12,60 +12,27 @@ export { deleteStoredObject } from './delete-stored-object.ts'
 /** Reads one page of keys, optionally filtered by a literal prefix. */
 export { listStoredObjects } from './list-stored-objects.ts'
 
-/** Contract values: this package's env fragment, the failure union schema, and the constants that decide every default and range. */
+/** Contract values: the env fragment config composes, the failure union schema, and the connection input every function takes. */
 export {
-  defaultPresignedUrlExpirySeconds,
-  defaultStorageRegionName,
-  maximumListedObjectCount,
-  maximumPresignedUrlExpirySeconds,
+  storageConnectionSchema,
   storageEnvSchemaFragment,
   storageFailureSchema,
 } from './storage-contract.ts'
 
-/** Contract values: the unique literal prefix every returned failure message starts with. */
+/** Contract values: the full result schema of each function, for validating a value that crossed a process or network boundary. */
 export {
-  storageBucketNotFoundErrorPrefix,
-  storageCredentialsRejectedErrorPrefix,
-  storageEndpointUnreachableErrorPrefix,
-  storageObjectNotFoundErrorPrefix,
-  storageParameterOutOfRangeErrorPrefix,
-  storageRequestFailedErrorPrefix,
+  createPresignedDownloadUrlResultSchema,
+  createPresignedUploadUrlResultSchema,
+  deleteStoredObjectResultSchema,
+  listStoredObjectsResultSchema,
 } from './storage-contract.ts'
 
-/** Contract values: the branded vocabulary schemas, so an app can parse a user-supplied key or file name before calling anything here. */
+/** Contract values: the branded schemas an app must parse user-supplied text through before calling anything here. */
 export {
-  listedObjectCountSchema,
-  presignedStorageUrlSchema,
-  presignedUrlExpirySecondsSchema,
-  storageAccessKeyIdSchema,
-  storageBucketNameSchema,
-  storageConnectionSchema,
   storageContentTypeSchema,
-  storageContinuationTokenSchema,
   storageDownloadFileNameSchema,
-  storageEndpointUrlSchema,
   storageObjectKeyPrefixSchema,
   storageObjectKeySchema,
-  storageRegionNameSchema,
-  storageSecretAccessKeySchema,
-} from './storage-contract.ts'
-
-/** Contract values: each function's options, success-only and full result schemas, plus the two listing pieces, for runtime validation. */
-export {
-  createPresignedDownloadUrlOptionsSchema,
-  createPresignedDownloadUrlResultSchema,
-  createPresignedUploadUrlOptionsSchema,
-  createPresignedUploadUrlResultSchema,
-  deleteStoredObjectOptionsSchema,
-  deleteStoredObjectResultSchema,
-  listStoredObjectsOptionsSchema,
-  listStoredObjectsResultSchema,
-  presignedDownloadUrlCreatedSchema,
-  presignedUploadUrlCreatedSchema,
-  storedObjectDeletedSchema,
-  storedObjectsListedSchema,
-  storedObjectsPageStatusSchema,
-  storedObjectSummarySchema,
 } from './storage-contract.ts'
 
 /** Contract types: the branded vocabulary, the connection, and the failure union returned by all four functions. */

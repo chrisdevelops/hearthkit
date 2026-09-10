@@ -7,8 +7,8 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 - Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
   plan step 4, PRs #21, #24, #25).
-- Current work: none in flight.
-- Package loop: none in flight.
+- Current work: step 5, `refactor/exports-storage` (storage export-surface refactor).
+- Package loop: storage, step `commit`, rounds 1.
 - Last commit on `main`: PR #27 (Version Packages 0.1.2, MIT license in every tarball).
 - Published: every `@hearthkit/*` package at 0.1.2 on npm with provenance and an MIT license.
 - Next: **step 5 (export-surface refactor)**, one branch per package in the order storage, email,
@@ -41,7 +41,7 @@ implement, verify, commit.
 
 | Package | Step | Implementor rounds | Notes |
 | ------- | ---- | ------------------ | ----- |
-| none    |      |                    |       |
+| storage | commit | 1 | branch `refactor/exports-storage`; 44 → 15 value exports, 21 gates green, 6 flows green, PR open |
 
 ## Open issues
 

@@ -18,11 +18,27 @@ export type HearthkitStorageEntry = {
   storageEnvSchemaFragment: StorageEnvSchemaFragment
 }
 
-const expectedFunctionNames = [
+/**
+ * The fifteen value exports CONTRACT.md "Package entry point" allows src/index.ts to have, spelled
+ * out because the allowlist is a decision no module namespace can be derived from: every other value
+ * storage-contract.ts exports is internal and must stay off the entry point.
+ */
+export const hearthkitStorageEntryValueExportNames = [
   'createPresignedUploadUrl',
   'createPresignedDownloadUrl',
   'deleteStoredObject',
   'listStoredObjects',
+  'storageEnvSchemaFragment',
+  'storageFailureSchema',
+  'storageConnectionSchema',
+  'createPresignedUploadUrlResultSchema',
+  'createPresignedDownloadUrlResultSchema',
+  'deleteStoredObjectResultSchema',
+  'listStoredObjectsResultSchema',
+  'storageObjectKeySchema',
+  'storageObjectKeyPrefixSchema',
+  'storageContentTypeSchema',
+  'storageDownloadFileNameSchema',
 ] as const
 
 /**
@@ -48,12 +64,9 @@ export async function importHearthkitStorageNamespace(): Promise<Record<string, 
 export async function loadHearthkitStorageEntry(): Promise<HearthkitStorageEntry> {
   const namespace = await importHearthkitStorageNamespace()
 
-  const missingNames: string[] = expectedFunctionNames.filter(
-    (exportName) => typeof namespace[exportName] !== 'function',
+  const missingNames = hearthkitStorageEntryValueExportNames.filter(
+    (exportName) => namespace[exportName] === undefined,
   )
-  if (namespace.storageEnvSchemaFragment === undefined) {
-    missingNames.push('storageEnvSchemaFragment')
-  }
   if (missingNames.length > 0) {
     throw new Error(`gate expected @hearthkit/storage to export ${missingNames.join(', ')}`)
   }
