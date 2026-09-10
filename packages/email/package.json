@@ -16,8 +16,8 @@
       "default": "./src/index.ts"
     },
     "./email-contract": {
-      "types": "./src/email-contract.ts",
-      "default": "./src/email-contract.ts"
+      "types": "./src/email-contract-entry.ts",
+      "default": "./src/email-contract-entry.ts"
     }
   },
   "files": [

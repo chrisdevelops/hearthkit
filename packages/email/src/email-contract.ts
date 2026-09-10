@@ -331,8 +331,8 @@ export type ResolveEmailTransportConfigOptions = {
   emailEnv: EmailEnvValues
 }
 
-/** Success shape of resolveEmailTransportConfig; the transport named by EMAIL_TRANSPORT had every variable it needs. */
-export const emailTransportConfigResolvedSchema = z.object({
+// Success arm of resolveEmailTransportConfig; module-private, reachable through resolveEmailTransportConfigResultSchema.
+const emailTransportConfigResolvedSchema = z.object({
   kind: z.literal('email-transport-config-resolved'),
   emailTransportConfig: emailTransportConfigSchema,
 })
@@ -367,8 +367,8 @@ export type RenderTransactionalEmailOptions<TTemplateProps> = {
   subject?: EmailSubject
 }
 
-/** Success shape of renderTransactionalEmail; both message parts come from one template, so they cannot disagree. */
-export const transactionalEmailRenderedSchema = z.object({
+// Success arm of renderTransactionalEmail; module-private, reachable through renderTransactionalEmailResultSchema.
+const transactionalEmailRenderedSchema = z.object({
   kind: z.literal('transactional-email-rendered'),
   emailTemplateName: emailTemplateNameSchema,
   subject: emailSubjectSchema,
@@ -414,8 +414,8 @@ export type SendTransactionalEmailOptions<TTemplateProps> = {
   subject?: EmailSubject
 }
 
-/** Success shape of sendTransactionalEmail; the rendered bodies are deliberately not returned, because they carry the link. */
-export const transactionalEmailSentSchema = z.object({
+// Success arm of sendTransactionalEmail; module-private, reachable through sendTransactionalEmailResultSchema.
+const transactionalEmailSentSchema = z.object({
   kind: z.literal('transactional-email-sent'),
   emailTemplateName: emailTemplateNameSchema,
   to: emailAddressSchema,
