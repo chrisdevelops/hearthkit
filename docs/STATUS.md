@@ -8,15 +8,16 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
   plan step 4, PRs #21, #24, #25).
 - Current work: step 5 (export-surface refactor). Storage done (PR #28, published 0.2.0 via #29).
-  Email done (PR #30) and ui done (PR #32), published as 0.3.0 via #31 on 2026-09-10.
-- Package loop: auth, step commit (round 1, gates green), branch `refactor/exports-auth` (step 5).
-- Last commit on `main`: Version Packages #31 (0.3.0). The brief for the auth session is
-  `docs/next-session-auth.md`; that PR deletes it.
+  Email done (PR #30) and ui done (PR #32), published as 0.3.0 via #31 on 2026-09-10. Auth done
+  (PR #33, merged 2026-09-10); the Version Packages PR the bot opens for it is not merged yet.
+- Package loop: none in flight.
+- Last commit on `main`: 9e3f1f6, PR #33 (auth export-surface refactor).
 - Published: every `@hearthkit/*` package at 0.3.0 on npm with provenance and an MIT license.
-- Next: step 5 continues with `refactor/exports-auth`, then payments, each through the
-  `next-package` loop. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15
+- Next: step 5 finishes with `refactor/exports-payments` through the `next-package` loop, then
+  step 6. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15
   on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
   Ui: 59 → 47 on `.` and 17 → 5 on `./ui-contract`, CONTRACT.md 189 lines, 19 gates, 6 flows.
+  Auth: 113 → 35 on `.` and 100 → 22 on `./auth-contract`, CONTRACT.md 193 lines, 40 gates, 6 flows.
 
 ## Phase checklist
 
@@ -43,9 +44,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                                          |
-| ------- | ------ | ------------------ | -------------------------------------------------------------- |
-| auth    | commit | 1                  | branch `refactor/exports-auth`, step 5 export-surface refactor |
+| Package | Step | Implementor rounds | Notes |
+| ------- | ---- | ------------------ | ----- |
+| none    |      |                    |       |
 
 ## Open issues
 
