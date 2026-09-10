@@ -7,18 +7,17 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 - Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
   plan step 4, PRs #21, #24, #25).
-- Current work: step 5 (export-surface refactor). Storage done (PR #28, published 0.2.0 via #29).
-  Email done (PR #30) and ui done (PR #32), published as 0.3.0 via #31 on 2026-09-10. Auth done
-  (PR #33, merged 2026-09-10); the Version Packages PR the bot opens for it is not merged yet.
-- Package loop: payments on `refactor/exports-payments`, step commit, round 1 (completion plan step 5).
-- Last commit on `main`: 68d54c2 (docs). The payments refactor is open on `refactor/exports-payments`
-  and deletes its brief, `docs/next-session-payments.md`.
+- Current work: step 5 (export-surface refactor) is complete. Storage (PR #28, published 0.2.0 via
+  #29), email (PR #30) and ui (PR #32), published as 0.3.0 via #31 on 2026-09-10, auth (PR #33) and
+  payments (PR #35). The Version Packages PR the bot keeps open (#34) is not merged yet.
+- Package loop: none in flight.
+- Last commit on `main`: 8fbf31c, PR #35 (payments export-surface refactor).
 - Published: every `@hearthkit/*` package at 0.3.0 on npm with provenance and an MIT license.
-- Next: step 5 finishes with `refactor/exports-payments` through the `next-package` loop, then
-  step 6. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15
-  on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
+- Next: step 6 (Phase 7, infrastructure), branch `infra/tofu-cloudflare` first. Step 5 results.
+  Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15 on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
   Ui: 59 → 47 on `.` and 17 → 5 on `./ui-contract`, CONTRACT.md 189 lines, 19 gates, 6 flows.
   Auth: 113 → 35 on `.` and 100 → 22 on `./auth-contract`, CONTRACT.md 193 lines, 40 gates, 6 flows.
+  Payments: 127 → 27 on `.` and 118 → 18 on `./payments-contract`, CONTRACT.md 197 lines, 45 gates, 6 flows.
 
 ## Phase checklist
 
@@ -35,7 +34,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
       narrowed to the superset by plan Version 2 (completion plan step 2).
 - [x] Phase 6: `create` (PR #20, step 3); 0.1.0 published, `pnpm create @hearthkit` verified from
       the registry, trusted publishing confirmed at 0.1.1 (PR #21, #24, #25, step 4)
-- [ ] Export-surface refactor (completion plan step 5)
+- [x] Export-surface refactor (completion plan step 5, PRs #28, #30, #32, #33, #35)
 - [ ] Phase 7: `infra/tofu/cloudflare`, `hearthkit vps bootstrap`, backups (step 6)
 - [ ] Phase 8: `AGENTS.md`, skills, MCP config, runbooks (step 7)
 - [ ] Phase 9: end-to-end verification, tag v1.0.0 (step 8)
@@ -45,9 +44,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package  | Step   | Implementor rounds | Notes                                                              |
-| -------- | ------ | ------------------ | ------------------------------------------------------------------ |
-| payments | commit | 1                  | branch `refactor/exports-payments`, step 5 export-surface refactor |
+| Package | Step | Implementor rounds | Notes |
+| ------- | ---- | ------------------ | ----- |
+| none    |      |                    |       |
 
 ## Open issues
 
