@@ -13,7 +13,8 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Package loop: none in flight.
 - Last commit on `main`: c0d25a2, PR #34 (Version Packages, 0.4.0).
 - Published: every `@hearthkit/*` package at 0.4.0 on npm with provenance and an MIT license.
-- Next: step 6 (Phase 7, infrastructure), branch `infra/tofu-cloudflare` first. Step 5 results.
+- Next: step 6.1 (Phase 7, infrastructure), branch `infra/tofu-cloudflare`; its brief is
+  `docs/next-session-infra.md`, which that PR deletes. Step 5 results.
   Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15 on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
   Ui: 59 → 47 on `.` and 17 → 5 on `./ui-contract`, CONTRACT.md 189 lines, 19 gates, 6 flows.
   Auth: 113 → 35 on `.` and 100 → 22 on `./auth-contract`, CONTRACT.md 193 lines, 40 gates, 6 flows.
