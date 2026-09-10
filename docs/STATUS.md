@@ -9,8 +9,8 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
   plan step 4, PRs #21, #24, #25).
 - Current work: none in flight.
 - Package loop: none in flight.
-- Last commit on `main`: 92bcca7 (PR #25, Version Packages 0.1.1).
-- Published: every `@hearthkit/*` package at 0.1.1 on npm with provenance.
+- Last commit on `main`: PR #27 (Version Packages 0.1.2, MIT license in every tarball).
+- Published: every `@hearthkit/*` package at 0.1.2 on npm with provenance and an MIT license.
 - Next: **step 5 (export-surface refactor)**, one branch per package in the order storage, email,
   ui, auth, payments, through the `next-package` loop.
 

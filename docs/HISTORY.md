@@ -53,7 +53,9 @@ Traps found:
   changes should carry changesets at all, since the private package is ignored either way.
 - **The publish itself was blocked by the Claude Code auto-mode classifier.** The user ran
   `pnpm changeset publish` by hand. Expect the same for any future manual publish.
-- No `LICENSE` file or `license` field exists; npm shows "none". Left for the user to decide.
+- No `LICENSE` file or `license` field existed at 0.1.0 and 0.1.1. Added on the user's instruction the
+  same day (PR #26, MIT, Chris Lloyd 2026, a copy in every package directory because npm only
+  ships a LICENSE from the package root) and published as 0.1.2 through the workflow (PR #27).
 
 ## 2026-09-07: completion plan step 3, `create`, stopped at the three-round cap
 
