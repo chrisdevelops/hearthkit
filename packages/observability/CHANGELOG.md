@@ -1,5 +1,13 @@
 # @hearthkit/observability
 
+## 0.1.2
+
+### Patch Changes
+
+- 87ed532: Every package is licensed under MIT: a `LICENSE` file ships in each tarball and the manifest carries `"license": "MIT"`.
+- Updated dependencies [87ed532]
+  - @hearthkit/config@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
