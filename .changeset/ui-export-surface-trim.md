@@ -1,5 +1,0 @@
----
-'@hearthkit/ui': minor
----
-
-Trim the public entry point of `@hearthkit/ui` to a fixed allowlist of 47 values: the 42 React components, hooks and helpers, plus `themeModeSchema`, `resolvedThemeModeSchema`, `uiFailureSchema`, `hearthkitThemeCssImportSpecifier` and `tailwindSourceDirectiveForUi`. The `./ui-contract` subpath stays for bare-node callers and now resolves to `src/ui-contract-entry.ts`, carrying only those five values and the four public types. Removed from both surfaces: `darkModeClassName`, `darkModeOverriddenTokenNames`, `hearthkitThemeCssFileName`, `hearthkitThemeTokenNameSchema`, `hearthkitThemeTokenNames`, `hearthkitUiContractImportSpecifier`, `hearthkitUiMinimumExportNames`, `hearthkitUiPackageExportSubpaths`, `themeModeToggleOptionLabels`, `themeProviderMissingErrorPrefix`, `uiComponentFamilyNameSchema`, `uiComponentFamilyNames`, and the types `HearthkitThemeTokenName` and `UiComponentFamilyName`. Gate-only constants moved to the package's test fixtures. Breaking within 0.x.

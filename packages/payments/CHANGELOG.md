@@ -1,5 +1,13 @@
 # @hearthkit/payments
 
+## 0.3.0
+
+### Patch Changes
+
+- @hearthkit/auth@0.3.0
+  - @hearthkit/config@0.3.0
+  - @hearthkit/db@0.3.0
+
 ## 0.2.0
 
 ### Patch Changes

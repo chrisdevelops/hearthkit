@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/storage",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "S3-compatible object storage with presigned uploads and downloads for MinIO and Cloudflare R2",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/storage",

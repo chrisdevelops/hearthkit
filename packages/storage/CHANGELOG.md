@@ -1,5 +1,11 @@
 # @hearthkit/storage
 
+## 0.3.0
+
+### Patch Changes
+
+- @hearthkit/config@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
