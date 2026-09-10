@@ -8,11 +8,11 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
   plan step 4, PRs #21, #24, #25).
 - Current work: step 5 (export-surface refactor). Storage done (PR #28, published 0.2.0 via #29).
-  Email done (PR #30) and ui done (PR #32), both unpublished until the user merges the
-  Version Packages PR (#31).
+  Email done (PR #30) and ui done (PR #32), published as 0.3.0 via #31 on 2026-09-10.
 - Package loop: none in flight.
-- Last commit on `main`: PR #32 (ui export trim).
-- Published: every `@hearthkit/*` package at 0.2.0 on npm with provenance and an MIT license.
+- Last commit on `main`: Version Packages #31 (0.3.0). The brief for the auth session is
+  `docs/next-session-auth.md`; that PR deletes it.
+- Published: every `@hearthkit/*` package at 0.3.0 on npm with provenance and an MIT license.
 - Next: step 5 continues with `refactor/exports-auth`, then payments, each through the
   `next-package` loop. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15
   on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
