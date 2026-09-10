@@ -1,6 +1,7 @@
 import { loadHearthkitConfig } from '@hearthkit/config'
 import { describe, expect, it } from 'vitest'
 import {
+  hearthkitStorageEntryValueExportNames,
   importHearthkitStorageNamespace,
   loadHearthkitStorageEntry,
 } from '../test-fixtures/hearthkit-storage-entry.ts'
@@ -14,29 +15,6 @@ const completeStorageEnv = {
   STORAGE_ACCESS_KEY_ID: 'hearthkit',
   STORAGE_SECRET_ACCESS_KEY: 'hearthkit',
 }
-
-// The rule packages/storage/CONTRACT.md states for the entry point is mechanical: every value
-// storage-contract.ts exports is re-exported from src/index.ts, with no exceptions. So the required
-// list is read off the contract module's own namespace rather than typed out here. A hand-written
-// list of names would have to be extended by hand every time the contract grows an export, and would
-// silently fall behind the day someone forgot; a derived list cannot.
-//
-// A module namespace carries value exports only. Every `export type` in storage-contract.ts is erased
-// before this file runs, so the types CONTRACT.md also asks the entry point to re-export are outside
-// what this gate can see and are covered by typecheck instead.
-function contractValueExportNames(contractModule: Record<string, unknown>): string[] {
-  return Object.keys(contractModule).toSorted()
-}
-
-// CONTRACT.md names these four success-only schemas as required in so many words. They are spelled
-// out as strings so that renaming one in the contract fails this gate loudly, instead of quietly
-// shrinking the derived list to a set an entry point already satisfies.
-const successOnlySchemaNamesTheContractRequires = [
-  'presignedUploadUrlCreatedSchema',
-  'presignedDownloadUrlCreatedSchema',
-  'storedObjectDeletedSchema',
-  'storedObjectsListedSchema',
-] as const
 
 describe('storageEnvSchemaFragment', () => {
   it('declares five variables, requires four of them, and defaults STORAGE_REGION to auto with an empty string counting as unset', async () => {
@@ -111,35 +89,46 @@ describe('storageEnvSchemaFragment', () => {
 })
 
 describe('@hearthkit/storage entry point', () => {
-  it('re-exports by name every value storage-contract.ts exports, with no exceptions', async () => {
+  it('exports exactly the fifteen allowlisted values and nothing else, each the value storage-contract.ts already exports', async () => {
     const namespace = await importHearthkitStorageNamespace()
     const contractModule = storageContract as unknown as Record<string, unknown>
-    const requiredExportNames = contractValueExportNames(contractModule)
 
-    const renamedInTheContract = successOnlySchemaNamesTheContractRequires.filter(
-      (exportName) => !requiredExportNames.includes(exportName),
-    )
+    // A module namespace carries value exports only, so every `export type` is already erased here and
+    // the types CONTRACT.md keeps on the entry point are covered by typecheck instead. Both lists are
+    // compared whole rather than name by name, so a failure names every wrong export at once instead
+    // of stopping at the first and hiding the rest behind a rerun.
+    const actualValueExportNames = Object.keys(namespace)
+      .filter((exportName) => namespace[exportName] !== undefined)
+      .toSorted()
     expect(
-      renamedInTheContract,
-      'storage-contract.ts must still export the success-only schemas CONTRACT.md names',
-    ).toEqual([])
+      actualValueExportNames,
+      'src/index.ts must export exactly the allowlist in CONTRACT.md "Package entry point"',
+    ).toEqual([...hearthkitStorageEntryValueExportNames].toSorted())
 
-    // Both lists are compared whole rather than one name at a time, so a failure names every export
-    // that is wrong instead of stopping at the first and hiding the rest behind a rerun.
-    const missingFromTheEntryPoint = requiredExportNames.filter(
-      (exportName) => namespace[exportName] === undefined,
+    // Split by origin: the schemas come from storage-contract.ts, the four functions come from their
+    // own implementation modules. A schema renamed in the contract falls out of the first group and
+    // fails the second assertion by name, so neither check can go quiet.
+    const fromTheContractModule = hearthkitStorageEntryValueExportNames.filter(
+      (exportName) => contractModule[exportName] !== undefined,
     )
-    expect(
-      missingFromTheEntryPoint,
-      'src/index.ts must re-export these by name from storage-contract.ts',
-    ).toEqual([])
+    const fromAnImplementationModule = hearthkitStorageEntryValueExportNames.filter(
+      (exportName) => contractModule[exportName] === undefined,
+    )
 
-    const rebuiltInsteadOfReExported = requiredExportNames.filter(
+    const rebuiltInsteadOfReExported = fromTheContractModule.filter(
       (exportName) => namespace[exportName] !== contractModule[exportName],
     )
     expect(
       rebuiltInsteadOfReExported,
       'these must be the identical value storage-contract.ts exports, not a second copy of it',
+    ).toEqual([])
+
+    const notAFunction = fromAnImplementationModule.filter(
+      (exportName) => typeof namespace[exportName] !== 'function',
+    )
+    expect(
+      notAFunction,
+      'every allowlisted name storage-contract.ts does not export must be one of the four functions',
     ).toEqual([])
   })
 })

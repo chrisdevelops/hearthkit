@@ -215,8 +215,8 @@ export type CreatePresignedUploadUrlOptions = {
   expiresInSeconds?: number
 }
 
-/** Success shape of createPresignedUploadUrl; requiredRequestHeaders must be sent verbatim or the object store rejects the PUT. */
-export const presignedUploadUrlCreatedSchema = z.object({
+// Success arm of createPresignedUploadUrl; module-private, reachable through createPresignedUploadUrlResultSchema.
+const presignedUploadUrlCreatedSchema = z.object({
   kind: z.literal('presigned-upload-url-created'),
   presignedUploadUrl: presignedStorageUrlSchema,
   storageObjectKey: storageObjectKeySchema,
@@ -224,7 +224,7 @@ export const presignedUploadUrlCreatedSchema = z.object({
   expiresAt: z.date(),
 })
 
-/** Full result union of createPresignedUploadUrl for runtime validation in gates. */
+/** Full result union of createPresignedUploadUrl; success shape { kind: 'presigned-upload-url-created', presignedUploadUrl, storageObjectKey, requiredRequestHeaders, expiresAt } or a StorageFailure. */
 export const createPresignedUploadUrlResultSchema = z.union([
   presignedUploadUrlCreatedSchema,
   storageFailureSchema,
@@ -254,8 +254,8 @@ export type CreatePresignedDownloadUrlOptions = {
   expiresInSeconds?: number
 }
 
-/** Success shape of createPresignedDownloadUrl; the object was confirmed present, so its size and modified time come back too. */
-export const presignedDownloadUrlCreatedSchema = z.object({
+// Success arm of createPresignedDownloadUrl; module-private, reachable through createPresignedDownloadUrlResultSchema.
+const presignedDownloadUrlCreatedSchema = z.object({
   kind: z.literal('presigned-download-url-created'),
   presignedDownloadUrl: presignedStorageUrlSchema,
   storageObjectKey: storageObjectKeySchema,
@@ -265,7 +265,7 @@ export const presignedDownloadUrlCreatedSchema = z.object({
   expiresAt: z.date(),
 })
 
-/** Full result union of createPresignedDownloadUrl for runtime validation in gates. */
+/** Full result union of createPresignedDownloadUrl; success shape { kind: 'presigned-download-url-created', presignedDownloadUrl, storageObjectKey, objectByteCount, objectContentType?, objectLastModifiedAt, expiresAt } or a StorageFailure. */
 export const createPresignedDownloadUrlResultSchema = z.union([
   presignedDownloadUrlCreatedSchema,
   storageFailureSchema,
@@ -290,13 +290,13 @@ export const deleteStoredObjectOptionsSchema = z.object({
 /** Options type for deleteStoredObject. */
 export type DeleteStoredObjectOptions = z.infer<typeof deleteStoredObjectOptionsSchema>
 
-/** Success shape of deleteStoredObject; returned whether or not the key existed, because S3 delete is idempotent. */
-export const storedObjectDeletedSchema = z.object({
+// Success arm of deleteStoredObject; module-private, reachable through deleteStoredObjectResultSchema.
+const storedObjectDeletedSchema = z.object({
   kind: z.literal('stored-object-deleted'),
   storageObjectKey: storageObjectKeySchema,
 })
 
-/** Full result union of deleteStoredObject for runtime validation in gates. */
+/** Full result union of deleteStoredObject; success shape { kind: 'stored-object-deleted', storageObjectKey }, returned whether or not the key existed, or a StorageFailure. */
 export const deleteStoredObjectResultSchema = z.union([
   storedObjectDeletedSchema,
   storageFailureSchema,
@@ -348,14 +348,14 @@ export const storedObjectsPageStatusSchema = z.discriminatedUnion('kind', [
 /** Page status type carried by a listing result. */
 export type StoredObjectsPageStatus = z.infer<typeof storedObjectsPageStatusSchema>
 
-/** Success shape of listStoredObjects; an empty storedObjects array means nothing matched, which is not a failure. */
-export const storedObjectsListedSchema = z.object({
+// Success arm of listStoredObjects; module-private, reachable through listStoredObjectsResultSchema.
+const storedObjectsListedSchema = z.object({
   kind: z.literal('stored-objects-listed'),
   storedObjects: z.array(storedObjectSummarySchema),
   pageStatus: storedObjectsPageStatusSchema,
 })
 
-/** Full result union of listStoredObjects for runtime validation in gates. */
+/** Full result union of listStoredObjects; success shape { kind: 'stored-objects-listed', storedObjects, pageStatus }, where an empty array is not a failure, or a StorageFailure. */
 export const listStoredObjectsResultSchema = z.union([
   storedObjectsListedSchema,
   storageFailureSchema,
