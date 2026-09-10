@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/auth",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Better Auth wired to the hearthkit Drizzle client and email transport, with magic link, password and organizations",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/auth",
