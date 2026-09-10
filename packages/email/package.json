@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/email",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Transactional email from React Email templates over a swappable SMTP or Resend transport",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/email",

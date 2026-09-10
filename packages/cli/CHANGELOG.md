@@ -1,5 +1,14 @@
 # @hearthkit/cli
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [8fbf31c]
+  - @hearthkit/payments@0.4.0
+  - @hearthkit/config@0.4.0
+  - @hearthkit/db@0.4.0
+
 ## 0.3.0
 
 ### Patch Changes
