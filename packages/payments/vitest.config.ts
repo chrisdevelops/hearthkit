@@ -25,7 +25,7 @@ export default defineConfig({
       },
       {
         find: /^@hearthkit\/payments\/payments-contract$/,
-        replacement: fileURLToPath(new URL('./src/payments-contract.ts', import.meta.url)),
+        replacement: fileURLToPath(new URL('./src/payments-contract-entry.ts', import.meta.url)),
       },
       {
         find: /^@hearthkit\/db$/,

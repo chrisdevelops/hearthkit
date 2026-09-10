@@ -2,17 +2,7 @@
 
 ## Purpose
 
-Stripe subscriptions and one-time purchases for a hearthkit project: a product catalog defined in the
-app's code and pushed to Stripe, hosted Checkout, the hosted customer portal, a webhook handler that
-records what Stripe reports, and the Drizzle tables that hold customers, subscriptions and purchases.
-Billing scope follows `@hearthkit/auth`'s `organizations` scaffold flag: a customer row is keyed on an
-`AuthUserId` in user-scoped mode and on an `AuthOrganizationId` in org-scoped mode, and the row records
-which. Every public function returns its failures as values; nothing in this package throws for a
-failure mode it names.
-
-This package talks to Stripe through the `stripe` SDK directly. **It does not use
-`@better-auth/stripe`.** That decision is forced by measurement rather than preference, and the
-evidence is under The Better Auth Stripe plugin, and why this package does not use it.
+Stripe subscriptions and one-time purchases for a hearthkit project: a product catalog defined in the app's code and pushed to Stripe, hosted Checkout, the hosted customer portal, a webhook handler that records what Stripe reports, and the Drizzle tables for customers, subscriptions and purchases. Billing scope follows `@hearthkit/auth`'s `organizations` scaffold flag: a customer row is keyed on an `AuthUserId` in user-scoped mode and on an `AuthOrganizationId` in org-scoped mode, and the row records which. This package talks to Stripe through the `stripe` SDK directly and does not use `@better-auth/stripe` (Decisions, item 2). Every public function returns its failures as values; nothing here throws for a failure mode it names.
 
 ## Inputs
 
@@ -23,628 +13,131 @@ evidence is under The Better Auth Stripe plugin, and why this package does not u
 | `STRIPE_SECRET_KEY`     | non-empty string, no whitespace | required | `sk_test_51Abc…` |
 | `STRIPE_WEBHOOK_SECRET` | non-empty string, no whitespace | required | `whsec_Abc…`     |
 
-Declared in `paymentsEnvSchemaFragment` and composed by `@hearthkit/config` (empty string counts as
-unset, per config's contract). This package never reads `process.env` itself.
+Declared in `paymentsEnvSchemaFragment` and composed by `@hearthkit/config` (empty string counts as unset). This package never reads `process.env` itself. Both are validated as `/^\S+$/` and **not** by an `sk_` or `whsec_` prefix: the SDK itself names whitespace as the copy-paste mistake, a prefix check would reject a legitimate restricted key (`rk_…`), and the SDK validates neither value's shape. Test mode is asserted from `livemode` on a returned Stripe object, never from the key: `syncPaymentsCatalog` and `createCheckoutSession` return `stripeLivemode`, and a gate asserts it is `false` before creating anything.
 
-Both are validated as `/^\S+$/` — non-empty with no whitespace anywhere — and **not** by a `sk_` or
-`whsec_` prefix. Two reasons, and the first is measured. `stripe@22.6.1`'s signature verifier computes
-`const secretContainsWhitespace = /\s/.test(secret)` and, when it holds, appends
-`Note: The provided signing secret contains whitespace. This often indicates an extra newline or space
-is in the value` to the failure text — so upstream itself treats whitespace as the mistake worth
-naming, and a trailing newline from a copied secret is the common way it happens. A prefix check, by
-contrast, would have to come from documentation rather than from behaviour: the SDK validates neither
-value's shape, so pinning `sk_` would reject a legitimate restricted key (`rk_…`) and pinning `whsec_`
-would break the day Stripe issues a different prefix. `docs/STATUS.md`'s standing rule — never take a
-constant for a library from documentation or memory — applies to prefixes as much as to error codes.
-
-**Test mode is not asserted from the key.** The guard that needs no invented constant is `livemode`,
-which every Stripe object carries: the SDK's own generated type says "If the object exists in live
-mode, the value is `true`. If the object exists in test mode, the value is `false`."
-`syncPaymentsCatalog` and `createCheckoutSession` therefore return `stripeLivemode`, read off the
-object Stripe answered with, and **a gate asserts it is `false` before it creates anything else**. That
-is a measurement, not a string match on a key.
-
-### The scaffold flag
-
-`organizations: true | false` is a **parameter**, not an environment variable, exactly as in
-`@hearthkit/auth`. It is passed as `organizationsEnabled` to `createPaymentsClient`, so it is a literal
-in the generated app's source. It decides one thing here: the `billingScope` value written on a
-customer row (`'user'` when the flag is off, `'organization'` when it is on). It never decides which
-tables exist — all three exist in every project, for the same reason `auth` defines the organization
-tables in both modes: changing the flag later re-homes existing rows, which is a data migration, and
-plan 4.8 says billing scope follows the flag rather than the schema.
+**The scaffold flag.** `organizations: true | false` is a parameter, not an environment variable, exactly as in `auth`. It is passed as `organizationsEnabled` to `createPaymentsClient`, so it is a literal in the generated app. It decides one thing: the `billingScope` written on a customer row (`'user'` when off, `'organization'` when on). It never decides which tables exist; all three exist in every project, because changing the flag later re-homes rows, which is a data migration, not a schema change.
 
 ### The catalog
 
-Plan 4.8's input is "a `payments-catalog.ts` file in the app defining products and prices". This
-package ships the schema for that file; the app writes the file and passes the value to
-`createPaymentsClient`, which validates it once at boot. Nothing here reads a file path.
+Plan 4.8's input is a `payments-catalog.ts` file in the app. This package ships `paymentsCatalogSchema` for that file; the app writes the value and passes it to `createPaymentsClient`, which validates it once at boot. Nothing here reads a file path. The shape is `{ products: [{ productName, displayName, description?, prices: [...] }] }`, with at least one product and at least one price per product. A price is either `{ priceName, currency, unitAmountMinorUnits, priceKind: 'subscription', recurringInterval, recurringIntervalCount? }` or `{ priceName, currency, unitAmountMinorUnits, priceKind: 'one-time' }`, a Zod discriminated union on `priceKind`, so a one-time price carrying an interval is unrepresentable.
 
-```ts
-// payments-catalog.ts in the app
-export const paymentsCatalog = {
-  products: [
-    {
-      productName: 'pro',
-      displayName: 'Pro',
-      description: 'Everything in Free, plus…',
-      prices: [
-        {
-          priceName: 'pro-monthly',
-          currency: 'usd',
-          unitAmountMinorUnits: 1900,
-          priceKind: 'subscription',
-          recurringInterval: 'month',
-          recurringIntervalCount: 1,
-        },
-        {
-          priceName: 'pro-lifetime',
-          currency: 'usd',
-          unitAmountMinorUnits: 29900,
-          priceKind: 'one-time',
-        },
-      ],
-    },
-  ],
-}
-```
-
-- `productName` — branded `PaymentsProductName`, lowercase kebab-case, at most 100 characters. **It is
-  also the Stripe product id**, because `products.create` accepts a caller-supplied `id` ("An
-  identifier will be randomly generated by Stripe. You can optionally override this ID, but the ID
-  must be unique across all products in your Stripe account"). That is what makes `syncPaymentsCatalog`
-  idempotent without a search call. See Still not verified — whether Stripe accepts this id shape is
-  the one part of sync no offline measurement can settle.
-- `priceName` — branded `PaymentsPriceName`, lowercase kebab-case, at most 200 characters, **unique
-  across the whole catalog, not merely within its product**. It is also the Stripe price `lookup_key`,
-  whose documented ceiling in the SDK types is 200 characters, and `lookup_key` is unique among active
-  prices in an account. This one name is what `createCheckoutSession` takes, what sync writes, and what
-  the webhook handler reads back off the price to attribute an event.
-- `currency` — branded `PaymentsCurrencyCode`, exactly three lowercase letters (ISO 4217 as Stripe
-  spells it).
-- `unitAmountMinorUnits` — positive integer, Stripe's `unit_amount`, in the currency's smallest unit.
-  The name states the constraint the type cannot: `1900` is $19.00, not $1900.
-- `priceKind` — `'subscription'` or `'one-time'`. A Zod discriminated union, so a one-time price
-  carrying a recurring interval is unrepresentable.
-- `recurringInterval` — `'day' | 'week' | 'month' | 'year'`, present only on a subscription price,
-  where it is required. `recurringIntervalCount` is an optional positive integer, default 1.
-
-**Three different spellings of one idea, and all three are real**, so the mapping is part of the
-contract rather than something an implementor rediscovers:
-
-| This package's `priceKind` | Stripe `Price.type` | Stripe Checkout `mode` |
-| -------------------------- | ------------------- | ---------------------- |
-| `'subscription'`           | `'recurring'`       | `'subscription'`       |
-| `'one-time'`               | `'one_time'`        | `'payment'`            |
-
-Note the underscore in Stripe's `'one_time'` and the fact that Stripe's word for the same idea changes
-between the price object and the checkout session. Also note that **Stripe already has a
-`billing_mode` and a `billing_scheme`, and neither means what `priceKind` means** —
-`subscription_data.billing_mode` controls proration orchestration and `Price.billing_scheme` is
-`per_unit` or `tiered`. `priceKind` is deliberately not called `billingMode`, because that name is
-taken upstream by something else.
+- `productName` — branded `PaymentsProductName`, lowercase kebab-case, at most 100 characters. It is also the Stripe product `id`, which `products.create` accepts as a caller-supplied value; that is what makes sync idempotent without a search call.
+- `priceName` — branded `PaymentsPriceName`, lowercase kebab-case, at most 200 characters, **unique across the whole catalog**. It is also the Stripe price `lookup_key` (documented ceiling 200, unique among active prices). It is what `createCheckoutSession` takes, what sync writes, and what the webhook handler reads back off a subscription's price.
+- `currency` — branded `PaymentsCurrencyCode`, exactly three lowercase letters. `unitAmountMinorUnits` — positive integer, Stripe's `unit_amount`: `1900` is $19.00. `recurringInterval` — `'day' | 'week' | 'month' | 'year'`, required on a subscription price; `recurringIntervalCount` is an optional positive integer, default 1. `displayName` is 1 to 250 characters, `description` 1 to 1000.
+- Three spellings of one idea, all real: `priceKind: 'subscription'` is Stripe `Price.type: 'recurring'` and Checkout `mode: 'subscription'`; `priceKind: 'one-time'` is `Price.type: 'one_time'` and `mode: 'payment'`. `priceKind` is deliberately not `billingMode`, because Stripe already uses `billing_mode` and `billing_scheme` for other things.
 
 ### Shared vocabulary
 
-Reused unchanged from the packages below this one: `PostgresConnectionString` and the Drizzle client
-from `@hearthkit/db`; `AuthUserId`, `AuthOrganizationId` and the `organizationsEnabled` spelling of the
-scaffold flag from `@hearthkit/auth`; the env-fragment mechanism from `@hearthkit/config`.
-`BillingContactEmail` carries the **same brand tag** as `@hearthkit/email`'s `EmailAddress` and
-`@hearthkit/auth`'s `AuthUserEmail`, so a parsed address flows between all three without a cast.
+Reused unchanged: the Drizzle client type from `@hearthkit/db`; `AuthUserId`, `AuthOrganizationId` and the `organizationsEnabled` spelling from `@hearthkit/auth`; the env-fragment mechanism from `@hearthkit/config`. `BillingContactEmail` carries the same `EmailAddress` brand as `@hearthkit/email` and `auth`'s `AuthUserEmail`, so a parsed address flows between the three packages without a cast.
 
-New here:
-
-- `StripeSecretKey`, `StripeWebhookSecret` — branded. Both are secrets: neither ever appears in a
-  failure, a log line, or any returned value.
-- `BillingReferenceId` — branded. The identifier of whoever is billed. In user-scoped mode it holds an
-  `AuthUserId`; in org-scoped mode an `AuthOrganizationId`. One name for one concept, because every
-  table, every function and every Stripe metadata value uses the same value and calling it two things
-  would make the org-mode and user-mode code paths look different when they are not.
-- `BillingScope` — `'user'` or `'organization'`. **These are the same two words
-  `@better-auth/stripe` uses for its `customerType` enum**, checked in its dist, so a project that ever
-  moves to the plugin does not have to rename a stored value.
-- `PaymentsProductName`, `PaymentsPriceName`, `PaymentsCurrencyCode` — branded, described above.
-- `StripeCustomerId`, `StripeSubscriptionId`, `StripeProductId`, `StripePriceId`,
-  `StripeCheckoutSessionId`, `StripePaymentIntentId`, `StripeEventId` — branded and opaque. Stripe
-  generates them; never parse or construct one. They are separately branded because they are all
-  strings of the same shape and swapping two of them is the mistake a brand exists to stop.
-- `PaymentsCustomerId`, `PaymentsSubscriptionId`, `PaymentsPurchaseId` — branded and opaque. These are
-  **our** row ids, generated by this package, not Stripe's.
-- `PaymentsCatalog`, `PaymentsCatalogProduct`, `PaymentsCatalogPrice` — the catalog above.
-- `PaymentsCustomer`, `PaymentsSubscription`, `PaymentsPurchase` — the three row shapes this package
-  reports.
-- `PaymentsClient` — the handle `createPaymentsClient` returns, carrying the Stripe client, the Drizzle
-  client, the validated catalog and the scope. It is what every other function takes.
+- `StripeSecretKey`, `StripeWebhookSecret` — branded secrets; neither ever appears in a failure, a log line or a returned value. Because failure details quote third-party text, the implementation scrubs both configured secrets out of that text before quoting it.
+- `BillingReferenceId` — branded; the id of whoever is billed (an `AuthUserId` in user scope, an `AuthOrganizationId` in org scope). One name, because every table, function and metadata value uses the same value. `BillingScope` — `'user'` or `'organization'`, the same two words `@better-auth/stripe` uses for `customerType`.
+- `StripeCustomerId`, `StripeSubscriptionId`, `StripeProductId`, `StripePriceId`, `StripeCheckoutSessionId`, `StripePaymentIntentId`, `StripeEventId` — branded and opaque; Stripe generates them, never construct one. Separately branded because swapping two same-shaped strings is the mistake a brand stops. `PaymentsCustomerId`, `PaymentsSubscriptionId`, `PaymentsPurchaseId` — branded and opaque, generated by this package for its own rows.
+- `PaymentsCatalog`, `PaymentsCatalogProduct`, `PaymentsCatalogPrice` — the catalog. `PaymentsCustomer`, `PaymentsSubscription`, `PaymentsPurchase` — the three row shapes this package reports. `PaymentsClient` — the handle `createPaymentsClient` returns (Stripe client, Drizzle client, validated catalog, webhook secret, flag and scope); every other function takes it, and it holds one secret, so never log or serialise it.
 
 ### Public functions
 
-Eight functions and three values. Each one maps to a plan 4.8 output or a plan 4.8 gate step; the
-mapping is in Decisions.
+Eight functions and one value, `hearthkitPaymentsDrizzleSchema`. Synchronous, so an app calls it at module scope:
 
-Synchronous, so an app can call it at module scope in `lib/payments.ts`:
+- `createPaymentsClient({ paymentsEnv, drizzleClient, paymentsCatalog, organizationsEnabled, stripeApiBaseUrl? })` — validates the catalog and builds the Stripe client; contacts nothing. `paymentsEnv` is the validated config object, extra keys ignored. `stripeApiBaseUrl` is an absolute http(s) URL overriding the Stripe host, port and protocol; omit it in every real deployment.
 
-- `createPaymentsClient({ paymentsEnv, drizzleClient, paymentsCatalog, organizationsEnabled, stripeApiBaseUrl? })`
-  — validates the catalog and builds the Stripe client. Contacts nothing: constructing a `Stripe`
-  instance does no I/O and the Drizzle client is lazy. `paymentsEnv` is the validated config object;
-  extra keys are ignored, so an app passes `config` straight through. `stripeApiBaseUrl` is an absolute
-  http(s) URL that overrides the Stripe API host, port and protocol; omit it in every real deployment.
+Asynchronous, each returning its failures as values:
 
-Asynchronous, and each returns its failures as values:
+- `syncPaymentsCatalog({ paymentsClient })` — pushes the held catalog to Stripe and reports what it did to each price. Idempotent: a second run reports every price `'unchanged'`.
+- `createCheckoutSession({ paymentsClient, billingReferenceId, billingContactEmail, priceName, quantity?, successUrl, cancelUrl })` — resolves `priceName` against the catalog, then Stripe (`prices.list({ lookup_keys: [priceName], active: true })`); creates or reuses the Stripe customer and the local row; creates a hosted session. `quantity` defaults to 1. Both URLs are absolute http(s) and are passed to Stripe byte for byte, never normalised through `new URL().href`, because that percent-encodes Stripe's `{CHECKOUT_SESSION_ID}` placeholder.
+- `createCustomerPortalSession({ paymentsClient, billingReferenceId, returnUrl })` — opens the hosted portal for the customer already on file. It never creates a customer, so it is the only producer of `payments-customer-not-found`.
+- `handleStripeWebhook({ paymentsClient, rawRequestBody, requestHeaders })` — verifies the signature locally, then records the event. `rawRequestBody` must be the exact bytes Stripe sent, as a string (`await request.text()`, never `.json()` or a re-serialised body: a parsed object is rejected by the SDK and a re-serialised one fails as a signature mismatch). `requestHeaders` is a web `Headers`, duck-typed on `.get`; the package reads `stripe-signature` off it. It never contacts Stripe over the network.
+- `readPaymentsSubscription({ paymentsClient, billingReferenceId })` — the most recent subscription row: greatest `createdAt`, `id` descending as tiebreak.
+- `listPaymentsPurchases({ paymentsClient, billingReferenceId })` — completed one-time purchases, newest `purchasedAt` first, `id` descending as tiebreak.
+- `verifyPaymentsTablesExist({ drizzleClient })` — one query against `information_schema.tables`; takes the Drizzle client so `/health` can call it without a Stripe key.
 
-- `syncPaymentsCatalog({ paymentsClient })` — pushes the held catalog to Stripe and reports what it did
-  to each price. Idempotent: running it twice reports every price `'unchanged'` the second time.
-- `createCheckoutSession({ paymentsClient, billingReferenceId, billingContactEmail, priceName, quantity?, successUrl, cancelUrl })`
-  — resolves `priceName` against the catalog and then against Stripe, creates or reuses the Stripe
-  customer and the local customer row, and creates a hosted Checkout Session. `quantity` defaults to 1.
-  `successUrl` and `cancelUrl` are absolute http(s) URLs, which is what Stripe requires.
-- `createCustomerPortalSession({ paymentsClient, billingReferenceId, returnUrl })` — opens Stripe's
-  hosted billing portal for the customer already on file. It never creates a customer, which is why
-  this is the only producer of `payments-customer-not-found`.
-- `handleStripeWebhook({ paymentsClient, rawRequestBody, requestHeaders })` — verifies the signature,
-  then records the event. `rawRequestBody` **must be the exact bytes Stripe sent**, as a string;
-  `requestHeaders` is a web `Headers`, duck-typed on `.get` exactly as `@hearthkit/auth`'s
-  `readAuthSession` does, and this package reads `stripe-signature` off it so the header name is
-  spelled once. Contacts Stripe over the network **never** — verification is a local HMAC.
-- `readPaymentsSubscription({ paymentsClient, billingReferenceId })` — reads the most recent
-  subscription row for a reference.
-- `listPaymentsPurchases({ paymentsClient, billingReferenceId })` — lists completed one-time purchases
-  for a reference, newest first.
-- `verifyPaymentsTablesExist({ drizzleClient })` — one query against `information_schema.tables`. It
-  takes the Drizzle client rather than the payments client, so `observability`'s `/health` can call it
-  without a Stripe key.
-
-Values:
-
-- `paymentsEnvSchemaFragment` — the fragment config composes.
-- `hearthkitPaymentsDrizzleSchema` — the Drizzle table map, always carrying all three tables.
-- `hearthkitPaymentsTableNames` — the three SQL table names.
-
-`billingReferenceId`, `billingContactEmail`, `priceName`, `successUrl`, `cancelUrl`, `returnUrl` and
-`rawRequestBody` are typed as plain `string` on the options objects and validated at runtime before any
-service is contacted. This is the same deliberate departure `email` made for `to` and `auth` made for
-`email`: these values always originate from user input or from an HTTP request, and validating them
-late produces a diagnostic that points at the wrong cause. The branded types still exist and are what
-the success results carry back.
-
-Validation is `safeParse`, never `parse`. A rejected value is returned as `payments-input-invalid`
-naming the field; nothing in this package throws a Zod error at a caller.
-
-**The raw body rule is not stylistic, and the symptom names the wrong cause.** Measured at
-`stripe@22.6.1`, handing a parsed object to signature verification throws
-`Webhook payload must be provided as a string or a Buffer … Payload was provided as a parsed JavaScript
-object instead.` In a Next.js route handler that means `await request.text()`, never
-`await request.json()`, and never a body some framework middleware has already parsed and
-re-serialised — re-serialising changes the bytes and the HMAC no longer matches, which surfaces as a
-signature mismatch rather than as a body-handling mistake.
+`billingReferenceId`, `billingContactEmail`, `priceName`, `successUrl`, `cancelUrl`, `returnUrl` and `rawRequestBody` are plain `string` on the options objects and validated with `safeParse` before any service is contacted; a rejected value is `payments-input-invalid` naming the field, and nothing throws a Zod error at a caller. The branded types are what the success results carry back.
 
 ## Outputs
 
-- `createPaymentsClient` → `{ kind: 'payments-client-created', paymentsClient, organizationsEnabled, billingScope }`
-  or a failure. `organizationsEnabled` and `billingScope` are echoed back so a caller holding only the
-  result can tell which mode it built, exactly as `createAuthServerInstance` echoes its flag.
-- `syncPaymentsCatalog` → `{ kind: 'payments-catalog-synced', syncedPrices, stripeLivemode }` or a
-  failure. Each entry of `syncedPrices` is
-  `{ priceName, stripeProductId, stripePriceId, syncAction }`, where `syncAction` is:
-  - `'unchanged'` — an active Stripe price already carries this lookup key with the same currency,
-    amount and recurrence.
-  - `'created'` — no active price carried this lookup key; one was created.
-  - `'replaced'` — an active price carried this lookup key with different terms. Stripe prices are
-    immutable in amount and currency, so a new price was created with `transfer_lookup_key: true` and
-    the superseded price was archived (`active: false`). Existing subscriptions stay on the old price;
-    that is Stripe's behaviour and this package does not migrate them.
-- `createCheckoutSession` → `{ kind: 'payments-checkout-session-created', stripeCheckoutSessionId, checkoutUrl, stripeCustomerId, priceName, stripeLivemode }`
-  or a failure. `checkoutUrl` is the hosted page to redirect to. Stripe types it `string | null`
-  ("Applies to Checkout Sessions with `ui_mode: hosted_page` … only present when the session is
-  active"); this package always creates hosted sessions, so a `null` there is not a contract state and
-  becomes `payments-request-failed`.
-- `createCustomerPortalSession` → `{ kind: 'payments-portal-session-created', portalUrl, stripeCustomerId }`
-  or a failure. `BillingPortal.Session.url` is typed non-nullable, so there is no null case here.
-- `handleStripeWebhook` → one of three:
-  - `{ kind: 'payments-webhook-processed', stripeEventId, stripeEventType, webhookOutcome }` where
-    `webhookOutcome` is `'customer-linked'`, `'subscription-upserted'` or `'purchase-recorded'`.
-  - `{ kind: 'payments-webhook-ignored', stripeEventId, stripeEventType, ignoredReason }` — **a
-    result, not a failure.** Stripe delivers every event type an endpoint is subscribed to, and most
-    of them are none of this package's business. Modelling that as an error would make a webhook route
-    log a stack trace on an ordinary Tuesday. Same reasoning as `auth-session-absent`.
-  - a failure.
-- `readPaymentsSubscription` → `{ kind: 'payments-subscription-found', paymentsSubscription }`, or
-  `{ kind: 'payments-subscription-absent' }`, or a failure. **Nobody having a subscription is a normal
-  answer**, not an error. "Most recent" means greatest `createdAt`, with `id` descending as the
-  tiebreak so the answer is deterministic. The row is returned **whatever its status**; the caller
-  reads `status` and decides. `paymentsActiveSubscriptionStatuses` is exported so the app and the gates
-  spell "entitled" the same way.
-- `listPaymentsPurchases` → `{ kind: 'payments-purchases-listed', paymentsPurchases }` or a failure.
-  An empty array is a success, not `-absent`: "what has this customer bought" has a correct empty
-  answer, whereas "which subscription is current" has no meaningful empty row.
-- `verifyPaymentsTablesExist` → `{ kind: 'payments-tables-present', presentTableNames }`, or
-  `{ kind: 'payments-tables-missing', missingTableNames }`, or a failure. `payments-tables-missing` is
-  a **result**, not a failure: the function's whole job is to report presence, so a negative answer is
-  a successful check. Same shape and same argument as `verifyAuthTablesExist`.
+- `createPaymentsClient` → `{ kind: 'payments-client-created', paymentsClient, organizationsEnabled, billingScope }` or a failure; flag and scope are echoed so a caller holding only the result knows which mode it built.
+- `syncPaymentsCatalog` → `{ kind: 'payments-catalog-synced', syncedPrices, stripeLivemode }` or a failure. Each synced price is `{ priceName, stripeProductId, stripePriceId, syncAction }`; `syncAction` is `'unchanged'` (an active price with this lookup key has the same currency, amount and recurrence), `'created'` (none did), or `'replaced'` (one did with different terms: Stripe prices are immutable in amount and currency, so a new price is created with `transfer_lookup_key: true` and the old one archived with `active: false`; existing subscriptions stay on the old price and are not migrated).
+- `createCheckoutSession` → `{ kind: 'payments-checkout-session-created', stripeCheckoutSessionId, checkoutUrl, stripeCustomerId, priceName, stripeLivemode }` or a failure. Stripe types `Session.url` as `string | null`; this package only creates hosted sessions, so a `null` is `payments-request-failed`.
+- `createCustomerPortalSession` → `{ kind: 'payments-portal-session-created', portalUrl, stripeCustomerId }` or a failure. `portalUrl` is short-lived; redirect to it, do not store it.
+- `handleStripeWebhook` → `{ kind: 'payments-webhook-processed', stripeEventId, stripeEventType, webhookOutcome }` with `webhookOutcome` one of `'customer-linked'`, `'subscription-upserted'`, `'purchase-recorded'`; or `{ kind: 'payments-webhook-ignored', stripeEventId, stripeEventType, ignoredReason }`, a result and not a failure, because Stripe delivers every subscribed event type and most are none of this package's business; or a failure.
+- `readPaymentsSubscription` → `{ kind: 'payments-subscription-found', paymentsSubscription }`, `{ kind: 'payments-subscription-absent' }`, or a failure. The row comes back whatever its `status`; the caller decides what counts as entitled, comparing against `paymentsActiveSubscriptionStatuses` (`active`, `trialing`, the same pair `@better-auth/stripe`'s `isActiveOrTrialing` tests).
+- `listPaymentsPurchases` → `{ kind: 'payments-purchases-listed', paymentsPurchases }` or a failure. An empty array is a success.
+- `verifyPaymentsTablesExist` → `{ kind: 'payments-tables-present', presentTableNames }`, `{ kind: 'payments-tables-missing', missingTableNames }`, or a failure. Missing tables are a result, not a failure, as in `auth`.
 
 ### The Drizzle schema
 
-`hearthkitPaymentsDrizzleSchema` defines three tables, listed in `hearthkitPaymentsTableNames`:
-`payments_customer`, `payments_subscription`, `payments_purchase`.
+`hearthkitPaymentsDrizzleSchema` defines three tables, listed in `hearthkitPaymentsTableNames`, and the Drizzle schema key equals the SQL table name, the rule `auth` follows, so `verifyPaymentsTablesExist` looks up the same strings. Every `id` is text, generated by this package; every table has `createdAt` and `updatedAt` timestamps, not null.
 
-**The Drizzle schema key equals the SQL table name**, which is the rule `@hearthkit/auth` already
-follows (its keys are `user`, `session`, … and so are its table names). One list, one spelling, and
-`verifyPaymentsTablesExist` looks the same strings up in `information_schema.tables`.
+- `payments_customer`: `billingReferenceId` (unique, one Stripe customer per reference), `billingScope`, `stripeCustomerId` (unique), `billingContactEmail` (the address Stripe sends receipts to). All not null.
+- `payments_subscription`: `billingReferenceId`, `stripeCustomerId`, `stripeSubscriptionId` (**unique, the idempotency key**), `priceName` (resolved from the price `lookup_key`), `stripePriceId`, `status` (Stripe's status verbatim, a plain string so a status Stripe adds later cannot break a write), `quantity` (integer), `cancelAtPeriodEnd` (boolean, default false); nullable timestamps `currentPeriodStart`, `currentPeriodEnd`, `canceledAt`, `endedAt`, `trialStart`, `trialEnd`.
+- `payments_purchase`: `billingReferenceId`, `stripeCustomerId`, `stripeCheckoutSessionId` (**unique, the idempotency key**), `stripePaymentIntentId` (nullable), `priceName`, `stripePriceId`, `currency`, `amountTotalMinorUnits` (Stripe's `amount_total`, may be 0 for a fully discounted order), `quantity`, `purchasedAt`.
 
-`payments_customer`
-
-| Column                | Type      | Null | Notes                                      |
-| --------------------- | --------- | ---- | ------------------------------------------ |
-| `id`                  | text      | no   | primary key, generated by this package     |
-| `billingReferenceId`  | text      | no   | unique — one Stripe customer per reference |
-| `billingScope`        | text      | no   | `user` or `organization`                   |
-| `stripeCustomerId`    | text      | no   | unique                                     |
-| `billingContactEmail` | text      | no   | the address Stripe sends receipts to       |
-| `createdAt`           | timestamp | no   |                                            |
-| `updatedAt`           | timestamp | no   |                                            |
-
-`payments_subscription`
-
-| Column                 | Type      | Null | Notes                                                     |
-| ---------------------- | --------- | ---- | --------------------------------------------------------- |
-| `id`                   | text      | no   | primary key                                               |
-| `billingReferenceId`   | text      | no   |                                                           |
-| `stripeCustomerId`     | text      | no   |                                                           |
-| `stripeSubscriptionId` | text      | no   | **unique — this is the idempotency key**                  |
-| `priceName`            | text      | no   | the catalog name, resolved from the price lookup key      |
-| `stripePriceId`        | text      | no   |                                                           |
-| `status`               | text      | no   | Stripe's subscription status, stored verbatim             |
-| `quantity`             | integer   | no   | `SubscriptionItem.quantity`, or 1 when absent — see below |
-| `currentPeriodStart`   | timestamp | yes  |                                                           |
-| `currentPeriodEnd`     | timestamp | yes  |                                                           |
-| `cancelAtPeriodEnd`    | boolean   | no   | default false                                             |
-| `canceledAt`           | timestamp | yes  |                                                           |
-| `endedAt`              | timestamp | yes  |                                                           |
-| `trialStart`           | timestamp | yes  |                                                           |
-| `trialEnd`             | timestamp | yes  |                                                           |
-| `createdAt`            | timestamp | no   |                                                           |
-| `updatedAt`            | timestamp | no   |                                                           |
-
-`payments_purchase`
-
-| Column                    | Type      | Null | Notes                                    |
-| ------------------------- | --------- | ---- | ---------------------------------------- |
-| `id`                      | text      | no   | primary key                              |
-| `billingReferenceId`      | text      | no   |                                          |
-| `stripeCustomerId`        | text      | no   |                                          |
-| `stripeCheckoutSessionId` | text      | no   | **unique — this is the idempotency key** |
-| `stripePaymentIntentId`   | text      | yes  |                                          |
-| `priceName`               | text      | no   |                                          |
-| `stripePriceId`           | text      | no   |                                          |
-| `currency`                | text      | no   |                                          |
-| `amountTotalMinorUnits`   | integer   | no   | Stripe's `amount_total`                  |
-| `quantity`                | integer   | no   |                                          |
-| `purchasedAt`             | timestamp | no   |                                          |
-| `createdAt`               | timestamp | no   |                                          |
-| `updatedAt`               | timestamp | no   |                                          |
-
-**There are no foreign keys to the auth tables, deliberately.** `billingReferenceId` points at `user`
-in one mode and at `organization` in the other, so a single foreign key cannot express it, and adding
-one would make the payments schema import `@hearthkit/auth`'s table objects and couple the two
-packages' migrations. A plain text column keyed on a branded id is what keeps one schema serving both
-modes. The consequence is stated rather than hidden: **this package never reads the auth tables and
-never checks that a `billingReferenceId` names anything.** A reference that names nobody produces a
-customer row with no owner, which is the app's bug to prevent, not this package's to detect.
-
-The schema is table definitions, not SQL. The app spreads `hearthkitPaymentsDrizzleSchema` into its own
-Drizzle schema alongside `hearthkitAuthDrizzleSchema` and runs `drizzle-kit generate` once, producing
-one migration folder that `@hearthkit/db`'s `runDatabaseMigrations` applies. This package ships **no**
-migrations folder of its own, for the same reason `auth` ships none: `runDatabaseMigrations` keeps one
-applied history per database, so a second folder would diverge from the first and be reported as
-`database-migration-conflict`.
+There are no foreign keys to the auth tables, deliberately: `billingReferenceId` points at `user` in one mode and `organization` in the other, and a foreign key would couple the two packages' migrations. So this package never reads the auth tables and never checks that a reference names anyone; a reference that names nobody is the app's bug. The schema is table definitions, not SQL: the app spreads it into its own Drizzle schema beside `hearthkitAuthDrizzleSchema` and runs `drizzle-kit generate` once, so `@hearthkit/db`'s `runDatabaseMigrations` keeps one applied history. This package ships no migrations folder.
 
 ### What `handleStripeWebhook` does with each event
 
-The handled set is exactly the four events `@better-auth/stripe` handles, read out of its dist. Keeping
-the same four is deliberate: it is the set that is sufficient for subscription state, and matching it
-keeps a future move to the plugin a data question rather than a behaviour question.
+The handled set is exactly the four events `@better-auth/stripe` handles, so a later move to the plugin is a data question, not a behaviour question.
 
-| Stripe event                    | What this package does                                                                                                                             |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `checkout.session.completed`    | `mode: 'subscription'` → upsert the customer row, `'customer-linked'`. `mode: 'payment'` and paid → upsert the purchase row, `'purchase-recorded'` |
-| `customer.subscription.created` | upsert the subscription row, `'subscription-upserted'`                                                                                             |
-| `customer.subscription.updated` | upsert the subscription row, `'subscription-upserted'`                                                                                             |
-| `customer.subscription.deleted` | upsert the same row with its terminal status and `endedAt`, `'subscription-upserted'`                                                              |
-| anything else                   | ignored, `'event-type-not-handled'`                                                                                                                |
+| Stripe event                                | What this package does                                                                                                                             |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checkout.session.completed`                | `mode: 'subscription'` → upsert the customer row, `'customer-linked'`; `mode: 'payment'` and paid → upsert the purchase row, `'purchase-recorded'` |
+| `customer.subscription.created`, `.updated` | upsert the subscription row, `'subscription-upserted'`                                                                                             |
+| `customer.subscription.deleted`             | upsert the same row with its terminal status and `endedAt`, `'subscription-upserted'`                                                              |
+| anything else                               | ignored, `'event-type-not-handled'`                                                                                                                |
 
-`ignoredReason` is one of:
+`ignoredReason` is `'event-type-not-handled'`; `'checkout-mode-not-handled'` (`mode: 'setup'`, which this package never creates); `'checkout-session-unpaid'` (`payment_status: 'unpaid'`; `'paid'` and `'no_payment_required'`, the fully discounted case, are recorded); `'billing-reference-missing'` (no `hearthkit_billing_reference_id` metadata, as on a subscription made by hand in the dashboard; inventing a reference would attach someone else's money to an account); `'checkout-price-metadata-missing'` (a payment-mode session without a usable `hearthkit_price_name`, `hearthkit_stripe_price_id` and `hearthkit_quantity` trio; a quantity that is not a positive integer counts as missing, never defaulted, because the string was written by this package and a bad value means the data is untrustworthy); `'subscription-price-not-in-catalog'` (no item's `price.lookup_key` names a catalog price). The two price reasons are path-specific because the two paths read the price from different places.
 
-- `'event-type-not-handled'` — the type is not one of the four.
-- `'checkout-mode-not-handled'` — a completed session whose `mode` is neither `subscription` nor
-  `payment`. Stripe's `mode` union is `'payment' | 'setup' | 'subscription'`, so `setup` is the case;
-  this package never creates one, so such a session came from elsewhere.
-- `'checkout-session-unpaid'` — `payment_status` is `'unpaid'`. A purchase is recorded for `'paid'` and
-  for `'no_payment_required'`, which is what a fully discounted order reports. The union at the pin is
-  `'no_payment_required' | 'paid' | 'unpaid'`.
-- `'billing-reference-missing'` — the object carries no `hearthkit_billing_reference_id` metadata. A
-  subscription created by hand in the Stripe dashboard has none, and inventing a reference for it would
-  attach someone else's money to a hearthkit account. This one reason serves both paths, because it
-  means the same thing and has the same fix on each.
-- `'checkout-price-metadata-missing'` — a completed payment-mode session carrying no usable
-  `hearthkit_price_name`, `hearthkit_stripe_price_id` and `hearthkit_quantity` trio. A quantity that is
-  not a positive integer counts as missing, because a purchase row cannot be written without one.
-- `'subscription-price-not-in-catalog'` — no item on the subscription carries a `price.lookup_key`
-  naming a catalog price.
-
-**The two price reasons are path-specific on purpose, because the two paths read the price from
-different places.** Which one fired tells a reader immediately whether to look at the catalog or at
-what created the session. The reason they cannot share one name is measured, and it is the next
-subsection.
-
-### A webhook delivery does not carry `line_items`, and the purchase path is built around that
-
-**`Checkout.Session.line_items` is not in a webhook payload.** Measured at `stripe@22.6.1`, it is
-declared `line_items?: ApiList<LineItem>` — an **optional** property — and the SDK's own comment says
-"When **retrieving** a Checkout Session, there is an **includable** `line_items` property". Includable
-means expanded on a retrieve. Nothing expands it on a delivery.
-
-**The plugin hits the same wall and pays the price this package refuses to pay.** Its
-`onCheckoutSessionCompleted` calls `await client.subscriptions.retrieve(checkoutSession.subscription)`
-and resolves the plan from `subscription.items.data` — never from `checkoutSession.line_items`. That
-is the **only** `retrieve` inside any of its four webhook handlers; `onSubscriptionCreated` and
-`onSubscriptionUpdated` both read `event.data.object.items.data` directly.
-
-This package adds **no** retrieve call, because `handleStripeWebhook` being fully offline is worth
-protecting: it is the one part of `payments` whose every path — including both signature failures and
-the replay — can be gated with no Stripe key at all, and a single retrieve would drag the whole set
-behind one. So the purchase path is resolved from metadata this package already writes, and every
-`payments_purchase` column has a source in the payload:
-
-| Column                    | Source in the `checkout.session.completed` payload                |
-| ------------------------- | ----------------------------------------------------------------- |
-| `stripeCheckoutSessionId` | `session.id`                                                      |
-| `stripeCustomerId`        | `session.customer`, as a string                                   |
-| `stripePaymentIntentId`   | `session.payment_intent`, as a string; null when absent           |
-| `billingReferenceId`      | `session.metadata.hearthkit_billing_reference_id`                 |
-| `priceName`               | `session.metadata.hearthkit_price_name`                           |
-| `stripePriceId`           | `session.metadata.hearthkit_stripe_price_id`                      |
-| `quantity`                | `session.metadata.hearthkit_quantity`, parsed from a string       |
-| `currency`                | `session.currency`                                                |
-| `amountTotalMinorUnits`   | `session.amount_total`                                            |
-| `purchasedAt`             | the event's `created`, seconds since the epoch (`Events.d.ts:38`) |
-
-`session.currency` and `session.amount_total` are **plain fields, not expandable**: measured, they are
-`currency: string | null` and `amount_total: number | null`, with no `string |` reference union of the
-sort `customer`, `payment_intent` and `subscription` carry. A paid payment-mode session has both. A
-`null` on this path is not a contract state and becomes `payments-request-failed`, the same treatment a
-`null` `checkoutUrl` gets.
-
-**Stripe metadata values are strings**, so `hearthkit_quantity` is written as a decimal string by
-`createCheckoutSession` and parsed back here. A value that is not a positive integer is treated as
-missing metadata rather than defaulted to 1, because silently billing one unit for an order of five is
-worse than declining to record it.
-
-**The checkout path does not consult the catalog at all**, and that is deliberate rather than an
-omission. A purchase is a historical fact: deleting a price from `payments-catalog.ts` must not make a
-completed order unrecordable. The metadata already carries everything the row needs. The subscription
-path is the opposite — it _must_ consult the catalog, because `payments_subscription.priceName` is
-resolved from `lookup_key` and there is no metadata to fall back on.
-
-**The price metadata goes on the session and never on `subscription_data.metadata`.** A subscription's
-price changes when a customer upgrades through the hosted portal, and metadata stamped at creation does
-not change with it — so a `hearthkit_price_name` on a subscription would go stale and then be actively
-wrong, reported as fact. The subscription path reads `items.data[].price.lookup_key` live instead,
-which cannot go stale. `subscription_data.metadata` carries the two reference keys and nothing else.
-
-### The customer-linked path, and where `billingContactEmail` comes from on it
-
-`payments_customer.billingContactEmail` is `text NOT NULL`, so a customer-linked delivery that has to
-insert a row needs an address. The path upserts on `billingReferenceId`:
-
-| Column                | Source in the `checkout.session.completed` payload                           |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `billingReferenceId`  | `session.metadata.hearthkit_billing_reference_id`                            |
-| `billingScope`        | `session.metadata.hearthkit_billing_scope`                                   |
-| `stripeCustomerId`    | `session.customer`, as a string — written on both insert and update          |
-| `billingContactEmail` | `session.customer_details.email ?? session.customer_email` — **insert only** |
-| `updatedAt`           | the event's `created`                                                        |
-
-**`billingContactEmail` is written on insert and never on update.** On an existing row it is left
-exactly as `createCheckoutSession` set it, from the address the app supplied. Both Stripe fields are
-things a buyer can influence on a page the app does not control, so letting a delivery overwrite the
-row would let a buyer silently change where the app thinks receipts and dunning go. Keeping the write
-to the insert branch keeps that door shut while still giving the `NOT NULL` column a value in the one
-case where nothing else can.
-
-**Both fields are read, in that order, and neither alone is sufficient.** Measured at the pin:
-`Session.customer_email` is a **prefill** field — "Use this parameter to prefill customer data if you
-already have an email on file. To access information about the customer once the payment flow is
-complete, use the `customer` attribute" — and is null on a session created with a customer id, which
-is every session this package creates after the first. `CustomerDetails.email` is documented as the
-address "after a completed Checkout Session", which is exactly the webhook case, so it goes first.
-**But read its second sentence too**: "Otherwise, if the customer has consented to promotional content,
-this value is the most recent valid email provided by the customer on the Checkout form." So it is not
-unconditionally a billing address either. That is the other half of why it may only seed a new row and
-may never overwrite one.
-
-**When both are null and a row must be inserted, the delivery is `payments-request-failed`.** It is not
-ignored: a completed subscription checkout that this package cannot record is not a normal state, and
-silence would drop it. The retry Stripe then performs is bounded and gives an operator the signal.
-**No gate covers this branch** — every gate that synthesises a session supplies an address — so it is
-also the one place here where the contract is not pinned by a test; see Still not verified.
-
-**The insert branch is reachable in practice only for a session this package did not create.**
-`createCheckoutSession` writes the customer row before a session can exist, so an ordinary flow always
-takes the update branch. It is kept rather than removed because a row deleted by an operator, or a
-session created by other tooling against the same Stripe account, must still be recordable.
-
-**Idempotency is structural, not a bookkeeping table.** Stripe delivers events more than once, and
-plan 4.8's gate replays one deliberately. Rather than record processed event ids in a fourth table —
-which would go beyond the plan's three — every write is an upsert on a unique Stripe id:
-`payments_subscription.stripeSubscriptionId` and `payments_purchase.stripeCheckoutSessionId`. A replay
-therefore writes the same values to the same row and the row count does not move. **The gate that
-matters is "deliver the same event twice, then assert exactly one row"**, which is stronger than
-asserting a second delivery was refused, because it holds even if the two deliveries interleave.
-
-**How an event finds its reference and its price.** Neither is guessable and both are set by this
-package on the way out:
-
-- `createCheckoutSession` writes `hearthkit_billing_reference_id` and `hearthkit_billing_scope` into
-  the session's `metadata`, and — for a subscription-mode session — into `subscription_data.metadata`
-  as well, so that the `customer.subscription.*` events carry them on the subscription object itself.
-  Without the second copy those three events have no reference at all, because they are about a
-  subscription and not about a session.
-- `createCheckoutSession` also writes `hearthkit_price_name`, `hearthkit_stripe_price_id` and
-  `hearthkit_quantity` into the **session's** `metadata` only. It has all three in hand at the moment
-  it creates the session. They exist because a delivery carries no `line_items`, argued above.
-- The subscription's catalog price is resolved from the Stripe price's `lookup_key`, which
-  `syncPaymentsCatalog` set to the `priceName`. It is read off the price object already embedded in
-  the event payload, so no second API call is needed, and it works for a subscription however it was
-  created as long as the price is one of ours. **`SubscriptionItem.price` is typed `Price`, not
-  `string | Price`**, so it is always the full object and never an id — which is what makes this path
-  offline rather than merely usually offline. `@better-auth/stripe`'s `resolvePlanItem` reads
-  `item.price.id` and `item.price.lookup_key` off the same payload, independently confirming it.
-- `client_reference_id` is deliberately **not** used. Stripe restricts its character set, that
-  restriction is documented rather than enforced in the SDK, and one mechanism with one spelling beats
-  two that must agree.
-
-**Where the period dates come from, and this one costs a round if taken from memory.** At
-`stripe@22.6.1` the `Subscription` object has **no** `current_period_start` or `current_period_end`.
-Both live on the subscription **item**: `subscription.items.data[<item>].current_period_start`. Two
-independent sources at the pin agree — the SDK's `SubscriptionItems.d.ts` declares them, and
-`@better-auth/stripe`'s dist reads them from exactly there in all four of its handlers. The
-subscription-level fields that do exist are `cancel_at_period_end`, `cancel_at`, `canceled_at`,
-`ended_at`, `trial_start` and `trial_end`. The item this package reads is the first whose
-`price.lookup_key` names a catalog price.
-
-**`subscription.customer` is a string in a webhook payload**, not an expanded object, but the SDK types
-it `string | Customer | DeletedCustomer`. Read the string; if it is an object take `.id`.
-
-**`payments_subscription.quantity` comes from `SubscriptionItem.quantity`, which the SDK types
-optional — `quantity?: number` — and it defaults to 1 when absent.** Stripe omits it for prices that
-have no explicit quantity, metered prices among them.
-
-**That default looks like it contradicts the `hearthkit_quantity` rule two sections up, and the
-difference is the point.** `hearthkit_quantity` is a string this package wrote into metadata and read
-back: a value that is not a positive integer means something went wrong in transit or somebody edited
-it, so silently billing one unit for an order of five would be reporting a number nobody chose — hence
-"treat as missing" there. `SubscriptionItem.quantity` is a field on **Stripe's own object**, where
-absence carries a meaning: the item has no explicit quantity, which is one unit of the thing. Nothing
-is being guessed. **The rule is not "always default" or "never default" — it is that a default is
-allowed where absence has a defined meaning, and forbidden where it means the data is untrustworthy.**
-
-### Deviation from plan 4.8's gate wording, and why
-
-Plan 4.8's gate line reads: "replay a `checkout.session.completed` event through the webhook handler,
-confirm the subscription row exists." **That sequence cannot pass against this contract, and the
-mismatch is deliberate rather than an oversight.** Under the routing above, a subscription-mode
-`checkout.session.completed` upserts the **customer** row and reports `'customer-linked'`; the
-subscription row only ever comes from `customer.subscription.*`.
-
-The reason is the `line_items` measurement. The plan's line was written before anyone measured what a
-delivery carries. To do what it literally describes, a handler must call
-`subscriptions.retrieve(session.subscription)` — which is exactly what `@better-auth/stripe` does, and
-exactly the network call this package declines, because it would put every webhook gate behind a live
-Stripe key. The alternative costs nothing real: Stripe sends `customer.subscription.created` for the
-same checkout anyway.
-
-**So the gate replays two events and asserts after the second:**
-
-1. Deliver `checkout.session.completed` with `mode: 'subscription'`. Assert
-   `'payments-webhook-processed'` with `webhookOutcome: 'customer-linked'` and that the
-   `payments_customer` row exists.
-2. Deliver `customer.subscription.created` carrying the same reference metadata. Assert
-   `'subscription-upserted'`, then confirm the `payments_subscription` row exists — which is the
-   assertion plan 4.8 asks for, one event later than it says.
-3. Deliver the second event again. Assert `'subscription-upserted'` once more and that there is still
-   exactly **one** row, which is the replay half of the plan's gate.
-
-Both events are synthesised locally and signed with `generateTestHeaderString`, so the whole sequence
-runs with no Stripe key and no network.
-
-### Subscription status, and the decoy one union away
-
-`status` is stored as a plain string, not as a Zod enum, so a status Stripe adds later cannot break a
-write or a read. The eight values at the pin are exported as `paymentsKnownSubscriptionStatuses` for
-callers and gates to compare against: `active`, `canceled`, `incomplete`, `incomplete_expired`,
-`past_due`, `paused`, `trialing`, `unpaid`. `paymentsActiveSubscriptionStatuses` is `active` and
-`trialing` — the same two `@better-auth/stripe`'s `isActiveOrTrialing` tests, read out of its dist.
-
-**`'ended'` and `'all'` are not subscription statuses.** They are members of
-`SubscriptionListParams.Status` in the same file, one union away from the real one, and a status column
-containing `'ended'` would be wrong in a way nothing would catch. `docs/STATUS.md` records three
-occasions where this repo took a plausible near-miss from an adjacent enum entry; naming this one is
-what stops the fourth.
-
-### The Better Auth Stripe plugin, and why this package does not use it
-
-Plan 4.8 says to verify at build time whether Better Auth's Stripe plugin covers one-time purchases and
-to "implement one-time purchases directly with the Stripe SDK alongside it" if not. The verification
-was done against a real install. The answer turned out to be broader than the question, and **the
-decisive fact is not about one-time purchases at all**.
-
-1. **The plugin cannot be installed without changing `@hearthkit/auth`, and no option avoids it.**
-   `getSchema` in its dist spreads a `user` model carrying `stripeCustomerId` in **both branches** of
-   its only conditional — `if (options.subscription?.enabled)` spreads `{ ...subscriptions, ...user }`
-   and the `else` spreads `{ ...user }` — so the field is there even with subscriptions turned off.
-   Saying "unconditionally" invites a reader to go hunting for the switch; there is no switch. It adds
-   the same field to `organization` when organization support is on.
-   `hearthkitAuthDrizzleSchema` has no such column, Drizzle table objects cannot be extended by another
-   package, and the Better Auth Drizzle adapter resolves a column as `schema[modelName][fieldName]` and
-   throws `The field "<name>" does not exist in the schema for the model "<model>". Please update your
-schema.` when it is absent. So adopting the plugin means editing `@hearthkit/auth`'s table
-   definitions — a package this one may not edit, and whose contract states in as many words that it
-   "must not import `payments`, know about Stripe, or model a plan, a price or a subscription".
-2. **It is subscription-only.** Its dist contains exactly one checkout mode literal, `mode:
-"subscription"`, and zero occurrences of `mode: "payment"` or `payment_intent`. Plan 4.8's Purpose
-   names one-time purchases, so they are ours either way.
-3. **It has no catalog sync.** Its only calls into the Stripe price API are `prices.list` and
-   `prices.retrieve`; `products.create`, `products.update` and `prices.create` appear nowhere. Plan
-   4.8's `syncPaymentsCatalog` is ours either way.
-4. **Its surface is routes, not functions.** It registers `/stripe/webhook`, `/subscription/upgrade`,
-   `/subscription/cancel`, `/subscription/restore`, `/subscription/list`, `/subscription/success` and
-   `/subscription/billing-portal` on the auth instance, and the subscription routes are session-scoped
-   through `sessionMiddleware`. Plan 4.8's outputs are four named functions, and its gate replays a raw
-   event body through a webhook handler — a function taking a body and a signature, not a route needing
-   a session.
-5. **Its peer set contains an exact pin that is a standing hazard.** `@better-auth/stripe@1.7.2` peers
-   on `better-call: 1.4.0` — exact, not a range. `better-auth@1.7.2` happens to depend on exactly
-   `better-call: 1.4.0` today, so they agree at the pin; any `better-auth` patch that moves
-   `better-call` breaks the peer. Only `@better-auth/stripe@1.7.2` fits our `better-auth` pin at all:
-   `latest` is 1.7.3 and peers on `^1.7.3` — that last pair is the orchestrator's registry measurement,
-   not one this agent re-read, and it is the only claim in this section with that provenance.
-
-So this package owns three tables of its own and talks to Stripe through the SDK. What it does **not**
-do is invent vocabulary: `billingScope`'s two values are the plugin's `customerType` values, and the
-column-name mapping below is stated so a later move to the plugin is a rename with a known target
-rather than an excavation.
-
-| This package                              | `@better-auth/stripe`                                     | Stripe                                        |
-| ----------------------------------------- | --------------------------------------------------------- | --------------------------------------------- |
-| `billingReferenceId`                      | `referenceId`                                             | `metadata.hearthkit_billing_reference_id`     |
-| `billingScope`                            | `customerType`                                            | `metadata.hearthkit_billing_scope`            |
-| `priceName`                               | `plan`                                                    | `Price.lookup_key`                            |
-| `currentPeriodStart` / `…End`             | `periodStart` / `…End`                                    | `SubscriptionItem.current_period_start` / `…` |
-| `stripeCustomerId` on `payments_customer` | `user.stripeCustomerId` / `organization.stripeCustomerId` | `Customer.id`                                 |
-| not modelled                              | `seats`, `stripeScheduleId`, `billingInterval`            | —                                             |
-
-`seats`, `stripeScheduleId` and `billingInterval` are left out because nothing in plan 4.8 asks for seat
-billing or scheduled plan changes, and `billingInterval` is already in the catalog under the price
-name. Each is an additive column later.
+- **A webhook delivery does not carry `line_items`** (`Checkout.Session.line_items` is optional and only expanded on a retrieve), and this package adds no retrieve call, so the handler is fully offline. The purchase path reads everything from the session and its metadata: `stripeCheckoutSessionId` from `session.id`, `stripeCustomerId` from `session.customer` as a string, `stripePaymentIntentId` from `session.payment_intent` (null when absent), `billingReferenceId`, `priceName`, `stripePriceId` and `quantity` from the `hearthkit_*` metadata, `currency` and `amountTotalMinorUnits` from `session.currency` and `session.amount_total` (plain nullable fields; a `null` on a paid session is `payments-request-failed`), `purchasedAt` from the event's `created`. The purchase path does not consult the catalog: a purchase is a historical fact, and deleting a price from the catalog must not make a completed order unrecordable.
+- **How an event finds its reference and price.** `createCheckoutSession` writes `hearthkit_billing_reference_id` and `hearthkit_billing_scope` into the session's `metadata` and, for a subscription session, into `subscription_data.metadata` too, so `customer.subscription.*` events carry them on the subscription. It writes `hearthkit_price_name`, `hearthkit_stripe_price_id` and `hearthkit_quantity` (a decimal string; Stripe metadata values are strings) into the session's metadata only, never `subscription_data.metadata`: a portal upgrade changes a subscription's price without touching metadata stamped at creation, so the subscription path reads its price live from `items.data[].price.lookup_key` instead. `SubscriptionItem.price` is typed `Price`, not `string | Price`, so no retrieve is needed. `client_reference_id` is not used.
+- **The customer-linked path** upserts on `billingReferenceId`: `billingScope` from `hearthkit_billing_scope`, `stripeCustomerId` from `session.customer` (written on insert and update), `billingContactEmail` from `session.customer_details.email ?? session.customer_email` **on insert only**, never on update, because both fields are buyer-influenced on a page the app does not control and an update would let a buyer redirect receipts and dunning. When both are null and a row must be inserted, the delivery is `payments-request-failed`, not ignored. The insert branch is reachable in practice only for a session this package did not create; no gate covers the both-null branch or the never-overwrite rule.
+- **Subscription row sources.** `currentPeriodStart` and `currentPeriodEnd` live on the subscription **item** (`items.data[].current_period_start`), not on the subscription; the item read is the first whose `price.lookup_key` names a catalog price. `cancel_at_period_end`, `canceled_at`, `ended_at`, `trial_start`, `trial_end` are subscription-level. `quantity` is `SubscriptionItem.quantity`, optional in the SDK, defaulting to 1 when absent: absence has a defined meaning on Stripe's own object, unlike the metadata string. `subscription.customer` is a string in a delivery; if it is an object, take `.id`. The eight statuses at the pin are in `paymentsKnownSubscriptionStatuses`; `'ended'` and `'all'` belong to `SubscriptionListParams.Status` and are not statuses.
+- **Idempotency is structural.** Every write is an upsert on a unique Stripe id (`stripeSubscriptionId`, `stripeCheckoutSessionId`), so a replay writes the same values to the same row and the row count does not move. There is no processed-events table.
+- **Plan 4.8's gate wording is deliberately not followed literally.** It says to replay `checkout.session.completed` and confirm the subscription row; here that event yields `'customer-linked'`, and the subscription row comes from `customer.subscription.created`, because doing it in one event needs the `subscriptions.retrieve` call this package declines. The gate delivers the completed session (assert `'customer-linked'` and the customer row), then `customer.subscription.created` (assert `'subscription-upserted'` and the row), then the same event again (assert exactly one row). Both events are synthesised locally and signed with `stripe.webhooks.generateTestHeaderString`.
 
 ### Package entry point
 
-`src/index.ts` is the package entry, a thin named re-export (no `export *`). It re-exports by name: the
-eight public functions; `paymentsEnvSchemaFragment`, `hearthkitPaymentsDrizzleSchema` and
-`hearthkitPaymentsTableNames`; and every value `src/payments-contract.ts` exports, with no exceptions —
-the same mechanical rule `storage`, `email` and `auth` settled on, so a caller that has narrowed a
-result on `kind` can validate the success arm without rebuilding the schema.
+`src/index.ts` is the package entry, a thin named re-export (no `export *`). Its value exports are a fixed allowlist of exactly these twenty-seven, and nothing else. The nine plan-named implementation outputs:
 
-The manifest must publish a second subpath, `./payments-contract` → `./src/payments-contract.ts`,
-exactly as `@hearthkit/auth` publishes `./auth-contract`. The reason is the same: the `.` entry imports
-`stripe`, `drizzle-orm/pg-core` and the Drizzle table definitions, while the contract file imports
-`zod` at runtime and nothing else — its `stripe`, `drizzle-orm/node-postgres` and
-`@hearthkit/auth/auth-contract` imports are **type-only** and erased. A gate, the CLI's
-`hearthkit payments sync`, or a future package can read the contract without loading the SDK.
+1. `createPaymentsClient`
+2. `syncPaymentsCatalog`
+3. `createCheckoutSession`
+4. `createCustomerPortalSession`
+5. `handleStripeWebhook`
+6. `readPaymentsSubscription`
+7. `listPaymentsPurchases`
+8. `verifyPaymentsTablesExist`
+9. `hearthkitPaymentsDrizzleSchema`
+
+The eighteen contract values that live in `payments-contract.ts`:
+
+10. `paymentsEnvSchemaFragment` — `templates/app`'s `app-runtime-config.ts` reads it
+11. `paymentsFailureSchema` — `cli`'s `cli-contract.ts` reads it
+12. `paymentsCatalogSchema` — the one input an app constructs; `templates/app`'s `payments-catalog.ts` parses the catalog with it
+13. `createPaymentsClientResultSchema`
+14. `syncPaymentsCatalogResultSchema`
+15. `createCheckoutSessionResultSchema`
+16. `createCustomerPortalSessionResultSchema`
+17. `handleStripeWebhookResultSchema`
+18. `readPaymentsSubscriptionResultSchema`
+19. `listPaymentsPurchasesResultSchema`
+20. `verifyPaymentsTablesExistResultSchema`
+21. `hearthkitPaymentsTableNames` — `templates/app`'s `drizzle.config.ts` reads it
+22. `paymentsSyncedPriceSchema` — `cli`'s `cli-contract.ts` builds its sync result on it
+23. `stripeSignatureHeaderName`
+24. `hearthkitBillingReferenceMetadataKey`
+25. `hearthkitPriceNameMetadataKey`
+26. `hearthkitQuantityMetadataKey`
+27. `hearthkitStripePriceIdMetadataKey`
+
+Items 23 to 27 are public because `templates/app/e2e/payments-checkout-flow.spec.ts` signs a webhook body and reads Stripe metadata with them, and `@hearthkit/create` copies `e2e/` into every scaffolded project, so that spec is app code; a project that signs a body or reads metadata needs the same spelling. `hearthkitBillingScopeMetadataKey` has no reader outside the package and is internal. No branded schema is on the list: every string option is plain and validated inside, and the catalog is parsed by `paymentsCatalogSchema`. Type exports are not counted and stay: every branded type under Shared vocabulary, `BillingReferenceOwnerId`, `PaymentsEnvValues`, `PaymentsRecurringInterval`, `PaymentsCatalog`, `PaymentsCatalogProduct`, `PaymentsCatalogPrice`, `PaymentsCustomer`, `PaymentsSubscription`, `PaymentsPurchase`, `PaymentsClient`, `PaymentsFailure`, `PaymentsInvalidFieldName`, `PaymentsCatalogIssueKind`, `PaymentsCatalogIssue`, `PriceLookupFailure`, `WebhookSignatureFailureReason`, `HandledStripeWebhookEventType`, `HearthkitPaymentsTableName`, `HearthkitPaymentsDrizzleSchema`, `PaymentsPriceSyncAction`, `PaymentsSyncedPrice`, `PaymentsWebhookOutcome`, `PaymentsWebhookIgnoredReason`, and each function's options, result and function types (`CreatePaymentsClientOptions`, `CreatePaymentsClientResult`, `CreatePaymentsClient`, and likewise for the other seven functions).
+
+Every other value in `payments-contract.ts` is internal: the nine `*ErrorPrefix` constants; `stripeUnauthorizedHttpStatus`, `stripeForbiddenHttpStatus`, `stripeSubscriptionCheckoutMode`, `stripeOneTimeCheckoutMode`, `stripeRecurringPriceType`, `stripeOneTimePriceType`, `hearthkitBillingScopeMetadataKey`, `handledStripeWebhookEventTypes`, `handledStripeWebhookEventTypeSchema`, `paymentsKnownSubscriptionStatuses`, `paymentsActiveSubscriptionStatuses`, `paymentsDatabaseUnavailableCauseCodes`, `maximumPaymentsProductNameLength`, `maximumPaymentsPriceNameLength`, `defaultCheckoutQuantity`, `hearthkitPaymentsTableNameSchema`, `stripeSecretKeySchema`, `stripeWebhookSecretSchema`; the twenty-two branded and vocabulary schemas (`billingScopeSchema`, `billingReferenceIdSchema`, `billingContactEmailSchema`, `paymentsProductNameSchema`, `paymentsPriceNameSchema`, `paymentsCurrencyCodeSchema`, `paymentsUnitAmountMinorUnitsSchema`, `paymentsRecurringIntervalSchema`, `paymentsQuantitySchema`, `stripeCustomerIdSchema`, `stripeSubscriptionIdSchema`, `stripeProductIdSchema`, `stripePriceIdSchema`, `stripeCheckoutSessionIdSchema`, `stripePaymentIntentIdSchema`, `stripeEventIdSchema`, `paymentsCustomerIdSchema`, `paymentsSubscriptionIdSchema`, `paymentsPurchaseIdSchema`, `paymentsSubscriptionStatusSchema`, `paymentsRedirectUrlSchema`, `paymentsStripeApiBaseUrlSchema`); the catalog sub-schemas (`paymentsSubscriptionCatalogPriceSchema`, `paymentsOneTimeCatalogPriceSchema`, `paymentsCatalogPriceSchema`, `paymentsCatalogProductSchema`) and the three record schemas (`paymentsCustomerSchema`, `paymentsSubscriptionSchema`, `paymentsPurchaseSchema`); `paymentsInvalidFieldNameSchema`, `paymentsCatalogIssueKindSchema`, `paymentsCatalogIssueSchema`, `priceLookupFailureSchema`, `webhookSignatureFailureReasonSchema`, `paymentsWebhookIgnoredReasonSchema`, the nine per-variant `*FailureSchema`; `paymentsClientSchema`, `paymentsDrizzleClientSchema`, `paymentsRequestHeadersSchema`; the eight `*OptionsSchema`; `paymentsPriceSyncActionSchema` and `paymentsWebhookOutcomeSchema`. The implementation and this package's own gates may import them from `payments-contract.ts` directly, but they are not part of the public surface and may change without a changeset. The eleven per-arm success schemas (`paymentsClientCreatedSchema`, `paymentsCatalogSyncedSchema`, `paymentsCheckoutSessionCreatedSchema`, `paymentsPortalSessionCreatedSchema`, `paymentsWebhookProcessedSchema`, `paymentsWebhookIgnoredSchema`, `paymentsSubscriptionFoundSchema`, `paymentsSubscriptionAbsentSchema`, `paymentsPurchasesListedSchema`, `paymentsTablesPresentSchema`, `paymentsTablesMissingSchema`) are module-private inside `payments-contract.ts` and reachable only through the result unions; a caller that has narrowed a result on `kind` already holds the validated shape.
+
+**The `./payments-contract` subpath.** The manifest publishes a second subpath, `./payments-contract`, because `packages/cli` imports `paymentsFailureSchema` and `paymentsSyncedPriceSchema` at runtime and the types `PaymentsFailure`, `PaymentsCatalog` and `PaymentsEnvValues` from it, its fixture imports `paymentsCatalogSchema`, and `templates/app` imports `hearthkitPaymentsTableNames` and the five wire constants (items 23 to 27). It resolves to a named re-export module, `src/payments-contract-entry.ts`, whose value exports are exactly items 10 to 27 plus every public type listed above, and none of the nine implementation outputs: the `.` entry imports `stripe`, `drizzle-orm/pg-core` and the table definitions. `payments-contract.ts` and `payments-contract-entry.ts` import only `zod` at runtime (the `stripe`, `drizzle-orm/node-postgres` and `@hearthkit/auth/auth-contract` imports are type-only and erased), so each loads under bare `node` with no side effect; the cli's `hearthkit payments sync` relies on that.
 
 ## Failure modes
 
-All failures are one discriminated union, `PaymentsFailure`, on `kind`. Every variant carries a
-`message` starting with its unique literal prefix.
+All failures are one discriminated union, `PaymentsFailure`, on `kind`. Every variant carries a `message` starting with its unique literal prefix.
 
 | `kind`                               | When                                                          | Message prefix                                  | Returned by                          |
 | ------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------ |
@@ -658,13 +151,9 @@ All failures are one discriminated union, `PaymentsFailure`, on `kind`. Every va
 | `payments-database-unavailable`      | One of four Postgres connection or schema codes               | `hearthkit payments database unavailable:`      | every database call                  |
 | `payments-request-failed`            | Anything else, so nothing throws                              | `hearthkit payments request failed:`            | every function                       |
 
-Nine variants where the plan names three. The same shape as `db` (ten for four) and `auth` (nine for
-three), and each addition is argued in Decisions rather than assumed.
-
 ### How a Stripe signal becomes a failure
 
-The mapping is part of the contract, not an implementation choice. Anything not listed here lands in
-the catch-all.
+The mapping is part of the contract. Anything not listed lands in the catch-all.
 
 | Stripe signal                                                                        | Failure                              |
 | ------------------------------------------------------------------------------------ | ------------------------------------ |
@@ -676,629 +165,33 @@ the catch-all.
 | A `DrizzleQueryError` whose `.cause` has `ECONNREFUSED`, `42P01`, `3D000` or `28P01` | `payments-database-unavailable`      |
 | Anything else                                                                        | `payments-request-failed`            |
 
-**Where each of those values is read, and which spelling is the wrong one.** All of the following are
-read off `stripe@22.6.1`'s `Error.js` rather than taken from documentation:
-
-- **`error.type` is the SDK class name, not Stripe's error type.** `StripeError`'s constructor sets
-  `this.type = type || this.constructor.name`, so `error.type` reads `'StripeInvalidRequestError'`,
-  `'StripeSignatureVerificationError'` and so on. **Stripe's own type string — `'invalid_request_error'`
-  and friends — is at `error.rawType`.** An implementation that switches on `error.type` expecting the
-  API's vocabulary matches nothing and routes every case to the catch-all, silently. This is the same
-  shape as `auth`'s `error.code` versus `error.body?.code`: the obvious spelling returns a plausible
-  wrong answer rather than throwing.
-- **The HTTP status is at `error.statusCode`.** The API error code — `resource_missing` and its
-  neighbours — is at `error.code`, and the offending parameter name at `error.param`. Both come
-  straight off the raw error body.
-- **Classification by status is the SDK's own, and 404 is not what you expect.**
-  `generateV1Error` returns `StripeInvalidRequestError` for `statusCode === 400` **or** `404`, so a
-  missing resource is not a distinct error class. That is why this package never distinguishes "unknown
-  price" from "unknown customer" by inspecting a Stripe error at all — see the next section.
-- **`StripeSignatureVerificationError` carries `.payload` and `.header`, and `.payload` is the raw
-  webhook body.** It therefore holds whatever customer data the event held. Quote `error.message` into
-  a failure detail and **never** `.payload`.
-
-### Details the gates and the implementation both depend on
-
-- **`payments-price-not-found` covers two causes and carries which one, because the fixes differ.**
-  `priceLookupFailure` is `'absent-from-catalog'` when `priceName` names no price in the catalog the
-  client was built with — a code mistake, and a check that touches no network at all — and
-  `'absent-from-stripe'` when the catalog has it but Stripe has no active price with that lookup key,
-  which means `hearthkit payments sync` has not been run against this account. One variant with a field
-  discriminator rather than two kinds, following `auth-input-invalid`'s precedent: the caller does the
-  same thing in both cases (tell the buyer this plan is unavailable) and only the operator's next step
-  differs. A gate asserts on `priceLookupFailure`, which is an enum, rather than on message text.
-- **Neither price nor customer resolution asks Stripe to tell us the thing is missing.** The catalog
-  arm is a local map lookup; the Stripe arm is an empty `prices.list` result, which is a 200 response
-  with no data rather than an error; and `payments-customer-not-found` is an empty
-  `payments_customer` query. So all three producers are deterministic and two of them need no network.
-  Depending on `error.code === 'resource_missing'` was rejected deliberately: it is an API-level string
-  this repo cannot measure offline, and `resource_already_exists` sits in the same union as a
-  ready-made near miss.
-- **`payments-customer-not-found` has exactly one producer, and that is by design.**
-  `createCheckoutSession` creates the Stripe customer and the local row when neither exists, so it can
-  never report this. `createCustomerPortalSession` never creates anything — opening a billing portal for
-  a person who has never paid is not a thing to do quietly — so it is the only producer. The plugin
-  reaches the same conclusion: `CUSTOMER_NOT_FOUND` is thrown in its dist in exactly one place, its
-  billing-portal route.
-- **`payments-webhook-signature-invalid` carries `signatureFailureReason`**, either
-  `'signature-header-missing'` or `'signature-verification-failed'`, plus `stripeFailureDetail` holding
-  the SDK's message. Both mean "this request did not come from Stripe" and the caller does the same
-  thing with both — answer 400 and write nothing — so they are one kind with a discriminator.
-- **The wrong-secret message has a near-miss in the same file, and a gate matching loosely will assert
-  the wrong thing.** Measured in `Webhooks.js`, a wrong secret throws with a message beginning
-  `No signatures found matching the expected signature for payload.`, while a header that parses but
-  carries no `v1=` entry throws `No signatures found with expected scheme`. **A substring test on
-  `No signatures found` matches both.** Two further messages exist on the same path:
-  `Unable to extract timestamp and signatures from header` for a malformed header, and
-  `Timestamp outside the tolerance zone` when the signature is older than
-  `DEFAULT_TOLERANCE`, measured as `300` seconds. This package maps all four to one variant, so the
-  hazard is not in the implementation — it is in a gate that means to prove "wrong secret" and matches
-  a string that four different causes satisfy.
-- **The signature round trip is fully offline and deterministic, so `STRIPE_WEBHOOK_SECRET` is a value
-  the gates choose rather than one Stripe issues.** `stripe.webhooks.generateTestHeaderString({
-payload, secret })` builds `t=<unix seconds>,v1=<hmac>` with no network, and
-  `constructEvent(payload, header, secret)` verifies it. The Stripe CLI is therefore **not** a
-  dependency of the webhook gates. Plan 4.8 names `stripe listen`, which stays the right tool for local
-  development per plan section 6, but a gate that shells out to a CLI to obtain a value it can compute
-  is slower, less deterministic and skippable — and a skipped gate is not a passing gate.
-- **`payments-stripe-unauthorized` covers 401 and 403 in one variant.** 401 is a wrong or revoked key
-  (`StripeAuthenticationError`); 403 is a restricted key without the permission
-  (`StripePermissionError`). The caller does the same thing with both — fail the request and page the
-  operator — so the taxonomy follows the caller, per `auth`'s Decision 4. `stripeErrorStatus` is carried
-  so a reader sees which. This is the first-run state of every project that pasted the wrong key, and
-  without a name it would arrive as an opaque catch-all in the one package that is holding somebody's
-  money.
-- **`payments-stripe-unreachable` is measured and cheaply gateable.** At the pin, a request-level
-  failure becomes `StripeConnectionError` with the message
-  `An error occurred with our connection to Stripe.` — plus ` Request was retried N times.` when it was
-  retried — and a timeout becomes `Request aborted due to timeout being reached (Nms)`. **A closed
-  connection is retried once even when retries are disabled**, per the SDK's own `_shouldRetry`, so a
-  gate should not assert a retry count of zero. This is the sibling of `db`'s
-  `database-server-unreachable` and `email`'s transport-unreachable variant, and it is what
-  `stripeApiBaseUrl` exists for: pointed at a closed local port it produces this failure with no
-  network and no Stripe account.
-- **`payments-database-unavailable` reuses `@hearthkit/auth`'s four-code allowlist verbatim**, and the
-  reasoning transfers with it: `ECONNREFUSED` when the server refuses, `42P01` when a table is absent,
-  `3D000` when the named database does not exist, `28P01` when the password is wrong. All four arrive
-  as a `DrizzleQueryError` that carries **no code of its own**, with the code exactly one `.cause` hop
-  down, and one call can throw from two unrelated error families — an `AggregateError` and pg's
-  `DatabaseError`. It is an allowlist and not "any cause carrying a code", for auth's reason:
-  `23505` is a unique violation, which is a caller error rather than an unavailable database, and this
-  package has three unique constraints that a concurrent webhook delivery can race into. Everything
-  outside the four stays in `payments-request-failed`. One spelling of one concept across two
-  packages — if the list ever changes, it changes in both.
-- **`payments-database-unavailable`'s detail is built from the `.cause`, never from the
-  `DrizzleQueryError` wrapper.** The wrapper's message repeats the failing SQL and its bound
-  parameters, which here would put a customer's email address and Stripe ids into a returned failure.
-  This is the same judgement the `auth` implementor made and it is written into the contract this time
-  so it is not rediscovered.
-- **`payments-catalog-invalid` carries a list, not a first failure.** `catalogIssues` names every
-  problem in one pass, the way `config` reports every bad variable at once, because fixing a catalog one
-  error per boot is miserable. Each issue is
-  `{ catalogIssueKind, catalogEntryName, catalogIssueReason }` with `catalogIssueKind` one of
-  `'catalog-has-no-products'`, `'product-has-no-prices'`, `'duplicate-product-name'`,
-  `'duplicate-price-name'` or `'entry-invalid'`. `catalogIssueReason` states the rule that was broken
-  ("must be a positive integer of minor currency units"), never the value, matching
-  `auth-input-invalid`'s discipline.
-- **`payments-input-invalid` never echoes the rejected value.** `invalidFieldReason` states the rule;
-  `invalidFieldName` is an enum, and a gate asserts on that rather than on message text.
-- **`successUrl` and `cancelUrl` are passed to Stripe verbatim, byte for byte.** They are validated
-  with `z.url({ protocol: /^https?$/ })` and then handed over unchanged — **never normalised through
-  `new URL(value).href`**. Stripe supports a `{CHECKOUT_SESSION_ID}` placeholder in `success_url`, and
-  round-tripping the string through `URL` percent-encodes the braces, which turns the placeholder into
-  literal text that Stripe never substitutes. The symptom is a success page that receives
-  `%7BCHECKOUT_SESSION_ID%7D` as its session id, which reads like a Stripe bug.
-- **Neither secret ever leaves this package.** `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are
-  branded as secrets and must not appear in any message, any returned value or any log line. Because
-  failure details quote text produced by a third-party library, the implementation scrubs both
-  configured secrets out of that text before quoting it — the same rule `@hearthkit/email`'s
-  `redactEmailSecrets` follows, and for the same reason: the rule is absolute but the words are
-  somebody else's.
-- **`payments-request-failed` carries `stripeErrorCode`, `stripeErrorStatus` and `stripeErrorParam`**
-  when Stripe supplied them, plus `paymentsFailureDetail`. It is the catch-all that keeps "never
-  throws" a promise rather than an aspiration, exactly as `storage-request-failed`,
-  `email-send-failed` and `auth-request-failed` do, and carrying the code is what stops it being a
-  dead end.
-- **`payments-request-failed` carries no discriminator, so its several producers are not
-  distinguishable programmatically, and nobody should assume otherwise.** Three of them are named in
-  this contract — a `null` `checkoutUrl`, a `null` `session.currency` and a `null`
-  `session.amount_total` — and a caller receiving the failure cannot tell which fired, because the
-  three optional Stripe fields are all absent on these paths and only `paymentsFailureDetail` differs.
-  That is accepted rather than fixed: adding a discriminator would mean enumerating every internal
-  invariant in the public type, which is what a catch-all exists to avoid. **The detail text is for a
-  human reading a log, and a gate asserts the `kind` and a non-empty detail, never which producer it
-  was.** Anything that genuinely needs branching gets its own variant instead.
+- **Where each value is read**, because the obvious spelling routes everything into the catch-all: `error.type` is the SDK class name (`'StripeInvalidRequestError'`), and Stripe's own type string is at `error.rawType`; the HTTP status is `error.statusCode`; the API code (`resource_missing` and its neighbours) is `error.code` and the parameter is `error.param`. The SDK maps both 400 and 404 to `StripeInvalidRequestError`, so a missing resource is not a distinct class, which is why price and customer resolution never inspect a Stripe error: the catalog arm is a local lookup, the Stripe arm is an empty `prices.list` (a 200), and the customer is an empty local query. `StripeSignatureVerificationError.payload` is the raw webhook body; quote `error.message` into a detail and never `.payload`.
+- `payments-input-invalid` carries `invalidFieldName` (an enum) and `invalidFieldReason`, which states the rule and never echoes the value. `payments-catalog-invalid` carries `catalogIssues`, every problem in one pass, each `{ catalogIssueKind, catalogEntryName, catalogIssueReason }` with the kind one of `'catalog-has-no-products'`, `'product-has-no-prices'`, `'duplicate-product-name'`, `'duplicate-price-name'`, `'entry-invalid'`.
+- `payments-price-not-found` carries `priceName` and `priceLookupFailure`: `'absent-from-catalog'` (a code mistake, no network) or `'absent-from-stripe'` (the catalog has it but Stripe has no active price with that lookup key, so `hearthkit payments sync` has not run). One variant with a discriminator, because the caller does the same thing with both. `payments-customer-not-found` carries `billingReferenceId`.
+- `payments-webhook-signature-invalid` carries `signatureFailureReason`, `'signature-header-missing'` or `'signature-verification-failed'`, plus optional `stripeFailureDetail` with the SDK's message. The SDK's signature scheme is `v1` and its tolerance is 300 seconds; a wrong secret, a header with no `v1=` entry, a malformed header, a stale timestamp and a parsed-object body all map to this one variant, so a gate meaning to prove "wrong secret" must match the SDK's whole wrong-secret message prefix, not the shared words `No signatures found` (the fixture holds the exact strings). The round trip is offline: `generateTestHeaderString({ payload, secret })` builds `t=<unix seconds>,v1=<hmac>`, so `STRIPE_WEBHOOK_SECRET` is a value the gates choose and the Stripe CLI is not a dependency.
+- `payments-stripe-unauthorized` carries `stripeErrorStatus` (401 is `StripeAuthenticationError`, 403 `StripePermissionError`) and `stripeFailureDetail`. `payments-stripe-unreachable` carries `stripeFailureDetail`; a closed connection is retried once even with retries disabled, so a gate must not assert a retry count of zero. `stripeApiBaseUrl` pointed at a closed local port produces it with no network.
+- `payments-database-unavailable` reuses `auth`'s four-code allowlist verbatim; `23505` (unique violation) is a caller error and stays in the catch-all, and this package has three unique constraints a concurrent delivery can race into. Its `databaseFailureDetail` is built from the `.cause`, never from the `DrizzleQueryError` wrapper, whose message repeats the SQL and its bound parameters (an email address, Stripe ids).
+- `payments-request-failed` carries `stripeErrorCode`, `stripeErrorStatus` and `stripeErrorParam` when Stripe supplied them, plus `paymentsFailureDetail`. It has no discriminator: a null `checkoutUrl`, a null `session.currency` and a null `session.amount_total` all land here and only the detail differs. A gate asserts the kind and a non-empty detail, never which producer fired.
 
 ## Dependencies
 
-- Packages: `@hearthkit/db` (workspace) for the Drizzle client type and the project connection;
-  `@hearthkit/auth` (workspace) for the branded `AuthUserId` and `AuthOrganizationId` and for the
-  `organizationsEnabled` spelling — imported **type-only**, and only from the `./auth-contract`
-  subpath, so no React, no Next and no `better-auth` runtime code is dragged in;
-  `@hearthkit/config` as a **devDependency only**, because this package contributes
-  `paymentsEnvSchemaFragment` for config to compose and never consumes config itself.
-- **`@hearthkit/auth` stays in `dependencies` even though every import from it is type-only.** Plan
-  4.1's graph has `payments -> config, db, auth` and plan 4.10 has `create` resolving it; a manifest
-  that disagreed with the graph would be a trap for whoever writes `create`. It is written here so
-  nobody prunes it as unused.
-- Runtime libraries (implementor adds, exact pins): `stripe@22.6.1`, `drizzle-orm@0.45.2`,
-  `zod@4.4.3`.
-- Dev dependencies (implementor adds, exact pins to match the rest of the workspace):
-  `@types/node@24.13.3`, `typescript@7.0.2`, `vitest@4.1.11`, `pg@8.23.0`, `@types/pg@8.23.1`,
-  `@hearthkit/config` (workspace).
-- **`@types/pg@8.23.1` is there to pin a resolution, not for type convenience, and pruning it as an
-  unused `@types` package breaks the build.** `drizzle-orm` declares `pg` **and** `@types/pg` among its
-  optional peer dependencies, and pnpm writes the resolved peer set into the resolution key, so two
-  packages share one physical `drizzle-orm` only if they declare the same halves of that pair.
-  `@hearthkit/db` declares both — `pg` under `dependencies`, `@types/pg` under `devDependencies` — and
-  so does `@hearthkit/auth`, which is why this package declares both. Declare `pg` here **without**
-  `@types/pg` and this package resolves a **different peer set**, pnpm materialises a **second physical
-  copy** of the same version, and `@hearthkit/db`'s client stops being assignable to this package's
-  `drizzleClient` parameter. That is not a soft mismatch a cast can paper over: `PgSession.dialect` is
-  `protected`, so two copies of one class declaration are nominally incompatible and TypeScript refuses
-  outright, with
-  `TS2322 … Property 'dialect' is protected but type 'PgSession<…>' is not a class derived from 'PgSession<…>'`.
-  **The symptom points at Drizzle, not at the manifest**, which is what makes it expensive.
-- **Check that by resolving the paths, never by comparing a peer-suffix string.** The check that means
-  something is that `packages/payments/node_modules/drizzle-orm`,
-  `packages/auth/node_modules/drizzle-orm` and `packages/db/node_modules/drizzle-orm` resolve to the
-  **same real path**, with `pnpm-lock.yaml` holding exactly one peer-suffixed `drizzle-orm@0.45.2`
-  snapshot as supporting evidence. **An exact suffix is not a fact a contract can hold**: it has
-  already gone stale once in this repo inside a single loop, when `better-auth` added `kysely` to the
-  set, and **adding this package will change it again** — `stripe` declares `@types/node` as an
-  optional peer. A reader who finds a suffix quoted anywhere that no longer matches the lock has found
-  a stale sentence, not a split copy.
-- **No `@better-auth/stripe`, and no `better-call`.** Argued under The Better Auth Stripe plugin. The
-  exact `better-call: 1.4.0` peer is the reason `better-call` is named here at all: it must not appear
-  in this package's manifest by accident.
-- **No Stripe CLI, at any level, including for the gates.** What replaces it is
-  `generateTestHeaderString`, argued above.
+- Packages: `@hearthkit/db` (Drizzle client type), `@hearthkit/auth` (the `AuthUserId` and `AuthOrganizationId` types, imported type-only from the `./auth-contract` subpath so no React, Next or `better-auth` runtime code is dragged in; it stays in `dependencies` because plan 4.1's graph says so) and `@hearthkit/config` as `workspace:*` runtime dependencies; config composes `paymentsEnvSchemaFragment` and is never consumed at runtime.
+- Runtime libraries (exact pins in `package.json`): `stripe@22.6.1`, `drizzle-orm@0.45.2`, `zod@4.4.3`. `pg` and `@types/pg` are both declared as dev dependencies, matching `db` and `auth`, so the workspace keeps one physical `drizzle-orm`: `drizzle-orm` peers on both, and declaring only one gives a second copy whose `PgSession` is nominally incompatible (`TS2322 … 'dialect' is protected`). Check by resolving the three `node_modules/drizzle-orm` paths to one real path, never by comparing a peer-suffix string. No `@better-auth/stripe`, no `better-call`, no Stripe CLI. The Stripe API version is the SDK default and `maxNetworkRetries` the SDK default of 1.
 - Services for gates:
-  - **Postgres 17** from the repo-root `docker-compose.yml`. Already a service container in `ci.yml`.
-    Gates create a scratch project database with `@hearthkit/db`'s `createProjectDatabase`, create the
-    payments tables in it, run, and drop it — the pattern `auth`'s gates established. The
-    `CREATE TABLE` statements are **derived from `hearthkitPaymentsDrizzleSchema` itself** with
-    `getTableConfig` from `drizzle-orm/pg-core`, not hand-written, so a gate cannot test a schema
-    different from the one the package exports.
-  - **Stripe test mode** for `syncPaymentsCatalog`, `createCheckoutSession`,
-    `createCustomerPortalSession`, the `'absent-from-stripe'` arm of `payments-price-not-found` and
-    `payments-stripe-unauthorized`. `STRIPE_SECRET_KEY` is supplied locally and as a CI secret. These
-    are the gates plan 4.8 says to tag so they skip without a key — and **a skipped gate is not a
-    passing gate**, which is why the list above is as short as it could be made.
-  - **A closed local port** for `payments-stripe-unreachable`, via `stripeApiBaseUrl`, and for the
-    `ECONNREFUSED` arm of `payments-database-unavailable`.
-  - **A changed connection string and nothing else** for two more `payments-database-unavailable`
-    codes: a database name that was never created gives `3D000`, the right database with the wrong
-    password gives `28P01`. No extra service, no dead port, no dropped table.
-  - **No service at all** for `payments-input-invalid`, `payments-catalog-invalid`, the
-    `'absent-from-catalog'` arm of `payments-price-not-found`, `payments-customer-not-found`, every
-    `handleStripeWebhook` path — both signature failures, every `ignoredReason`, the purchase path and
-    the three-step subscription replay sequence under Deviation from plan 4.8's gate wording — and the
-    schema and table-name shape gates. `handleStripeWebhook` needs Postgres but **never the network**,
-    which is why no `retrieve` call was added to it; every event a gate needs is synthesised locally
-    and signed with `generateTestHeaderString`.
-- No new service is introduced, so the trap that failed PR #10 — a compose service `ci.yml` was never
-  taught about — has nothing to bite on here.
+  - **Postgres 17** from the repo-root `docker-compose.yml`. Gates create a scratch database with `@hearthkit/db`'s `createProjectDatabase`, derive `CREATE TABLE` from `hearthkitPaymentsDrizzleSchema` through `getTableConfig`, run, and drop it.
+  - **Stripe test mode** (`STRIPE_SECRET_KEY` locally and as a CI secret) for `syncPaymentsCatalog`, `createCheckoutSession`, `createCustomerPortalSession`, the `'absent-from-stripe'` arm and `payments-stripe-unauthorized`. These gates skip without a key, and a skipped gate is not a passing gate, so the list is as short as it can be. The test account needs its portal configuration saved once in the dashboard.
+  - **A closed local port** for `payments-stripe-unreachable` and the `ECONNREFUSED` arm; **a changed connection string** for `3D000` and `28P01`; **no service** for input, catalog, `'absent-from-catalog'`, customer-not-found, every `handleStripeWebhook` path (Postgres only, never the network) and the schema and table-name shape gates.
 
 ## Out of scope
 
-- **Usage-based billing, which plan section 13 requires stay open and this package must not block.**
-  Nothing here meters anything, aggregates anything, or reports usage to Stripe. What keeps it open is
-  exactly what the plan says — "`payments` stores subscription state; metering is an additive table and
-  webhook" — and concretely: `payments_subscription` stores `stripeSubscriptionId`, so a meter attaches
-  to a row that already exists; `handleStripeWebhook` dispatches on `event.type` with a named
-  `'event-type-not-handled'` result, so a metering event is one more case in that switch and not a
-  signature change; and `priceKind` is a discriminated union, so a metered price is a new member with
-  its own fields rather than a nullable column bolted onto the existing ones. **No signature in this
-  contract has to change to add metering.**
-- **Org billing per project (deferred, must not block).** Supported now: `billingScope` is stored on
-  every customer row and `billingReferenceId` is a branded opaque string, so flipping the scaffold flag
-  re-homes rows rather than reshaping tables.
-- **Preview environments per PR (deferred, must not block).** Nothing here is named after a
-  deployment. A preview project has its own `DATABASE_URL` and its own Stripe test account or the same
-  one; the catalog names are stable either way, which is what `lookup_key` idempotency buys.
-- **Seat-based billing, scheduled plan changes and proration.** `seats`, `stripeScheduleId` and
-  `billingInterval` are the three columns `@better-auth/stripe` has and this package does not. Each is
-  an additive column plus a field on the checkout call; none changes a signature here.
-- **Upgrading, downgrading and cancelling from the app's own UI.** The hosted customer portal does all
-  three, which is why plan 4.8 lists `createCustomerPortalSession` and no `cancelSubscription`.
-  In-app plan changes need `subscriptions.update` with proration decisions the plan does not make.
-- **Invoices, refunds, disputes, tax and coupons.** None is named in plan 4.8. Each is additive: a new
-  event in the webhook switch, and in most cases a new table.
-- **Reading or writing the auth tables.** Argued under The Drizzle schema. This package never joins to
-  `user` or `organization` and never validates that a `billingReferenceId` names anybody.
-- **Rendering pricing tables, checkout buttons or a billing page.** `@hearthkit/ui` owns components;
-  this package ships no `.tsx` at all.
-- **Shipping SQL migrations.** The app generates one migration set over its whole schema, for the same
-  reason `auth` ships none.
-- **Reading `process.env`, and owning `NODE_ENV`.** Config owns both. Because both secrets arrive as
-  parameters and nothing is cached at module scope beyond the client the app itself built, the deferred
-  secrets manager only has to repopulate the environment before boot.
-- **Stripe Connect, multi-account and `stripeAccount`.** One account per project. `StripeConfig`
-  supports `stripeAccount`; this package does not pass it, and adding it later is one optional
-  parameter.
-- **Choosing the Stripe API version.** The client is built with the SDK's default, which at
-  `stripe@22.6.1` is `2026-08-26.dahlia`, because the SDK's generated types describe only that version
-  and pinning a different one makes every type in this package a lie. `maxNetworkRetries` is left at
-  the SDK default of 1 for the same reason: it is the behaviour the SDK's own retry and idempotency
-  logic was written against.
-
-## Verified
-
-Read off a real install of `stripe@22.6.1`, `@better-auth/stripe@1.7.2` and `better-auth@1.7.2` on
-2026-09-06, in the probe workspace the orchestrator created. These are file contents, not inference,
-and where one disagrees with a documentation page, this list wins.
-
-### `@better-auth/stripe@1.7.2`
-
-- Its `peerDependencies` are `better-call: "1.4.0"` (exact), `stripe: "^18 || ^19 || ^20 || ^21 || ^22"`,
-  `@better-auth/core: "^1.7.2"` and `better-auth: "^1.7.2"` — `package.json`.
-- `better-auth@1.7.2` depends on `better-call: "1.4.0"` exactly, so the two agree at the pin —
-  `better-auth/package.json`.
-- **`better-auth@1.7.2` mentions `stripe` nowhere in its manifest**: no `./plugins/stripe` export, no
-  peer. The plugin is only ever the separate package.
-- **One checkout mode literal, `mode: "subscription"`, and zero occurrences of `mode: "payment"` or
-  `payment_intent`** — `dist/index.mjs:1069`.
-- **No catalog sync.** Its only price API calls are `prices.list` and `prices.retrieve`
-  (`dist/index.mjs:512`, `:519`); `products.create`, `products.update` and `prices.create` appear
-  nowhere in the dist.
-- Webhook events handled: `checkout.session.completed`, `customer.subscription.created`,
-  `customer.subscription.updated`, `customer.subscription.deleted`, and a `default` branch that only
-  forwards to `onEvent` — `dist/index.mjs:1567-1587`.
-- **It makes a network call inside its checkout webhook handler, and this is the corroboration that a
-  delivery carries no `line_items`.** `onCheckoutSessionCompleted` calls
-  `await client.subscriptions.retrieve(checkoutSession.subscription)` at `dist/index.mjs:186` and then
-  `resolvePlanItem(options, subscription.items.data)` at `:187` — never
-  `checkoutSession.line_items`. Grepping every `retrieve(` in the dist confirms `:186` is the **only**
-  one inside any of its four handlers (`onCheckoutSessionCompleted` `:181`, `onSubscriptionCreated`
-  `:246`, `onSubscriptionUpdated` `:320`, `onSubscriptionDeleted` `:413`).
-- **Its two subscription handlers make no call at all**, reading `event.data.object.items.data`
-  directly — `dist/index.mjs:276`, `:324` — and `resolvePlanItem` at `:132-147` reads `item.price.id`
-  and `item.price.lookup_key` off those items. That is independent confirmation that a
-  `customer.subscription.*` payload embeds the full price object.
-- Endpoints registered: `/stripe/webhook` always, and `/subscription/upgrade`, `/subscription/cancel`,
-  `/subscription/restore`, `/subscription/list`, `/subscription/success`,
-  `/subscription/billing-portal` when subscriptions are enabled — `dist/index.mjs:1693-1707`.
-- **`getSchema` spreads `user: { fields: { stripeCustomerId } }` in BOTH branches of its only
-  conditional** — `if (options.subscription?.enabled)` gives `{ ...subscriptions, ...user }` and the
-  `else` gives `{ ...user }` — so no configuration removes that field. It adds
-  `organization: { fields: { stripeCustomerId } }` when `organization.enabled`; the `subscription`
-  model is added only when `subscription.enabled` — `dist/index.mjs:1664-1688`. Re-read and confirmed
-  by the orchestrator in correction round 1.
-- The `subscription` model's fields are `plan`, `referenceId` (both required), `stripeCustomerId`,
-  `stripeSubscriptionId`, `status` (default `"incomplete"`), `periodStart`, `periodEnd`, `trialStart`,
-  `trialEnd`, `cancelAtPeriodEnd` (default `false`), `cancelAt`, `canceledAt`, `endedAt`, `seats`,
-  `billingInterval`, `stripeScheduleId` — `dist/index.mjs:1597-1663`.
-- Org-scoped billing is supported through the required `referenceId` plus an `authorizeReference`
-  option hook, and `customerType` is `z.enum(["user", "organization"])` — `dist/index.mjs:469-501`,
-  `:1475`.
-- Its error codes, read from `dist/version-6BnbVvhV.mjs`, include `CUSTOMER_NOT_FOUND`, thrown in
-  exactly one place: the billing-portal route, when no customer id can be found
-  (`dist/index.mjs:1523`).
-- `isActiveOrTrialing(sub)` is `sub.status === "active" || sub.status === "trialing"` —
-  `dist/index.mjs:89-91`.
-- It reads `subscriptionItem.current_period_start` and `…_end`, never a subscription-level field —
-  `dist/index.mjs:210`, `:287`, `:374`, `:1446`.
-
-### `@better-auth/drizzle-adapter@1.7.2`
-
-- A missing model throws
-  `[# Drizzle Adapter]: The model "<model>" was not found in the schema object. Please pass the schema
-directly to the adapter options.` — `dist/index.mjs:61`.
-- A missing field throws
-  `The field "<field>" does not exist in the schema for the model "<model>". Please update your schema.`
-  — `dist/index.mjs:124`.
-
-### `stripe@22.6.1`
-
-- The SDK's default API version is `2026-08-26.dahlia` — `esm/apiVersion.js:2`.
-- **`StripeError.type` is the class name, `error.rawType` is Stripe's own type string.** The
-  constructor sets `this.type = type || this.constructor.name` and `this.rawType = raw.type`, alongside
-  `statusCode`, `code`, `param`, `requestId`, `doc_url` and `headers` — `esm/Error.js:69-99`.
-- `generateV1Error` maps `429` (or `400` with `code: 'rate_limit'`) to `StripeRateLimitError`,
-  **`400` or `404` to `StripeInvalidRequestError`**, `401` to `StripeAuthenticationError`, `402` to
-  `StripeCardError`, `403` to `StripePermissionError`, and everything else to `StripeAPIError` —
-  `esm/Error.js:4-26`.
-- `StripeSignatureVerificationError` carries `header` and `payload` in addition to the base fields —
-  `esm/Error.js:178-184`.
-- Signature failures and their exact opening words — `esm/Webhooks.js`:
-  - wrong secret → `No signatures found matching the expected signature for payload.` (line 184)
-  - header parsed but no `v1=` entry → `No signatures found with expected scheme` (line 130)
-  - malformed header → `Unable to extract timestamp and signatures from header` (line 125)
-  - stale signature → `Timestamp outside the tolerance zone` (line 196)
-  - parsed object instead of raw body → `Webhook payload must be provided as a string or a Buffer …`
-    (line 175)
-  - no body → `No webhook payload was provided.` (line 105)
-- `DEFAULT_TOLERANCE` is `300` seconds and `EXPECTED_SCHEME` is `'v1'` — `esm/Webhooks.js:12`, `:65`.
-- `generateTestHeaderString({ payload, secret })` computes an HMAC locally and returns
-  `t=<unix seconds>,v1=<signature>`; the timestamp defaults to now — `esm/Webhooks.js:42-56`,
-  `:231-253`.
-- `const secretContainsWhitespace = /\s/.test(secret)` — `esm/Webhooks.js:68`, `:81`.
-- A request-level failure becomes `StripeConnectionError` with the message
-  `An error occurred with our connection to Stripe.` plus ` Request was retried N times.` when
-  retried, or `Request aborted due to timeout being reached (Nms)` on timeout —
-  `esm/RequestSender.js:159-173`, `:469`. Its comment on `_shouldRetry` states that **a closed
-  connection is retried once even when retries are disabled** — `:176`.
-- `StripeConfig` accepts `host`, `port`, `protocol`, `timeout`, `maxNetworkRetries` (default 1),
-  `httpClient`, `stripeAccount` and `apiVersion` — `esm/lib.d.ts:14-99`.
-- Every Stripe object carries `livemode: boolean`, documented as "If the object exists in live mode,
-  the value is `true`. If the object exists in test mode, the value is `false`." —
-  `esm/resources/Products.d.ts:85-88`, and 131 files carry the same field.
-- `products.create` accepts a caller-supplied `id`: "An identifier will be randomly generated by
-  Stripe. You can optionally override this ID, but the ID must be unique across all products in your
-  Stripe account." — `esm/resources/Products.d.ts:196-199`.
-- `Price.lookup_key` is `string | null`, "up to 200 characters"; `PriceCreateParams` accepts
-  `lookup_key` and `transfer_lookup_key` ("will atomically remove the lookup key from the existing
-  price, and assign it to this price"); `PriceListParams` accepts up to ten `lookup_keys` —
-  `esm/resources/Prices.d.ts:74-76`, `:304-344`, `:663-669`.
-- `Price.Type` is `'one_time' | 'recurring'` and `Price.Recurring.Interval` is
-  `'day' | 'month' | 'week' | 'year'` — `esm/resources/Prices.d.ts:230`, `:271`.
-- Checkout `Session.Mode` is `'payment' | 'setup' | 'subscription'`; `Session.PaymentStatus` is
-  `'no_payment_required' | 'paid' | 'unpaid'`; `Session.Status` is `'complete' | 'expired' | 'open'`;
-  `Session.url` is `string | null`, "Applies to Checkout Sessions with `ui_mode: hosted_page` … only
-  present when the session is active" — `esm/resources/Checkout/Sessions.d.ts:537`, `:607`, `:688`,
-  `:308-314`.
-- **`Checkout.Session.line_items` is `line_items?: ApiList<LineItem>` — an optional property** —
-  `esm/resources/Checkout/Sessions.d.ts:182`, and the SDK's own comment on `listLineItems` at `:44`
-  says "When **retrieving** a Checkout Session, there is an **includable** `line_items` property
-  containing the first handful of those items." **A webhook delivery does not expand it**, which is
-  what forces the purchase path onto session metadata.
-- **The `Session` fields the purchase path reads instead, and which of them are expandable.** Plain,
-  never a reference union: `id: string` (`:52`), `object: 'checkout.session'` (`:56`),
-  `amount_total: number | null` (`:76`), `currency: string | null` (`:117`), `metadata: Metadata |
-null` (`:198`), `mode: Session.Mode` (`:202`), `payment_status: Session.PaymentStatus` (`:241`).
-  Expandable, and therefore a string id in a delivery:
-  `customer: string | Customer | DeletedCustomer | null` (`:134`),
-  `payment_intent: string | PaymentIntent | null` (`:215`),
-  `subscription: string | Subscription | null` (`:295`). **`amount_total` and `currency` are nullable
-  but not expandable**, so they need no retrieve; `line_items` is the only thing on this object that
-  does.
-- **`SubscriptionItem.price` is typed `Price`, not `string | Price`** —
-  `esm/resources/SubscriptionItems.d.ts:90`. It is always the full object, so `price.lookup_key` is
-  readable straight off a `customer.subscription.*` payload with no retrieve.
-- **`SubscriptionItem.quantity` is optional: `quantity?: number`** —
-  `esm/resources/SubscriptionItems.d.ts:94`, documented at `:92` as "The quantity of the plan to which
-  the customer should be subscribed."
-- **Neither Stripe email field on a checkout session is a reliable billing address, and the second
-  one's own documentation says so in its second sentence.** `Session.customer_email` is
-  `string | null` (`esm/resources/Checkout/Sessions.d.ts:154`), documented at `:147-153` as a prefill:
-  "If provided, this value will be used when the Customer object is created. If not provided,
-  customers will be asked to enter their email address. Use this parameter to prefill customer data if
-  you already have an email on file. **To access information about the customer once the payment flow
-  is complete, use the `customer` attribute.**" `Session.customer_details` is
-  `Session.CustomerDetails | null` (`:146`) and `CustomerDetails.email` is `string | null` (`:491`),
-  documented at `:488-489`: "The email associated with the Customer, if one exists, on the Checkout
-  Session after a completed Checkout Session or at time of session expiry. **Otherwise, if the customer
-  has consented to promotional content, this value is the most recent valid email provided by the
-  customer on the Checkout form.**" That second sentence is why it cannot stand in for a billing
-  address; it is easy to stop reading after the first.
-- `SessionCreateParams` carries `client_reference_id`, `subscription_data.metadata` and
-  `payment_intent_data.metadata` — `esm/resources/Checkout/Sessions.d.ts:2153`, `:2949`, `:2613-2629`.
-- **`Subscription` has no `current_period_start` or `current_period_end`.** It has
-  `cancel_at_period_end`, `cancel_at`, `canceled_at`, `ended_at`, `trial_start`, `trial_end`. The
-  period fields are on the item: `SubscriptionItem.current_period_start` and `…_end` —
-  `esm/resources/Subscriptions.d.ts:132-283`, `esm/resources/SubscriptionItems.d.ts:51-58`.
-- `Subscription.Status` is
-  `'active' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'past_due' | 'paused' | 'trialing' | 'unpaid'`
-  at `esm/resources/Subscriptions.d.ts:478`. **`SubscriptionListParams.Status` at line 2703 in the same
-  file adds `'all'` and `'ended'` and is not a status.**
-- `BillingPortal.Session.url` is `string`, non-nullable — `esm/resources/BillingPortal/Sessions.d.ts:59`.
-- `resource_missing` and `resource_already_exists` are adjacent members of the same generated error-code
-  union — `esm/resources/Invoices.d.ts:837`.
-- The webhook signature header is `stripe-signature`; the SDK's own error text names it and
-  `@better-auth/stripe` reads exactly that string — `esm/Webhooks.js:101`,
-  `@better-auth/stripe/dist/index.mjs:1552`.
-
-Established earlier in this repo and built on rather than re-derived: `composeEnvSchemaFragments`
-silently discards a refinement attached to a fragment, so no pairing rule may live on the fragment;
-`getTableConfig` from `drizzle-orm/pg-core` is public and returns each column's `name`, `getSQLType()`,
-`notNull` and `primary`, which is enough for a gate to build `CREATE TABLE` from a shipped schema;
-Drizzle failures arrive as a `DrizzleQueryError` with the code one `.cause` hop down; bare Node refuses
-`.tsx`, which is why `ui`, `email` and `auth` publish a contract subpath; Postgres is already a service
-container in `ci.yml`.
-
-## Still not verified
-
-Everything above was read off a file. These were not, and saying so is the point of this section.
-
-- **Whether Stripe accepts a lowercase kebab-case custom product id.** `products.create` documents an
-  optional `id` and requires it to be unique in the account; it does not document a character set, and
-  no offline source states one. If Stripe rejects `'pro'` as a product id, `syncPaymentsCatalog`'s
-  product step needs a different identity mechanism and this contract comes back for one line.
-  **The first gate to write is the one that settles this**, because everything else in sync depends on
-  it.
-- **Whether `prices.list({ lookup_keys, active: true })` really returns an empty list rather than an
-  error for an unknown lookup key.** The `'absent-from-stripe'` arm of `payments-price-not-found`
-  assumes it does. Cheap to settle with the live key.
-- **Whether `billing_portal.sessions.create` works on a fresh test account.** Stripe's hosted portal
-  needs a portal configuration to exist, and a test account that has never saved one may have no
-  default. If `createCustomerPortalSession` fails on the gate account, the account needs its test-mode
-  portal configuration saved once in the Stripe dashboard — a one-off human step, not a code change.
-  **Flagged because it would otherwise read as a bug in this package.** The exact error is unmeasured.
-- **Whether a wrong-but-well-formed API key gives 401 rather than some other status.**
-  `payments-stripe-unauthorized`'s gate depends on it. `generateV1Error`'s mapping of 401 is measured;
-  what Stripe actually answers with is not.
-- **The exact prefix of a Stripe test-mode secret key.** Deliberately not encoded anywhere in this
-  contract — `stripeLivemode` is the guard instead. Recorded here so nobody adds a prefix check later
-  believing it was merely forgotten.
-- **Whether `z.url()` at `zod@4.4.3` accepts a URL containing `{CHECKOUT_SESSION_ID}`.**
-  `paymentsRedirectUrlSchema` is `z.url({ protocol: /^https?$/ })`, and Stripe's documented
-  `success_url` placeholder puts braces in the query string. Zod 4's URL check is built on `new URL()`,
-  which accepts braces in a query, so this is expected to pass — **expected, not measured**, and no
-  offline source here settles it. A one-line gate settles it, and if it fails the schema loosens to a
-  protocol-and-authority check.
-- **The customer-linked insert branch with no address anywhere.** A `checkout.session.completed`
-  needing to insert a customer row, where `customer_details.email` and `customer_email` are both null,
-  is ruled `payments-request-failed`. **No gate covers it**: every gate that synthesises a session
-  supplies an address, and the fixture only omits `customer_details` when the caller omits the email
-  entirely. It is the one branch here pinned by the contract text alone.
-- **That the webhook never overwrites an existing row's `billingContactEmail`.** Stated as a rule and
-  argued from the two Stripe fields being buyer-influenced, but **no gate delivers a second checkout
-  session for a reference that already has a row**, so nothing fails if an implementation overwrites.
-- **The character and length limits on Stripe metadata keys and values.** This package writes
-  `hearthkit_billing_reference_id` (30 characters) and `hearthkit_billing_scope` (23), both well inside
-  any plausible limit, and the values are Better Auth ids and one of two literals. Not measured, and
-  not believed to be near a limit.
-- **`payments-contract.ts` typechecking in isolation, and `format:check`.** `packages/payments` has no
-  manifest yet, so `pnpm --filter @hearthkit/payments` reports no matching project **and exits 0** —
-  the trap that has caught this repo six times, and that exit 0 is evidence of nothing. The contract's
-  `stripe`, `drizzle-orm/node-postgres` and `@hearthkit/auth/auth-contract` imports are all type-only
-  and cannot be resolved until the implementor adds the manifest and the dependencies. Prettier has
-  not been run over either file.
+- **Usage-based billing (plan section 13, must not block).** Nothing here meters. `payments_subscription` stores `stripeSubscriptionId`, so a meter attaches to an existing row; the handler dispatches on `event.type` with a named ignore result, so a metering event is one more case; `priceKind` is a discriminated union, so a metered price is a new member. No signature here changes.
+- **Org billing per project and preview environments per PR (deferred, must not block):** `billingScope` is stored on every row and nothing is named after a deployment; catalog names are stable across accounts, which is what `lookup_key` idempotency buys. **Seat billing, scheduled plan changes, proration; in-app upgrade, downgrade and cancel** (the hosted portal does all three, so there is no `cancelSubscription`); **invoices, refunds, disputes, tax, coupons**; **Stripe Connect and `stripeAccount`**. Each is additive: a column, a webhook case, an option.
+- **Reading or writing the auth tables; rendering pricing or billing UI** (`ui` owns components; no `.tsx` here); **shipping SQL migrations; reading `process.env` or owning `NODE_ENV`** (config owns both, and nothing is cached at module scope beyond the client the app built, so a deferred secrets manager only has to repopulate the environment before boot).
 
 ## Decisions
 
-Settled here rather than left to the implementor.
-
-1. **Eight functions, each tied to a plan line.** `createCheckoutSession`,
-   `createCustomerPortalSession`, `handleStripeWebhook` and `syncPaymentsCatalog` are plan 4.8's four
-   named outputs, unrenamed. `hearthkitPaymentsDrizzleSchema` is its fifth. `createPaymentsClient` is
-   the construction step the other four need, exactly as `createAuthServerInstance` is for `auth`, and
-   it is where the catalog is validated so a malformed catalog fails at boot rather than at checkout.
-   `readPaymentsSubscription` and `listPaymentsPurchases` exist because otherwise the three tables are
-   write-only from the package's point of view and every app writes its own Drizzle query against our
-   column names — which is the coupling shipping a package is supposed to prevent. `readPaymentsSubscription`
-   is also what plan 4.8's gate uses to "confirm the subscription row exists".
-   `verifyPaymentsTablesExist` mirrors `verifyAuthTablesExist`: it gives the gates a setup check that
-   fails once, loudly and by name, instead of making every downstream gate fail with
-   `relation "payments_customer" does not exist`, and it is what `observability`'s `/health` calls when
-   it grows a billing check.
-2. **This package owns three tables and does not use `@better-auth/stripe`.** Argued at length under
-   The Better Auth Stripe plugin, and the decisive fact is that the plugin cannot be installed without
-   adding a `stripeCustomerId` column to `@hearthkit/auth`'s `user` table — a package this one may not
-   edit, whose contract forbids Stripe knowledge, and whose table objects cannot be extended from
-   outside. **If the orchestrator wants the plugin instead, that is an `auth` contract change first**,
-   and it would still leave `syncPaymentsCatalog` and one-time purchases here.
-3. **Nine failure variants where the plan names three.** Plan's three are
-   `payments-webhook-signature-invalid`, `payments-price-not-found` and
-   `payments-customer-not-found`. `payments-input-invalid` and `payments-catalog-invalid` are the two
-   ordinary shapes of "the app got it wrong", and both are checkable with no network, which matters in
-   a package whose other gates need one. `payments-stripe-unauthorized` and
-   `payments-stripe-unreachable` are the two first-run states of every deployment and the siblings of
-   `db`'s `database-server-unreachable`. `payments-database-unavailable` is auth's variant reused
-   verbatim. `payments-request-failed` is the catch-all that makes "never throws" a promise.
-4. **One `payments-price-not-found` with a discriminator, not two kinds.** Argued under Details. The
-   same rule produced auth's single `auth-input-invalid`.
-5. **`stripeApiBaseUrl` is public surface added for one reason and it is stated plainly.** It makes
-   `payments-stripe-unreachable` gateable against a closed local port with no network and no Stripe
-   account, and it has a real production use — `host`, `port` and `protocol` are first-class
-   `StripeConfig` options for proxies and for `stripe-mock`. It is the same category as
-   `createAuthBrowserClient`'s `baseUrl`, which `auth` accepted for a split deployment, and **not** the
-   same category as the `customFetchImpl` option `auth` refused, because it changes nothing about the
-   shape of what this package returns. **It is the one addition here most worth vetoing if the
-   orchestrator disagrees**; the cost of removing it is that the unreachable failure needs a real
-   network outage to produce, so it would have to be dropped.
-6. **The webhook handler takes `rawRequestBody` and `requestHeaders`, not a `Request`.** Taking a
-   `Request` would prevent the parsed-body mistake by construction, which is tempting. It was rejected
-   because the gate replays a recorded payload — a string — and would then have to synthesise a
-   `Request` around it for no gain, and because `requestHeaders` is already this repo's spelling, from
-   `readAuthSession`. The raw-body rule is stated with its measured symptom instead.
-7. **The Stripe CLI is not a dependency.** `generateTestHeaderString` computes the header offline and
-   deterministically, so the webhook gates need neither a network nor an installed binary. `stripe
-listen` remains what a developer runs locally, per plan section 6.
-8. **Idempotency by unique Stripe id, not by an events table.** Argued under What
-   `handleStripeWebhook` does. It keeps the schema at the plan's three tables and produces a stronger
-   gate.
-9. **`status` is a string column with an exported list of known values, not an enum column.** Stripe's
-   own union ends in `OtherString` because it can grow; a strict enum would turn a new Stripe status
-   into a failed write in production, and the near-miss `'ended'` sitting one union away makes a
-   hand-written enum a live hazard.
-10. **Table names are prefixed `payments_` and the Drizzle key equals the SQL name.** The prefix keeps
-    `subscription` free, which is the model name `@better-auth/stripe` would claim if a project ever
-    adopts it, and it groups the additive metering table plan section 13 anticipates. Key-equals-name
-    is the rule `auth` already follows, and it means `verifyPaymentsTablesExist` and the schema share
-    one list.
-
-## Rulings and corrections
-
-Correction round 1, 2026-09-06. Every question raised in the first draft has been ruled on and folded
-into the body above. The corrections are recorded here rather than silently absorbed, because a future
-reader should see what was wrong and not only the conclusion.
-
-**All four open questions ruled, every default confirmed.**
-
-1. **Keep the SDK route; do not adopt `@better-auth/stripe`.** The orchestrator re-read `getSchema`
-   and found the argument **stronger** than the first draft stated: `...user` is spread in both
-   branches, so there is no option that removes `user.stripeCustomerId`. Also confirmed independently:
-   the adapter throw text at `@better-auth/drizzle-adapter/dist/index.mjs:124`, and that
-   `packages/auth/src` contains **zero** occurrences of `stripeCustomerId`. Wording tightened from
-   "unconditionally" to "in both branches", because the first phrasing invited a reader to go hunting
-   for a switch that does not exist.
-2. **Both environment variables stay required.**
-3. **`stripeApiBaseUrl` stays, and the first draft's own recommendation to consider vetoing it was
-   overruled with a better precedent.** `@hearthkit/storage` makes the endpoint a first-class
-   **environment variable** (`STORAGE_ENDPOINT`) precisely so MinIO and R2 are the same code; a
-   constructor option is strictly less surface than that. Dropping a named failure mode covering a real
-   first-run and outage state would have been the worse trade.
-4. **Both read functions stay.** `readPaymentsSubscription` is what plan 4.8's own gate uses to confirm
-   the subscription row exists, so on that one it is not an addition at all.
-
-**One real defect, found by the orchestrator and fixed here: the first draft read a field that a
-webhook delivery never carries.** It defined `'price-not-in-catalog'` as "no **line item's** price
-carries a `lookup_key`", and sourced `payments_purchase.priceName`, `stripePriceId` and `quantity`
-from line items. `Checkout.Session.line_items` is an **optional, includable** property that only a
-retrieve expands, so on the checkout path all four reads would have been `undefined` on every real
-delivery and the purchase path could not have been implemented as written.
-
-- Fixed **without** adding a `checkout.sessions.retrieve` call, which would have dragged the whole
-  webhook gate set behind a live Stripe key — the opposite of what this package needs, since that
-  handler is its one fully offline surface. The purchase path now reads three new metadata keys
-  `createCheckoutSession` writes, and every remaining column off plain `Session` fields. The full
-  column-to-source table is under A webhook delivery does not carry `line_items`.
-- `'price-not-in-catalog'` split into `'checkout-price-metadata-missing'` and
-  `'subscription-price-not-in-catalog'`, because it had come to mean two different things on two paths
-  with two different fixes.
-- **The subscription path was correct and is unchanged.** `SubscriptionItem.price` is typed `Price`
-  rather than `string | Price`, and the plugin's own subscription handlers read
-  `event.data.object.items.data` with no retrieve, so that half is genuinely offline.
-- A rule the fix produced that no gate would have forced: **the price metadata goes on the session and
-  never on `subscription_data.metadata`**, because a portal upgrade changes a subscription's price
-  without touching metadata stamped at creation, and a stale price name reported as fact is worse than
-  no price name at all.
-
-**Correction round 2: two `NOT NULL` columns had no stated source, both found by the gate-writer
-building 45 gates against the contract.** Third time in three loops that the gate step has found
-contract gaps this way. Both fixes are documentation and routing rules only — **no exported name, no
-`kind`, and no enum value changed**, so the gate verification stands.
-
-- **`payments_customer.billingContactEmail` on the webhook path. Ruled the orchestrator's way —
-  `customer_details.email ?? customer_email` — after an attempt to rule the other way was killed by
-  reading the gates.** The first attempt made the path update-only, so the column would have had one
-  writer and the `NOT NULL` question would have disappeared instead of being answered. **The approved
-  gate forbids it.** `handle-stripe-webhook-subscription.test.ts:111-143` hands a synthesised
-  `checkout.session.completed` straight to the handler with **no prior `createCheckoutSession` call**
-  and then asserts "a subscription checkout must leave a customer row for its reference". Update-only
-  would ignore that delivery and write nothing, making an approved, verified gate unsatisfiable —
-  worse than the name change the orchestrator warned about, because it changes asserted behaviour.
-  The fixture settles the second half too: `payments-gate-stripe-events.ts:113-117` populates **both**
-  `customer_email` and `customer_details.email` with the same address, with a comment saying a gate
-  naming only one would be brittle, so either read satisfies it.
-  - **The part of the losing argument that survives, in narrower form: the webhook writes the column
-    on insert and never on update.** Both Stripe fields are influenced by the buyer on a page the app
-    does not control, so an update would let a buyer silently redirect receipts and dunning. No gate
-    forces this — the gate's assertion is about a row that did not previously exist — so it is a rule
-    the contract states rather than one a test pins.
-  - `CustomerDetails.email`'s **second** documented sentence widens it to a promotional-consent
-    address typed on the Checkout form. Quoting only the first sentence is how it comes to look like a
-    billing address. That is why it may seed a row and may not overwrite one.
-  - **The both-null-on-insert branch is `payments-request-failed`**, chosen partly because it needs no
-    new `ignoredReason` value and so cannot invalidate the gate run, and partly on its own merit: a
-    completed checkout this package cannot record should not vanish quietly. **A new ignore reason
-    would read better and no gate covers this branch either way** — flagged to the orchestrator rather
-    than taken, per the standing instruction not to add an exported value unasked.
-  - `'billing-reference-missing'` was briefly widened to cover "reference names no row" and has been
-    **reverted**, because restoring the insert branch removes that case entirely.
-- **`payments_subscription.quantity`.** Ruled: `SubscriptionItem.quantity`, defaulting to 1 when
-  absent, since the SDK types it optional. The contract states why this default is right where the
-  `hearthkit_quantity` rule's refusal to default was also right — absence has a defined meaning on
-  Stripe's own object, and no defined meaning in a string this package wrote and read back.
-- **`payments-request-failed` has no discriminator**, so its producers are not distinguishable
-  programmatically. Recorded under the failure details rather than fixed, so nobody later assumes they
-  can branch on it.
-
-**Plan 4.8's gate wording does not match this contract's event routing, and that is now stated rather
-than left for the gate-writer to trip over.** The plan says to replay `checkout.session.completed` and
-confirm the subscription row; here that event produces `'customer-linked'` and the subscription row
-comes from `customer.subscription.created`. The deviation, the three-step replacement sequence, and
-why the plan's literal reading would cost a network call are set out under Deviation from plan 4.8's
-gate wording.
+1. **Eight functions, each tied to a plan 4.8 line.** `syncPaymentsCatalog`, `createCheckoutSession`, `createCustomerPortalSession` and `handleStripeWebhook` are the plan's four outputs; `hearthkitPaymentsDrizzleSchema` the fifth. `createPaymentsClient` is the construction step, where the catalog is validated so a mistake fails at boot. `readPaymentsSubscription` and `listPaymentsPurchases` exist so the tables are not write-only from the package's point of view and no app writes its own query against these column names. `verifyPaymentsTablesExist` mirrors `verifyAuthTablesExist` for gates and `/health`.
+2. **This package owns three tables and does not use `@better-auth/stripe`**, measured on 2026-09-06 against `@better-auth/stripe@1.7.2`: its `getSchema` adds `user.stripeCustomerId` in both branches of its only conditional, so it cannot be installed without editing `auth`'s tables, which `auth`'s contract forbids; it is subscription-only (one `mode: "subscription"` literal, no `mode: "payment"`); it has no catalog sync; its surface is session-scoped routes, not functions; and it peers on `better-call: 1.4.0` exactly. Its vocabulary is kept where it exists (`billingScope` = `customerType`, `priceName` = `plan`, `currentPeriodStart` = `periodStart`, `billingReferenceId` = `referenceId`; `seats`, `stripeScheduleId`, `billingInterval` not modelled) so a later move is a rename.
+3. **Nine failure variants where the plan names three.** Input and catalog are the two ordinary "the app got it wrong" shapes, checkable offline; unauthorized and unreachable are every deployment's first-run states; database-unavailable is `auth`'s reused verbatim; request-failed makes "never throws" a promise. One `payments-price-not-found` with a discriminator, not two kinds.
+4. **`stripeApiBaseUrl` is public surface** so `payments-stripe-unreachable` is gateable against a closed local port; it is the same category as `storage`'s `STORAGE_ENDPOINT` and `auth`'s `baseUrl`, and it changes nothing about what this package returns. **The webhook handler takes `rawRequestBody` and `requestHeaders`, not a `Request`**, because the gate replays a recorded string and `requestHeaders` is already this repo's spelling. **Idempotency is by unique Stripe id, not an events table.** **`status` is a string column with an exported list of known values, not an enum.** **Table names are prefixed `payments_`** so `subscription` stays free for the plugin's model name, and the Drizzle key equals the SQL name.
+5. **The entry point is a fixed allowlist, not "everything the contract module exports"** (completion plan step 5, 2026-09-09). Prefixes, Stripe literals, HTTP statuses, limits, options schemas, record schemas and per-variant shapes are internal; the SDK's signature-failure message strings, whose only reader is a gate, live in `test-fixtures/`. The `./payments-contract` subpath survives because `cli` and `templates/app` import it, and carries the same trimmed set.

@@ -16,8 +16,8 @@
       "default": "./src/index.ts"
     },
     "./payments-contract": {
-      "types": "./src/payments-contract.ts",
-      "default": "./src/payments-contract.ts"
+      "types": "./src/payments-contract-entry.ts",
+      "default": "./src/payments-contract-entry.ts"
     }
   },
   "files": [

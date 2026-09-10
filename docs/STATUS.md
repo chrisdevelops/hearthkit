@@ -10,9 +10,9 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Current work: step 5 (export-surface refactor). Storage done (PR #28, published 0.2.0 via #29).
   Email done (PR #30) and ui done (PR #32), published as 0.3.0 via #31 on 2026-09-10. Auth done
   (PR #33, merged 2026-09-10); the Version Packages PR the bot opens for it is not merged yet.
-- Package loop: none in flight.
-- Last commit on `main`: 9e3f1f6, PR #33 (auth export-surface refactor). The brief for the payments
-  session is `docs/next-session-payments.md`; that PR deletes it.
+- Package loop: payments on `refactor/exports-payments`, step commit, round 1 (completion plan step 5).
+- Last commit on `main`: 68d54c2 (docs). The payments refactor is open on `refactor/exports-payments`
+  and deletes its brief, `docs/next-session-payments.md`.
 - Published: every `@hearthkit/*` package at 0.3.0 on npm with provenance and an MIT license.
 - Next: step 5 finishes with `refactor/exports-payments` through the `next-package` loop, then
   step 6. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15
@@ -45,9 +45,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes |
-| ------- | ---- | ------------------ | ----- |
-| none    |      |                    |       |
+| Package  | Step   | Implementor rounds | Notes                                                              |
+| -------- | ------ | ------------------ | ------------------------------------------------------------------ |
+| payments | commit | 1                  | branch `refactor/exports-payments`, step 5 export-surface refactor |
 
 ## Open issues
 

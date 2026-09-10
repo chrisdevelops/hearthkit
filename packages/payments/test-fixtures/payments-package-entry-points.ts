@@ -14,14 +14,21 @@ export type PaymentsPackageManifest = {
   exportsMap: Record<string, unknown>
 }
 
-/** Outcome of running one file under a plain node process, with stderr kept so a failure explains itself. */
+/** Outcome of running one file under a plain node process, with the path and stderr kept so a failure explains itself. */
 export type BareNodeRun = {
+  modulePath: string
   exitCode: number | null
   standardError: string
 }
 
 const paymentsPackageManifestUrl = new URL('../package.json', import.meta.url)
-const paymentsContractModuleUrl = new URL('../src/payments-contract.ts', import.meta.url)
+// Both must load under bare node: payments-contract-entry.ts is what the ./payments-contract subpath
+// resolves to, and it re-exports from payments-contract.ts, which the implementation and these gates
+// import direct.
+const bareNodePaymentsModuleUrls = [
+  new URL('../src/payments-contract.ts', import.meta.url),
+  new URL('../src/payments-contract-entry.ts', import.meta.url),
+] as const
 
 /** The manifest as JSON, or a named error saying it does not exist yet, which is the pre-implementation state. */
 export async function readPaymentsPackageManifest(): Promise<PaymentsPackageManifest> {
@@ -47,15 +54,24 @@ export async function readPaymentsPackageManifest(): Promise<PaymentsPackageMani
 }
 
 /**
- * Runs src/payments-contract.ts under a plain node process, which is what the ./payments-contract
- * subpath exists to make possible: the `.` entry imports `stripe`, `drizzle-orm/pg-core` and the
- * Drizzle table definitions, while this file imports `zod` at runtime and nothing else — its
- * `stripe`, `drizzle-orm/node-postgres` and `@hearthkit/auth/auth-contract` imports are all type-only
- * and erased. The CLI's `hearthkit payments sync` and any later package read the contract this way
- * without loading the SDK.
+ * Runs every SDK-free payments module under a plain node process, one run per module, which is what
+ * the ./payments-contract subpath exists to make possible: the `.` entry imports `stripe`,
+ * `drizzle-orm/pg-core` and the Drizzle table definitions, while these two files import `zod` at
+ * runtime and nothing else — their `stripe`, `drizzle-orm/node-postgres` and
+ * `@hearthkit/auth/auth-contract` imports are all type-only and erased. The CLI's `hearthkit payments
+ * sync` and templates/app's drizzle.config.ts read the contract this way without loading the SDK.
  */
-export async function runPaymentsContractUnderBareNode(): Promise<BareNodeRun> {
-  const child = spawn(process.execPath, [fileURLToPath(paymentsContractModuleUrl)], {
+export async function runPaymentsContractModulesUnderBareNode(): Promise<readonly BareNodeRun[]> {
+  const runs: BareNodeRun[] = []
+  for (const moduleUrl of bareNodePaymentsModuleUrls) {
+    runs.push(await runOneFileUnderBareNode(moduleUrl))
+  }
+  return runs
+}
+
+async function runOneFileUnderBareNode(moduleUrl: URL): Promise<BareNodeRun> {
+  const modulePath = fileURLToPath(moduleUrl)
+  const child = spawn(process.execPath, [modulePath], {
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   const standardErrorChunks: string[] = []
@@ -65,7 +81,7 @@ export async function runPaymentsContractUnderBareNode(): Promise<BareNodeRun> {
   return new Promise<BareNodeRun>((resolve, reject) => {
     child.once('error', reject)
     child.once('close', (exitCode) => {
-      resolve({ exitCode, standardError: standardErrorChunks.join('') })
+      resolve({ modulePath, exitCode, standardError: standardErrorChunks.join('') })
     })
   })
 }

@@ -35,6 +35,70 @@ export type HearthkitPaymentsEntry = {
   hearthkitPaymentsTableNames: readonly HearthkitPaymentsTableName[]
 }
 
+/**
+ * The twenty-seven value exports CONTRACT.md "Package entry point" allows src/index.ts to have,
+ * spelled out because the allowlist is a decision no module namespace can be derived from: the nine
+ * plan-named implementation outputs first, then the eighteen contract values that live in
+ * payments-contract.ts. Every other value payments-contract.ts exports is internal and must stay off
+ * the entry point.
+ */
+export const hearthkitPaymentsEntryValueExportNames = [
+  'createPaymentsClient',
+  'syncPaymentsCatalog',
+  'createCheckoutSession',
+  'createCustomerPortalSession',
+  'handleStripeWebhook',
+  'readPaymentsSubscription',
+  'listPaymentsPurchases',
+  'verifyPaymentsTablesExist',
+  'hearthkitPaymentsDrizzleSchema',
+  'paymentsEnvSchemaFragment',
+  'paymentsFailureSchema',
+  'paymentsCatalogSchema',
+  'createPaymentsClientResultSchema',
+  'syncPaymentsCatalogResultSchema',
+  'createCheckoutSessionResultSchema',
+  'createCustomerPortalSessionResultSchema',
+  'handleStripeWebhookResultSchema',
+  'readPaymentsSubscriptionResultSchema',
+  'listPaymentsPurchasesResultSchema',
+  'verifyPaymentsTablesExistResultSchema',
+  'hearthkitPaymentsTableNames',
+  'paymentsSyncedPriceSchema',
+  'stripeSignatureHeaderName',
+  'hearthkitBillingReferenceMetadataKey',
+  'hearthkitPriceNameMetadataKey',
+  'hearthkitQuantityMetadataKey',
+  'hearthkitStripePriceIdMetadataKey',
+] as const
+
+/**
+ * The eighteen allowlisted names the ./payments-contract subpath carries: the list above minus the
+ * nine implementation outputs, which live in modules that import `stripe`, `drizzle-orm/pg-core` and
+ * the table definitions, none of which the cli's `hearthkit payments sync` or templates/app's
+ * drizzle.config.ts should have to load to read a schema.
+ */
+export const hearthkitPaymentsContractSubpathValueExportNames = [
+  'paymentsEnvSchemaFragment',
+  'paymentsFailureSchema',
+  'paymentsCatalogSchema',
+  'createPaymentsClientResultSchema',
+  'syncPaymentsCatalogResultSchema',
+  'createCheckoutSessionResultSchema',
+  'createCustomerPortalSessionResultSchema',
+  'handleStripeWebhookResultSchema',
+  'readPaymentsSubscriptionResultSchema',
+  'listPaymentsPurchasesResultSchema',
+  'verifyPaymentsTablesExistResultSchema',
+  'hearthkitPaymentsTableNames',
+  'paymentsSyncedPriceSchema',
+  'stripeSignatureHeaderName',
+  'hearthkitBillingReferenceMetadataKey',
+  'hearthkitPriceNameMetadataKey',
+  'hearthkitQuantityMetadataKey',
+  'hearthkitStripePriceIdMetadataKey',
+] as const
+
 // The eight functions CONTRACT.md lists under Public functions, spelled out so a rename fails here by
 // name instead of surfacing as "x is not a function" inside whichever gate ran first.
 const expectedFunctionNames = [
@@ -58,6 +122,24 @@ export async function importHearthkitPaymentsNamespace(): Promise<Record<string,
   } catch (error) {
     throw new Error(
       `gate could not load the public entry point of @hearthkit/payments (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
+}
+
+/**
+ * Imports the ./payments-contract subpath at call time, so a subpath that still points at a module
+ * nobody has written yet fails one gate instead of breaking collection for a whole file. @hearthkit/cli
+ * and templates/app both consume this subpath, so it carries its own allowlist.
+ */
+export async function importHearthkitPaymentsContractSubpathNamespace(): Promise<
+  Record<string, unknown>
+> {
+  try {
+    return (await import('@hearthkit/payments/payments-contract')) as Record<string, unknown>
+  } catch (error) {
+    throw new Error(
+      `gate could not load the ./payments-contract subpath of @hearthkit/payments (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     )
   }

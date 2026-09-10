@@ -34,27 +34,6 @@ export const paymentsRequestFailedErrorPrefix = 'hearthkit payments request fail
 /** HTTP header Stripe signs a webhook delivery with; this package reads it off the request headers so the name is spelled once. */
 export const stripeSignatureHeaderName = 'stripe-signature'
 
-/** Signature scheme inside that header, read off stripe@22.6.1's EXPECTED_SCHEME; every entry this package verifies is a v1 entry. */
-export const stripeSignatureScheme = 'v1'
-
-/** Seconds a signed webhook stays acceptable, read off stripe@22.6.1's DEFAULT_TOLERANCE; an older signature is rejected as invalid. */
-export const stripeSignatureToleranceSeconds = 300
-
-// Measured in stripe@22.6.1's esm/Webhooks.js:184. THE DECOY IS ONE LINE AWAY IN THE SAME FILE:
-// `No signatures found with expected scheme` (line 130) is thrown when the header parses but carries
-// no v1 entry, which is a DIFFERENT cause. A gate matching the substring `No signatures found`
-// satisfies both, so a wrong-secret gate must match this whole prefix and not the shared words.
-/** Opening words of the message stripe throws when the signing secret is wrong; the value a wrong-secret gate matches on. */
-export const stripeWrongSecretSignatureMessagePrefix =
-  'No signatures found matching the expected signature for payload.'
-
-/** Message stripe throws when the header parses but carries no v1 entry; named only so nobody mistakes it for the wrong-secret one. */
-export const stripeWrongSchemeSignatureMessage = 'No signatures found with expected scheme'
-
-/** Opening words of the message stripe throws when a parsed object was passed instead of the raw request body. */
-export const stripeParsedBodySignatureMessagePrefix =
-  'Webhook payload must be provided as a string or a Buffer'
-
 /** HTTP status Stripe answers with when the API key is wrong or revoked; mapped to payments-stripe-unauthorized. */
 export const stripeUnauthorizedHttpStatus = 401
 
@@ -695,8 +674,8 @@ export type CreatePaymentsClientOptions = {
   stripeApiBaseUrl?: string
 }
 
-/** Success shape of createPaymentsClient; the flag and the scope are echoed back so a caller holding the result knows which mode it built. */
-export const paymentsClientCreatedSchema = z.object({
+/** Success shape of createPaymentsClient; module-private, reachable only through the result union below. The flag and the scope are echoed back so a caller holding the result knows which mode it built. */
+const paymentsClientCreatedSchema = z.object({
   kind: z.literal('payments-client-created'),
   paymentsClient: paymentsClientSchema,
   organizationsEnabled: z.boolean(),
@@ -747,8 +726,8 @@ export type SyncPaymentsCatalogOptions = {
 // stripeLivemode is read off the Stripe object the API answered with, whose own generated type says
 // it is true in live mode and false in test mode. It is here so a gate can refuse to touch a live
 // account without matching on an API key prefix, which is a constant nothing offline can verify.
-/** Success shape of syncPaymentsCatalog; stripeLivemode is the measured guard a gate asserts false before creating anything. */
-export const paymentsCatalogSyncedSchema = z.object({
+/** Success shape of syncPaymentsCatalog; module-private. stripeLivemode is the measured guard a gate asserts false before creating anything. */
+const paymentsCatalogSyncedSchema = z.object({
   kind: z.literal('payments-catalog-synced'),
   syncedPrices: z.array(paymentsSyncedPriceSchema).min(1),
   stripeLivemode: z.boolean(),
@@ -790,8 +769,8 @@ export type CreateCheckoutSessionOptions = {
   cancelUrl: string
 }
 
-/** Success shape of createCheckoutSession; checkoutUrl is the hosted page to redirect the buyer to. */
-export const paymentsCheckoutSessionCreatedSchema = z.object({
+/** Success shape of createCheckoutSession; module-private. checkoutUrl is the hosted page to redirect the buyer to. */
+const paymentsCheckoutSessionCreatedSchema = z.object({
   kind: z.literal('payments-checkout-session-created'),
   stripeCheckoutSessionId: stripeCheckoutSessionIdSchema,
   checkoutUrl: z.url(),
@@ -828,8 +807,8 @@ export type CreateCustomerPortalSessionOptions = {
   returnUrl: string
 }
 
-/** Success shape of createCustomerPortalSession; portalUrl is short-lived, so it is redirected to rather than stored. */
-export const paymentsPortalSessionCreatedSchema = z.object({
+/** Success shape of createCustomerPortalSession; module-private. portalUrl is short-lived, so it is redirected to rather than stored. */
+const paymentsPortalSessionCreatedSchema = z.object({
   kind: z.literal('payments-portal-session-created'),
   portalUrl: z.url(),
   stripeCustomerId: stripeCustomerIdSchema,
@@ -899,16 +878,16 @@ export type HandleStripeWebhookOptions = {
   requestHeaders: Headers
 }
 
-/** Result shape when the delivery was acted on; a replay of the same event writes the same row and moves no count. */
-export const paymentsWebhookProcessedSchema = z.object({
+/** Result shape when the delivery was acted on; module-private. A replay of the same event writes the same row and moves no count. */
+const paymentsWebhookProcessedSchema = z.object({
   kind: z.literal('payments-webhook-processed'),
   stripeEventId: stripeEventIdSchema,
   stripeEventType: z.string().min(1),
   webhookOutcome: paymentsWebhookOutcomeSchema,
 })
 
-/** Result shape when the delivery was verified but not acted on; a successful answer, not a failure, because most events are none of our business. */
-export const paymentsWebhookIgnoredSchema = z.object({
+/** Result shape when the delivery was verified but not acted on; module-private. A successful answer, not a failure, because most events are none of our business. */
+const paymentsWebhookIgnoredSchema = z.object({
   kind: z.literal('payments-webhook-ignored'),
   stripeEventId: stripeEventIdSchema,
   stripeEventType: z.string().min(1),
@@ -942,14 +921,14 @@ export type ReadPaymentsSubscriptionOptions = {
   billingReferenceId: string
 }
 
-/** Result shape when a subscription row exists; the row is returned whatever its status, and the caller decides what counts as entitled. */
-export const paymentsSubscriptionFoundSchema = z.object({
+/** Result shape when a subscription row exists; module-private. The row is returned whatever its status, and the caller decides what counts as entitled. */
+const paymentsSubscriptionFoundSchema = z.object({
   kind: z.literal('payments-subscription-found'),
   paymentsSubscription: paymentsSubscriptionSchema,
 })
 
-/** Result shape when the reference has no subscription row at all; nobody having a subscription is a normal answer, not a failure. */
-export const paymentsSubscriptionAbsentSchema = z.object({
+/** Result shape when the reference has no subscription row at all; module-private. Nobody having a subscription is a normal answer, not a failure. */
+const paymentsSubscriptionAbsentSchema = z.object({
   kind: z.literal('payments-subscription-absent'),
 })
 
@@ -980,8 +959,8 @@ export type ListPaymentsPurchasesOptions = {
   billingReferenceId: string
 }
 
-/** Success shape of listPaymentsPurchases; an empty array is a success, because "has bought nothing" is a correct answer. */
-export const paymentsPurchasesListedSchema = z.object({
+/** Success shape of listPaymentsPurchases; module-private. An empty array is a success, because "has bought nothing" is a correct answer. */
+const paymentsPurchasesListedSchema = z.object({
   kind: z.literal('payments-purchases-listed'),
   paymentsPurchases: z.array(paymentsPurchaseSchema),
 })
@@ -1010,14 +989,14 @@ export type VerifyPaymentsTablesExistOptions = {
   drizzleClient: NodePgDatabase<Record<string, unknown>>
 }
 
-/** Result shape when every payments table is present in the public schema, in both user-scoped and org-scoped mode. */
-export const paymentsTablesPresentSchema = z.object({
+/** Result shape when every payments table is present in the public schema; module-private, and true in both user-scoped and org-scoped mode. */
+const paymentsTablesPresentSchema = z.object({
   kind: z.literal('payments-tables-present'),
   presentTableNames: z.array(hearthkitPaymentsTableNameSchema).min(1),
 })
 
-/** Result shape when at least one payments table is absent; this is a successful check reporting a negative answer. */
-export const paymentsTablesMissingSchema = z.object({
+/** Result shape when at least one payments table is absent; module-private, a successful check reporting a negative answer. */
+const paymentsTablesMissingSchema = z.object({
   kind: z.literal('payments-tables-missing'),
   missingTableNames: z.array(hearthkitPaymentsTableNameSchema).min(1),
 })

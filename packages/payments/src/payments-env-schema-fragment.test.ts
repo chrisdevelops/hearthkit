@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { expectResultKind } from '../test-fixtures/payments-gate-expectations.ts'
 import {
   readPaymentsPackageManifest,
-  runPaymentsContractUnderBareNode,
+  runPaymentsContractModulesUnderBareNode,
 } from '../test-fixtures/payments-package-entry-points.ts'
 import {
+  hearthkitPaymentsContractSubpathValueExportNames,
+  hearthkitPaymentsEntryValueExportNames,
+  importHearthkitPaymentsContractSubpathNamespace,
   importHearthkitPaymentsNamespace,
   loadHearthkitPaymentsEntry,
 } from '../test-fixtures/hearthkit-payments-entry.ts'
@@ -17,61 +20,6 @@ const completePaymentsEnv = {
   STRIPE_SECRET_KEY: 'sk_test_51GateSecretKeyThatIsNotRealAndHasNoWhitespace',
   STRIPE_WEBHOOK_SECRET: 'whsec_GateSigningSecretThatIsNotRealEither',
 }
-
-// CONTRACT.md's entry point rule is mechanical: src/index.ts re-exports every value
-// src/payments-contract.ts exports, with no exceptions. So the required list is read off the contract
-// module's own namespace rather than typed out here. A hand-written list would fall behind the day
-// someone forgot to extend it; a derived list cannot.
-//
-// A module namespace carries value exports only. Every `export type` in payments-contract.ts is
-// erased before this file runs, so the types CONTRACT.md also asks the entry point to re-export are
-// outside what this gate can see and are covered by typecheck instead.
-function contractValueExportNames(contractModule: Record<string, unknown>): string[] {
-  return Object.keys(contractModule).toSorted()
-}
-
-// Named in so many words by CONTRACT.md: the nine message prefixes, the env fragment, the failure
-// union, the table name list, the two subscription status lists and the eight per-function result
-// schemas. Spelled out as strings so renaming one in the contract fails this gate loudly, instead of
-// quietly shrinking the derived list above to a set an entry point already satisfies.
-const contractExportNamesTheContractNamesOutright = [
-  'paymentsInputInvalidErrorPrefix',
-  'paymentsCatalogInvalidErrorPrefix',
-  'paymentsPriceNotFoundErrorPrefix',
-  'paymentsCustomerNotFoundErrorPrefix',
-  'paymentsWebhookSignatureInvalidErrorPrefix',
-  'paymentsStripeUnauthorizedErrorPrefix',
-  'paymentsStripeUnreachableErrorPrefix',
-  'paymentsDatabaseUnavailableErrorPrefix',
-  'paymentsRequestFailedErrorPrefix',
-  'paymentsEnvSchemaFragment',
-  'paymentsFailureSchema',
-  'hearthkitPaymentsTableNames',
-  'paymentsKnownSubscriptionStatuses',
-  'paymentsActiveSubscriptionStatuses',
-  'createPaymentsClientResultSchema',
-  'syncPaymentsCatalogResultSchema',
-  'createCheckoutSessionResultSchema',
-  'createCustomerPortalSessionResultSchema',
-  'handleStripeWebhookResultSchema',
-  'readPaymentsSubscriptionResultSchema',
-  'listPaymentsPurchasesResultSchema',
-  'verifyPaymentsTablesExistResultSchema',
-] as const
-
-// Not exported by payments-contract.ts, so the derived list cannot cover them: the eight public
-// functions and the Drizzle table map.
-const entryPointOnlyExportNames = [
-  'createPaymentsClient',
-  'syncPaymentsCatalog',
-  'createCheckoutSession',
-  'createCustomerPortalSession',
-  'handleStripeWebhook',
-  'readPaymentsSubscription',
-  'listPaymentsPurchases',
-  'verifyPaymentsTablesExist',
-  'hearthkitPaymentsDrizzleSchema',
-] as const
 
 describe('paymentsEnvSchemaFragment', () => {
   it('declares two required variables, names both at load when neither is set, treats an empty value as unset, and rejects one carrying whitespace', async () => {
@@ -140,30 +88,29 @@ describe('paymentsEnvSchemaFragment', () => {
 })
 
 describe('@hearthkit/payments entry point', () => {
-  it('re-exports by name every value payments-contract.ts exports, plus the eight functions and the Drizzle schema', async () => {
+  it('exports exactly the twenty-seven allowlisted values and nothing else, each contract value the one payments-contract.ts already exports', async () => {
     const namespace = await importHearthkitPaymentsNamespace()
     const contractModule = paymentsContract as unknown as Record<string, unknown>
-    const requiredExportNames = contractValueExportNames(contractModule)
 
-    const renamedInTheContract = contractExportNamesTheContractNamesOutright.filter(
-      (exportName) => !requiredExportNames.includes(exportName),
-    )
+    // A module namespace carries value exports only, so every `export type` is already erased here and
+    // the types CONTRACT.md keeps on the entry point are covered by typecheck instead. Both lists are
+    // compared whole rather than name by name, so a failure names every wrong export at once instead
+    // of stopping at the first and hiding the rest behind a rerun.
+    const actualValueExportNames = Object.keys(namespace)
+      .filter((exportName) => namespace[exportName] !== undefined)
+      .toSorted()
     expect(
-      renamedInTheContract,
-      'payments-contract.ts must still export the constants and schemas CONTRACT.md names outright',
-    ).toEqual([])
+      actualValueExportNames,
+      'src/index.ts must export exactly the allowlist in CONTRACT.md "Package entry point"',
+    ).toEqual([...hearthkitPaymentsEntryValueExportNames].toSorted())
 
-    // Both lists are compared whole rather than one name at a time, so a failure names every export
-    // that is wrong instead of stopping at the first and hiding the rest behind a rerun.
-    const missingFromTheEntryPoint = requiredExportNames.filter(
-      (exportName) => namespace[exportName] === undefined,
-    )
-    expect(
-      missingFromTheEntryPoint,
-      'src/index.ts must re-export these by name from payments-contract.ts',
-    ).toEqual([])
-
-    const rebuiltInsteadOfReExported = requiredExportNames.filter(
+    // The eighteen contract values must be the identical values payments-contract.ts exports, not a
+    // second copy: an app comparing entry.hearthkitPaymentsTableNames against the subpath's value is
+    // comparing the same thing. The nine prefixes, the Stripe literals and HTTP statuses, the limits,
+    // the branded and record schemas, the options schemas and the eleven per-arm success shapes stay
+    // internal, so they are absent from the list above and a re-export of one of them fails the
+    // whole-list comparison by name.
+    const rebuiltInsteadOfReExported = hearthkitPaymentsContractSubpathValueExportNames.filter(
       (exportName) => namespace[exportName] !== contractModule[exportName],
     )
     expect(
@@ -171,27 +118,62 @@ describe('@hearthkit/payments entry point', () => {
       'these must be the identical value payments-contract.ts exports, not a second copy of it',
     ).toEqual([])
 
-    const missingImplementationExports = entryPointOnlyExportNames.filter(
-      (exportName) => namespace[exportName] === undefined,
-    )
+    // Everything else on the allowlist comes from an implementation module: the eight functions, plus
+    // hearthkitPaymentsDrizzleSchema, which is the Drizzle table map and therefore an object. Whether
+    // it carries the right tables and columns is the schema gate's job, not this one's.
+    const wrongShape = hearthkitPaymentsEntryValueExportNames.filter((exportName) => {
+      const isContractValue = hearthkitPaymentsContractSubpathValueExportNames.includes(
+        exportName as (typeof hearthkitPaymentsContractSubpathValueExportNames)[number],
+      )
+      if (isContractValue) {
+        return false
+      }
+      if (exportName === 'hearthkitPaymentsDrizzleSchema') {
+        return typeof namespace[exportName] !== 'object' || namespace[exportName] === null
+      }
+      return typeof namespace[exportName] !== 'function'
+    })
     expect(
-      missingImplementationExports,
-      'src/index.ts must re-export the public functions and the Drizzle schema by name',
+      wrongShape,
+      'every allowlisted name outside the eighteen contract values must be one of the eight functions, or the Drizzle schema object',
     ).toEqual([])
   })
 
-  it('publishes ./payments-contract as a second subpath that a bare node process can load', async () => {
+  it('publishes ./payments-contract as a second subpath carrying the eighteen contract values, loadable by a bare node process', async () => {
     const manifest = await readPaymentsPackageManifest()
     expect(manifest.packageName).toBe('@hearthkit/payments')
     expect(Object.keys(manifest.exportsMap).toSorted()).toEqual(['.', './payments-contract'])
     expect(JSON.stringify(manifest.exportsMap['./payments-contract'])).toContain(
-      './src/payments-contract.ts',
+      './src/payments-contract-entry.ts',
     )
 
+    const subpathNamespace = await importHearthkitPaymentsContractSubpathNamespace()
+    const contractModule = paymentsContract as unknown as Record<string, unknown>
+    const subpathValueExportNames = Object.keys(subpathNamespace)
+      .filter((exportName) => subpathNamespace[exportName] !== undefined)
+      .toSorted()
+    expect(
+      subpathValueExportNames,
+      'src/payments-contract-entry.ts must export exactly the eighteen allowlisted names that live in payments-contract.ts',
+    ).toEqual([...hearthkitPaymentsContractSubpathValueExportNames].toSorted())
+
+    const rebuiltInsteadOfReExported = hearthkitPaymentsContractSubpathValueExportNames.filter(
+      (exportName) => subpathNamespace[exportName] !== contractModule[exportName],
+    )
+    expect(
+      rebuiltInsteadOfReExported,
+      'these must be the identical value payments-contract.ts exports, not a second copy of it',
+    ).toEqual([])
+
     // The reason the subpath exists: the `.` entry imports the Stripe SDK, drizzle-orm/pg-core and
-    // the table definitions, while this file imports zod at runtime and nothing else — its stripe,
-    // drizzle-orm/node-postgres and @hearthkit/auth/auth-contract imports are type-only and erased.
-    const bareNodeRun = await runPaymentsContractUnderBareNode()
-    expect(bareNodeRun.exitCode, bareNodeRun.standardError).toBe(0)
+    // the table definitions, while both of these files import zod at runtime and nothing else. Each
+    // is run on its own so a failure names the file, and stderr must be empty as well as the exit
+    // code zero, because a module that warns on load still breaks a bare consumer.
+    for (const bareNodeRun of await runPaymentsContractModulesUnderBareNode()) {
+      expect(bareNodeRun.exitCode, `${bareNodeRun.modulePath}: ${bareNodeRun.standardError}`).toBe(
+        0,
+      )
+      expect(bareNodeRun.standardError, `${bareNodeRun.modulePath} wrote to stderr`).toBe('')
+    }
   })
 })
