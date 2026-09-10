@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The hearthkit binary: db lifecycle, dev infra, and doctor commands over @hearthkit/db",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/cli",

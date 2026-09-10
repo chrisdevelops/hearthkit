@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/config",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "One validated schema for all hearthkit environment variables, composed from per-package fragments",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/config",

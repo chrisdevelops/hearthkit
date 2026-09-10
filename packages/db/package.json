@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/db",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Drizzle client, migration runner, and project-database lifecycle for Postgres 17",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/db",
