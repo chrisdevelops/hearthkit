@@ -8,13 +8,15 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
   plan step 4, PRs #21, #24, #25).
 - Current work: step 5 (export-surface refactor). Storage done (PR #28, published 0.2.0 via #29).
-  Email done (PR #30), unpublished until the next Version Packages PR is merged by the user.
-- Package loop: ui export trim on `refactor/exports-ui` (step 5).
-- Last commit on `main`: PR #30 (email export trim).
+  Email done (PR #30) and ui done (PR #32), both unpublished until the user merges the
+  Version Packages PR (#31).
+- Package loop: none in flight.
+- Last commit on `main`: PR #32 (ui export trim).
 - Published: every `@hearthkit/*` package at 0.2.0 on npm with provenance and an MIT license.
-- Next: step 5 continues with `refactor/exports-ui`, then auth, payments, each through the
+- Next: step 5 continues with `refactor/exports-auth`, then payments, each through the
   `next-package` loop. Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15
   on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
+  Ui: 59 → 47 on `.` and 17 → 5 on `./ui-contract`, CONTRACT.md 189 lines, 19 gates, 6 flows.
 
 ## Phase checklist
 
@@ -41,9 +43,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step   | Implementor rounds | Notes                                            |
-| ------- | ------ | ------------------ | ------------------------------------------------ |
-| ui      | commit | 1                  | branch `refactor/exports-ui`, step 5 export trim |
+| Package | Step | Implementor rounds | Notes |
+| ------- | ---- | ------------------ | ----- |
+| none    |      |                    |       |
 
 ## Open issues
 
@@ -88,3 +90,6 @@ action`. ("npm trusted publishers default to staged publishing")
   `/^name$/` and let subpaths fall through to package.json self-reference. ("PR #30")
 - **Vitest does not read the root `.env`.** Run `set -a; source .env; set +a` before the payments
   gates locally, or 8 Stripe gates skip. ("PR #30")
+- **A `*-contract` subpath cannot be dropped while a bare-node caller imports it.** The template
+  contract and the `create` bin load `@hearthkit/ui/ui-contract` from plain `node`, which refuses the
+  `.tsx` behind the entry; trim the subpath, never remove it. ("PR #32")
