@@ -1,5 +1,15 @@
 # @hearthkit/create
 
+## 0.2.0
+
+### Patch Changes
+
+- @hearthkit/cli@0.2.0
+  - @hearthkit/config@0.2.0
+  - @hearthkit/db@0.2.0
+  - @hearthkit/observability@0.2.0
+  - @hearthkit/ui@0.2.0
+
 ## 0.1.2
 
 ### Patch Changes
