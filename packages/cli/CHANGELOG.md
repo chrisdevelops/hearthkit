@@ -1,5 +1,13 @@
 # @hearthkit/cli
 
+## 0.2.0
+
+### Patch Changes
+
+- @hearthkit/config@0.2.0
+  - @hearthkit/db@0.2.0
+  - @hearthkit/payments@0.2.0
+
 ## 0.1.2
 
 ### Patch Changes
