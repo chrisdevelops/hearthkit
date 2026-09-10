@@ -1,19 +1,13 @@
 import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import * as uiContract from './ui-contract.ts'
 import {
-  darkModeClassName,
-  darkModeOverriddenTokenNames,
-  hearthkitThemeCssFileName,
-  hearthkitThemeCssImportSpecifier,
-  hearthkitThemeTokenNames,
-  hearthkitUiMinimumExportNames,
-  hearthkitUiPackageExportSubpaths,
-  tailwindSourceDirectiveForUi,
-  themeModeToggleOptionLabels,
-  themeProviderMissingErrorPrefix,
-  uiComponentFamilyNames,
-} from './ui-contract.ts'
-import { loadHearthkitUiEntry, uiFunctionFromEntry } from '../test-fixtures/hearthkit-ui-entry.ts'
+  hearthkitUiContractSubpathValueExportNames,
+  hearthkitUiEntryValueExportNames,
+  isRenderableUiComponent,
+  loadHearthkitUiEntry,
+  uiFunctionFromEntry,
+} from '../test-fixtures/hearthkit-ui-entry.ts'
 import {
   readUiPackageManifest,
   themeStylesheetExportSubpath,
@@ -21,38 +15,45 @@ import {
 } from '../test-fixtures/hearthkit-theme-stylesheet.ts'
 
 describe('@hearthkit/ui export surface', () => {
-  it('exports every component, hook, and helper named in hearthkitUiMinimumExportNames', async () => {
+  it('exports exactly the forty-seven allowlisted values and nothing else, each contract value the one ui-contract.ts already exports', async () => {
     const entry = await loadHearthkitUiEntry()
+    const contractModule = uiContract as unknown as Record<string, unknown>
 
-    const missingExportNames = hearthkitUiMinimumExportNames.filter(
-      (exportName) => entry[exportName] === undefined,
+    // A module namespace carries value exports only, so every `export type` is already erased here
+    // and the four types CONTRACT.md keeps on the entry point are covered by typecheck instead. Both
+    // lists are compared whole rather than name by name, so a failure names every wrong export at
+    // once instead of stopping at the first and hiding the rest behind a rerun.
+    const actualValueExportNames = Object.keys(entry)
+      .filter((exportName) => entry[exportName] !== undefined)
+      .toSorted()
+    expect(
+      actualValueExportNames,
+      'src/index.ts must export exactly the allowlist in CONTRACT.md "Package entry point"',
+    ).toEqual([...hearthkitUiEntryValueExportNames].toSorted())
+
+    // The five contract values must be the identical values ui-contract.ts exports, not a second
+    // copy: an app comparing entry.tailwindSourceDirectiveForUi against the subpath's value is
+    // comparing the same thing. themeProviderMissingErrorPrefix and themeModeToggleOptionLabels stay
+    // internal, so they are absent from the list above and cannot be checked in.
+    for (const exportName of hearthkitUiContractSubpathValueExportNames) {
+      expect(entry[exportName], `${exportName} must be re-exported from ./ui-contract.ts`).toBe(
+        contractModule[exportName],
+      )
+    }
+
+    // Everything else on the allowlist is a component, a hook or a helper: a function, or the
+    // forwardRef/memo object React also renders. A name exported as a string or a schema by mistake
+    // is named here rather than failing later inside a render gate.
+    const notRenderableOrCallable = hearthkitUiEntryValueExportNames.filter(
+      (exportName) =>
+        !hearthkitUiContractSubpathValueExportNames.includes(
+          exportName as (typeof hearthkitUiContractSubpathValueExportNames)[number],
+        ) && !isRenderableUiComponent(entry[exportName]),
     )
-    expect(missingExportNames).toEqual([])
-  })
-
-  it('re-exports the contract constants apps and gates read', async () => {
-    const entry = await loadHearthkitUiEntry()
-
-    expect(entry.darkModeClassName).toBe(darkModeClassName)
-    expect(entry.hearthkitThemeCssFileName).toBe(hearthkitThemeCssFileName)
-    expect(entry.hearthkitThemeCssImportSpecifier).toBe(hearthkitThemeCssImportSpecifier)
-    expect(entry.themeProviderMissingErrorPrefix).toBe(themeProviderMissingErrorPrefix)
-    expect(entry.tailwindSourceDirectiveForUi).toBe(tailwindSourceDirectiveForUi)
-    expect(entry.hearthkitThemeTokenNames).toEqual(hearthkitThemeTokenNames)
-    expect(entry.darkModeOverriddenTokenNames).toEqual(darkModeOverriddenTokenNames)
-    expect(entry.uiComponentFamilyNames).toEqual(uiComponentFamilyNames)
-    expect(entry.hearthkitUiMinimumExportNames).toEqual(hearthkitUiMinimumExportNames)
-    expect(entry.hearthkitUiPackageExportSubpaths).toEqual(hearthkitUiPackageExportSubpaths)
-    expect(entry.themeModeToggleOptionLabels).toEqual(themeModeToggleOptionLabels)
-
-    const missingSchemaNames = [
-      'hearthkitThemeTokenNameSchema',
-      'themeModeSchema',
-      'resolvedThemeModeSchema',
-      'uiComponentFamilyNameSchema',
-      'uiFailureSchema',
-    ].filter((exportName) => entry[exportName] === undefined)
-    expect(missingSchemaNames).toEqual([])
+    expect(
+      notRenderableOrCallable,
+      'every allowlisted name outside the five contract values must be a component, hook, or helper',
+    ).toEqual([])
   })
 
   it('merges conflicting tailwind classes and drops falsy inputs in mergeTailwindClasses', async () => {

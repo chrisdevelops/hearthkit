@@ -318,13 +318,13 @@ Policy applied to every package:
 
 Targets, measured by counting value exports in `index.ts`:
 
-| Package  | Today | Target                     |
-| -------- | ----- | -------------------------- |
-| storage  | 44    | ≤ 15                       |
-| email    | 60    | ≤ 15                       |
-| ui       | 59    | ≤ 25 (components dominate) |
-| auth     | 113   | ≤ 30                       |
-| payments | 127   | ≤ 30                       |
+| Package  | Today | Target                                                                    |
+| -------- | ----- | ------------------------------------------------------------------------- |
+| storage  | 44    | ≤ 15                                                                      |
+| email    | 60    | ≤ 15                                                                      |
+| ui       | 59    | ≤ 47 (42 components, hooks and helpers are plan-named; 5 contract values) |
+| auth     | 113   | ≤ 30                                                                      |
+| payments | 127   | ≤ 30                                                                      |
 
 Definition of done per package: gate count unchanged or lower, every gate still passes, the
 template still typechecks and its flows still pass, export count at or under target, CONTRACT.md

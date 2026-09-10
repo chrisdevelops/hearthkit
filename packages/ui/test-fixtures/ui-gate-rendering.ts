@@ -7,10 +7,29 @@ import type { ThemeMode } from '../src/ui-contract.ts'
 import { themeModeToggleOptionLabels } from '../src/ui-contract.ts'
 
 /**
- * Interaction helpers shared by the render gates. Radix marks the page inert while a modal menu or
- * dialog is open, which jsdom reports as pointer-events: none, so the gate user skips that check
- * instead of failing on an environment quirk.
+ * Interaction helpers shared by the render gates, and the list of component families they iterate
+ * over. The family list lives here and not in src/ui-contract.ts because no app names a family: it
+ * exists so one render gate runs once per shipped family. Radix marks the page inert while a modal
+ * menu or dialog is open, which jsdom reports as pointer-events: none, so the gate user skips that
+ * check instead of failing on an environment quirk.
  */
+
+/** Component families this package ships; gates render at least one component per family. */
+export const uiComponentFamilyNames = [
+  'button',
+  'card',
+  'input',
+  'label',
+  'dialog',
+  'dropdown-menu',
+  'layout',
+  'theme-mode',
+] as const
+
+/** One of the shipped component family names, for example 'dropdown-menu'. */
+export type UiComponentFamilyName = (typeof uiComponentFamilyNames)[number]
+
+/** A user-event instance for the render gates; it skips the pointer-events check Radix's inert page trips. */
 export function createUiGateUserEvent(): UserEvent {
   return userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never })
 }

@@ -9,7 +9,7 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
   plan step 4, PRs #21, #24, #25).
 - Current work: step 5 (export-surface refactor). Storage done (PR #28, published 0.2.0 via #29).
   Email done (PR #30), unpublished until the next Version Packages PR is merged by the user.
-- Package loop: none in flight.
+- Package loop: ui export trim on `refactor/exports-ui` (step 5).
 - Last commit on `main`: PR #30 (email export trim).
 - Published: every `@hearthkit/*` package at 0.2.0 on npm with provenance and an MIT license.
 - Next: step 5 continues with `refactor/exports-ui`, then auth, payments, each through the
@@ -41,9 +41,9 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package | Step | Implementor rounds | Notes |
-| ------- | ---- | ------------------ | ----- |
-| none    |      |                    |       |
+| Package | Step   | Implementor rounds | Notes                                            |
+| ------- | ------ | ------------------ | ------------------------------------------------ |
+| ui      | commit | 1                  | branch `refactor/exports-ui`, step 5 export trim |
 
 ## Open issues
 

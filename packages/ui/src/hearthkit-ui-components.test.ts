@@ -1,13 +1,14 @@
 import { createElement } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { UiComponentFamilyName } from './ui-contract.ts'
-import { themeModeToggleOptionLabels, uiComponentFamilyNames } from './ui-contract.ts'
+import { themeModeToggleOptionLabels } from './ui-contract.ts'
 import type { HearthkitUiEntry } from '../test-fixtures/hearthkit-ui-entry.ts'
 import { loadHearthkitUiEntry, uiComponentsFromEntry } from '../test-fixtures/hearthkit-ui-entry.ts'
+import type { UiComponentFamilyName } from '../test-fixtures/ui-gate-rendering.ts'
 import {
   createUiGateUserEvent,
   openThemeModeToggleMenu,
+  uiComponentFamilyNames,
 } from '../test-fixtures/ui-gate-rendering.ts'
 
 /**

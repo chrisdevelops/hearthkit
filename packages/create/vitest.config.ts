@@ -57,7 +57,7 @@ export default defineConfig({
       },
       {
         find: /^@hearthkit\/ui\/ui-contract$/,
-        replacement: fileURLToPath(new URL('../ui/src/ui-contract.ts', import.meta.url)),
+        replacement: fileURLToPath(new URL('../ui/src/ui-contract-entry.ts', import.meta.url)),
       },
       // @hearthkit/cli's own contract imports @hearthkit/payments/payments-contract, and its
       // payments sync command imports @hearthkit/payments, so the whole chain has to resolve here

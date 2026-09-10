@@ -3,12 +3,12 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { ThemeMode } from './ui-contract.ts'
 import {
-  darkModeClassName,
   resolvedThemeModeSchema,
   themeModeSchema,
   themeProviderMissingErrorPrefix,
   uiFailureSchema,
 } from './ui-contract.ts'
+import { darkModeClassName } from '../test-fixtures/hearthkit-theme-stylesheet.ts'
 import {
   loadHearthkitUiEntry,
   uiComponentsFromEntry,

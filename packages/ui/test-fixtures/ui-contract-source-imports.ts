@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Reads src/ui-contract.ts as text and lists what it imports, so a gate can hold it to the
- * allowlist rather than to whatever a bundler happens to tolerate.
+ * Reads the two files behind the ./ui-contract subpath as text and lists what each imports, so a
+ * gate can hold them to their allowlists rather than to whatever a bundler happens to tolerate.
  *
  * Paths are built with node:path: Vite statically rewrites new URL('<literal>', import.meta.url)
  * into an http asset URL, which fileURLToPath then rejects.
@@ -13,24 +13,43 @@ import { fileURLToPath } from 'node:url'
 /** Directory holding these fixtures; src sits beside it, one level below the package root. */
 const testFixturesDirectoryPath = dirname(fileURLToPath(import.meta.url))
 
-/** Absolute path of the contract file the JSX-free rule applies to, named in gate failures so the reader knows what to open. */
-export const uiContractSourceFilePath = resolve(
-  testFixturesDirectoryPath,
-  '..',
-  'src',
-  'ui-contract.ts',
-)
+/** One file the JSX-free rule applies to: its absolute path, the specifiers it may import, and one it is known to have. */
+export type UiContractSourceFileRule = {
+  sourceFilePath: string
+  allowedImportSpecifiers: readonly string[]
+  knownImportSpecifier: string
+}
+
+/** Absolute path of a file inside packages/ui/src, named in gate failures so the reader knows what to open. */
+function uiSourceFilePath(fileName: string): string {
+  return resolve(testFixturesDirectoryPath, '..', 'src', fileName)
+}
 
 /**
- * The only module specifier src/ui-contract.ts may import. Deliberately no carve-out for node:
- * builtins or type-only imports: a contract file does no I/O and has no side effects, so anything
- * else is a contract change that updates this list in the same round.
+ * Both files behind the ./ui-contract subpath and the only specifiers each may import. Deliberately
+ * no carve-out for node: builtins or type-only imports: a contract file does no I/O and has no side
+ * effects, so anything else is a contract change that updates this list in the same round. The entry
+ * gets one extra allowance, the contract module it re-exports by name.
  */
-export const uiContractAllowedImportSpecifiers: readonly string[] = ['zod']
+export const uiContractSourceFileRules: readonly UiContractSourceFileRule[] = [
+  {
+    sourceFilePath: uiSourceFilePath('ui-contract.ts'),
+    allowedImportSpecifiers: ['zod'],
+    knownImportSpecifier: 'zod',
+  },
+  {
+    sourceFilePath: uiSourceFilePath('ui-contract-entry.ts'),
+    allowedImportSpecifiers: ['zod', './ui-contract.ts'],
+    knownImportSpecifier: './ui-contract.ts',
+  },
+]
 
-/** The contract file as text; read fresh each call so a gate never asserts against a stale copy. */
-export function readUiContractSourceText(): string {
-  return readFileSync(uiContractSourceFilePath, 'utf8')
+/** One source file as text, failing the gate with a plain message when the implementation has not written it yet. */
+export function readUiContractSourceText(sourceFilePath: string): string {
+  if (!existsSync(sourceFilePath)) {
+    throw new Error(`gate expected @hearthkit/ui to ship ${sourceFilePath}`)
+  }
+  return readFileSync(sourceFilePath, 'utf8')
 }
 
 /**

@@ -4,10 +4,11 @@ import { spawnSync } from 'node:child_process'
  * Runs a real `node` child process that imports one module specifier and prints one named export.
  *
  * Vitest cannot answer this question in process. Vite transforms `.tsx` happily, so the extension
- * rule that keeps the `@hearthkit/ui` entry out of bare Node is invisible here; and this package's
- * vitest.config.ts aliases the string '@hearthkit/ui' to ./src/index.ts, which Vite also applies to
- * '@hearthkit/ui/…', so an in-process import of a subpath never reaches the package's exports map
- * at all. Only a spawned `node` exercises both.
+ * rule that keeps the `@hearthkit/ui` entry out of bare Node is invisible here, and an in-process
+ * import resolves through Vite rather than through Node's own loader. This package's
+ * vitest.config.ts anchors the '@hearthkit/ui' alias, so '@hearthkit/ui/ui-contract' does reach the
+ * exports map in process and a gate can compare the subpath's exports there; only a spawned `node`
+ * shows whether plain Node can execute what it finds.
  *
  * Node resolves the specifier from the child's working directory. A package whose manifest carries
  * both "name" and "exports" can be imported by its own name from inside itself (Node's

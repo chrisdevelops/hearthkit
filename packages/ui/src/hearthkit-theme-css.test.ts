@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyStylesheetTextToDocument,
+  computedThemeTokenValue,
   darkModeClassName,
   darkModeOverriddenTokenNames,
   hearthkitThemeTokenNames,
-} from './ui-contract.ts'
-import {
-  applyStylesheetTextToDocument,
-  computedThemeTokenValue,
   isDarkModeSelector,
   isRootSelector,
   readAppThemeOverrideCssText,
