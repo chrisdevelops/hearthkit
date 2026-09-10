@@ -1,5 +1,11 @@
 # @hearthkit/ui
 
+## 0.1.2
+
+### Patch Changes
+
+- 87ed532: Every package is licensed under MIT: a `LICENSE` file ships in each tarball and the manifest carries `"license": "MIT"`.
+
 ## 0.1.1
 
 ## 0.1.0

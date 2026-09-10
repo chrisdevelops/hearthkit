@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/ui",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "shadcn components, base theme tokens, layout primitives, and light/dark mode for hearthkit apps",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/ui",

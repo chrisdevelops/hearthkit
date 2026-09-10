@@ -1,6 +1,6 @@
 {
   "name": "@hearthkit/observability",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "GlitchTip error reporting, pino structured logging, and a Next.js /health route handler",
   "license": "MIT",
   "homepage": "https://github.com/chrisdevelops/hearthkit/tree/main/packages/observability",
