@@ -10,6 +10,75 @@ export type UiGateComponent = ComponentType<Record<string, unknown>>
 export type UiGateFunction = (...functionArguments: unknown[]) => unknown
 
 /**
+ * The forty-seven value exports CONTRACT.md "Package entry point" allows src/index.ts to have,
+ * spelled out because the allowlist is a decision no module namespace can be derived from: the
+ * forty-two plan-named components, hooks and helpers, then the five contract values. Every other
+ * value ui-contract.ts exports is internal and must stay off the entry point.
+ */
+export const hearthkitUiEntryValueExportNames = [
+  'Button',
+  'buttonVariants',
+  'Card',
+  'CardAction',
+  'CardContent',
+  'CardDescription',
+  'CardFooter',
+  'CardHeader',
+  'CardTitle',
+  'Dialog',
+  'DialogClose',
+  'DialogContent',
+  'DialogDescription',
+  'DialogFooter',
+  'DialogHeader',
+  'DialogOverlay',
+  'DialogPortal',
+  'DialogTitle',
+  'DialogTrigger',
+  'DropdownMenu',
+  'DropdownMenuCheckboxItem',
+  'DropdownMenuContent',
+  'DropdownMenuGroup',
+  'DropdownMenuItem',
+  'DropdownMenuLabel',
+  'DropdownMenuPortal',
+  'DropdownMenuRadioGroup',
+  'DropdownMenuRadioItem',
+  'DropdownMenuSeparator',
+  'DropdownMenuShortcut',
+  'DropdownMenuSub',
+  'DropdownMenuSubContent',
+  'DropdownMenuSubTrigger',
+  'DropdownMenuTrigger',
+  'Input',
+  'Label',
+  'PageContainer',
+  'PageHeader',
+  'ThemeModeProvider',
+  'ThemeModeToggle',
+  'useThemeMode',
+  'mergeTailwindClasses',
+  'themeModeSchema',
+  'resolvedThemeModeSchema',
+  'uiFailureSchema',
+  'hearthkitThemeCssImportSpecifier',
+  'tailwindSourceDirectiveForUi',
+] as const
+
+/**
+ * The five allowlisted names the ./ui-contract subpath carries: the contract values of the list
+ * above and nothing else, because every other entry name lives in a .tsx-importing module that a
+ * bare node process refuses outright.
+ */
+export const hearthkitUiContractSubpathValueExportNames = [
+  'themeModeSchema',
+  'resolvedThemeModeSchema',
+  'uiFailureSchema',
+  'hearthkitThemeCssImportSpecifier',
+  'tailwindSourceDirectiveForUi',
+] as const
+
+/**
  * Loads @hearthkit/ui through its public entry point at call time, so a package with no
  * implementation yet fails one gate at a time instead of breaking collection for a whole file.
  */
@@ -24,8 +93,27 @@ export async function loadHearthkitUiEntry(): Promise<HearthkitUiEntry> {
   }
 }
 
+/**
+ * Imports the ./ui-contract subpath through the manifest at call time, so a subpath that still
+ * points at a module nobody has written yet fails one gate instead of breaking a whole file. The
+ * bare name is aliased in vitest.config.ts but the subpath is not, so this really does resolve
+ * through package.json "exports" the way a consumer would.
+ */
+export async function importHearthkitUiContractSubpathNamespace(): Promise<
+  Record<string, unknown>
+> {
+  try {
+    return (await import('@hearthkit/ui/ui-contract')) as Record<string, unknown>
+  } catch (error) {
+    throw new Error(
+      `gate could not load the ./ui-contract subpath of @hearthkit/ui (not implemented yet?): ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    )
+  }
+}
+
 /** True for anything React can render as a component: a function, or a forwardRef/memo object. */
-function isRenderableUiComponent(candidate: unknown): boolean {
+export function isRenderableUiComponent(candidate: unknown): boolean {
   return typeof candidate === 'function' || (typeof candidate === 'object' && candidate !== null)
 }
 

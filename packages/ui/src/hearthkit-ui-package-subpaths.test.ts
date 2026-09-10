@@ -1,25 +1,27 @@
 import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import {
-  hearthkitUiContractImportSpecifier,
-  hearthkitUiPackageExportSubpaths,
-  tailwindSourceDirectiveForUi,
-} from './ui-contract.ts'
+import * as uiContract from './ui-contract.ts'
 import { runBareNodeImport } from '../test-fixtures/bare-node-module-import.ts'
 import {
   exportedFilePathForUiSubpath,
+  hearthkitUiContractImportSpecifier,
+  hearthkitUiPackageExportSubpaths,
   readUiPackageManifest,
+  uiContractEntryRelativePath,
   uiPackageRootPath,
 } from '../test-fixtures/hearthkit-theme-stylesheet.ts'
 import {
+  hearthkitUiContractSubpathValueExportNames,
+  importHearthkitUiContractSubpathNamespace,
+} from '../test-fixtures/hearthkit-ui-entry.ts'
+import {
   importSpecifiersInModuleText,
   readUiContractSourceText,
-  uiContractAllowedImportSpecifiers,
-  uiContractSourceFilePath,
+  uiContractSourceFileRules,
 } from '../test-fixtures/ui-contract-source-imports.ts'
 
 describe('the @hearthkit/ui exports map', () => {
-  it('publishes every subpath in hearthkitUiPackageExportSubpaths, each mapped to a file that exists', () => {
+  it('publishes every subpath the package promises, each mapped to a file that exists, with ./ui-contract on the JSX-free entry module', () => {
     const manifest = readUiPackageManifest()
 
     // Both lists are collected before asserting, so one run names every missing subpath rather than
@@ -40,11 +42,19 @@ describe('the @hearthkit/ui exports map', () => {
 
     expect(unpublishedSubpaths).toEqual([])
     expect(subpathsMappedToNothingOnDisk).toEqual([])
+
+    // ./ui-contract must land on the narrow named re-export module, not on the wider internal
+    // ui-contract.ts behind it: publishing the internal module would put the error prefix and the
+    // toggle labels back on the public surface through a side door.
+    expect(
+      JSON.stringify(manifest.exports?.['./ui-contract']),
+      `./ui-contract must publish ${uiContractEntryRelativePath}`,
+    ).toContain(uiContractEntryRelativePath)
   })
 })
 
 describe('the @hearthkit/ui ui-contract subpath under bare node', () => {
-  it('imports from a plain node process, which only works while ui-contract.ts stays JSX-free and imports nothing but zod', () => {
+  it('imports from a plain node process and carries exactly the five contract values, which only works while both contract modules stay JSX-free', async () => {
     const imported = runBareNodeImport({
       moduleSpecifier: hearthkitUiContractImportSpecifier,
       exportName: 'tailwindSourceDirectiveForUi',
@@ -58,28 +68,59 @@ describe('the @hearthkit/ui ui-contract subpath under bare node', () => {
 
     // The child prints a value rather than merely exiting 0, so the gate proves the module really
     // evaluated. tailwindSourceDirectiveForUi is a long literal that cannot match by accident.
-    expect(imported.stdout.trim()).toBe(tailwindSourceDirectiveForUi)
+    expect(imported.stdout.trim()).toBe(uiContract.tailwindSourceDirectiveForUi)
+
+    // What the subpath carries is asked in process, where the same specifier resolves through the
+    // manifest (the vitest alias is anchored to the bare name) and the values can be compared by
+    // identity rather than by their printed form.
+    const subpathNamespace = await importHearthkitUiContractSubpathNamespace()
+    const contractModule = uiContract as unknown as Record<string, unknown>
+    const subpathValueExportNames = Object.keys(subpathNamespace)
+      .filter((exportName) => subpathNamespace[exportName] !== undefined)
+      .toSorted()
+    expect(
+      subpathValueExportNames,
+      'src/ui-contract-entry.ts must export exactly the five contract values on the entry allowlist',
+    ).toEqual([...hearthkitUiContractSubpathValueExportNames].toSorted())
+
+    const rebuiltInsteadOfReExported = hearthkitUiContractSubpathValueExportNames.filter(
+      (exportName) => subpathNamespace[exportName] !== contractModule[exportName],
+    )
+    expect(
+      rebuiltInsteadOfReExported,
+      'these must be the identical values ui-contract.ts exports, not a second copy of them',
+    ).toEqual([])
   })
 
-  it('imports nothing but zod in src/ui-contract.ts, which is the half of the rule bare node cannot see', () => {
+  it('imports nothing but zod, and ui-contract.ts, in the two files behind the subpath, which is the half of the rule bare node cannot see', () => {
     // The two gates split the obligation and neither subsumes the other. The bare-node gate above
     // catches JSX and a .tsx import, because Node refuses that extension. It cannot catch the rest:
     // node:fs, or another hearthkit package whose entry is a .ts file, would type-strip and load
     // cleanly from bare Node while breaking the rule outright. Only reading the source catches those.
-    const foundSpecifiers = importSpecifiersInModuleText(readUiContractSourceText())
+    const forbiddenSpecifiersByFile: string[] = []
 
-    // A scan that quietly matched nothing would make the check below pass while checking nothing,
-    // so the gate first proves the scanner still finds the one import the file is known to have.
-    expect(foundSpecifiers, `no import specifier found in ${uiContractSourceFilePath}`).toContain(
-      'zod',
-    )
+    for (const sourceFileRule of uiContractSourceFileRules) {
+      const foundSpecifiers = importSpecifiersInModuleText(
+        readUiContractSourceText(sourceFileRule.sourceFilePath),
+      )
 
-    const forbiddenSpecifiers = foundSpecifiers.filter(
-      (specifier) => !uiContractAllowedImportSpecifiers.includes(specifier),
-    )
+      // A scan that quietly matched nothing would make the check below pass while checking nothing,
+      // so the gate first proves the scanner still finds an import each file is known to have.
+      expect(
+        foundSpecifiers,
+        `no import specifier found in ${sourceFileRule.sourceFilePath}`,
+      ).toContain(sourceFileRule.knownImportSpecifier)
+
+      for (const specifier of foundSpecifiers) {
+        if (!sourceFileRule.allowedImportSpecifiers.includes(specifier)) {
+          forbiddenSpecifiersByFile.push(`${sourceFileRule.sourceFilePath} imports ${specifier}`)
+        }
+      }
+    }
+
     expect(
-      forbiddenSpecifiers,
-      `${uiContractSourceFilePath} may import only ${uiContractAllowedImportSpecifiers.join(', ')}; every other specifier takes @hearthkit/ui/ui-contract out of a Node-executed caller's reach`,
+      forbiddenSpecifiersByFile,
+      'each file may import only its allowlist; every other specifier takes @hearthkit/ui/ui-contract out of the reach of a Node-executed caller',
     ).toEqual([])
   })
 

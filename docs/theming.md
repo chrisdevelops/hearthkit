@@ -3,10 +3,12 @@
 How an app consumes `@hearthkit/ui`: the setup it needs, how it changes the look, how it forks one
 component when it has to, and how a new component gets into the package.
 
-The package contract is `packages/ui/CONTRACT.md`. Token names, the `@source` literal, and the dark
-mode class name are exported from the package (`hearthkitThemeTokenNames`,
-`tailwindSourceDirectiveForUi`, `darkModeClassName`), so a script or a gate can check them instead of
-copying strings out of this document.
+The package contract is `packages/ui/CONTRACT.md`. The two literals an app needs in its
+`globals.css` are exported from the package (`tailwindSourceDirectiveForUi` and
+`hearthkitThemeCssImportSpecifier`), so a script or a gate can check them instead of copying strings
+out of this document. The token list and the dark mode class name are not exported; the
+machine-readable copy the theme gate compares the stylesheet against lives in
+`packages/ui/test-fixtures/hearthkit-theme-stylesheet.ts`.
 
 ## The four rules
 
@@ -157,8 +159,9 @@ Notes that matter in practice:
 - `--radius` is the only mode-independent token; the `.dark` block in the package redefines every
   other one. The size steps `rounded-sm`, `rounded-md`, `rounded-lg`, and `rounded-xl` are all
   derived from `--radius`, so one line rescales the whole app.
-- The full token list is `hearthkitThemeTokenNames` in `packages/ui/src/ui-contract.ts`, with values
-  in `packages/ui/src/hearthkit-theme.css`. Sidebar and chart tokens already ship even though no
+- The full token list is `hearthkitThemeTokenNames` in
+  `packages/ui/test-fixtures/hearthkit-theme-stylesheet.ts`, with values in
+  `packages/ui/src/hearthkit-theme.css`. Sidebar and chart tokens already ship even though no
   sidebar or chart component does, so adding those components later needs no theme change.
 - There is no `--destructive-foreground`; that matches the current shadcn vocabulary.
 - The theme defines no fonts. Typography belongs to the app.
@@ -173,13 +176,14 @@ to change.
 `enableSystem`, and `disableTransitionOnChange`. Those settings are fixed by the contract; the
 provider takes no props but `children`.
 
-- The class toggled on `<html>` is `dark`, exported as `darkModeClassName`.
+- The class toggled on `<html>` is `dark`.
 - The theme stylesheet registers `@custom-variant dark (&:is(.dark *))`, so `dark:` utilities follow
   that class rather than the operating system media query. A `dark:` utility in app code behaves the
   same as one inside the package.
-- `ThemeModeToggle` is a dropdown with exactly three items, named `Light`, `Dark`, and `System`
-  (`themeModeToggleOptionLabels`). Drop it anywhere under the provider, for example in the actions
-  slot of `PageHeader`.
+- `ThemeModeToggle` is a dropdown with exactly three items, named `Light`, `Dark`, and `System`.
+  Those names are fixed by the contract and held by a gate; the package keeps them in an internal
+  constant it does not export. Drop the toggle anywhere under the provider, for example in the
+  actions slot of `PageHeader`.
 - `useThemeMode()` returns `{ themeMode, setThemeMode, resolvedThemeMode }`. `resolvedThemeMode` is
   `undefined` until hydration finishes, which is the value to branch on if you render something that
   depends on the effective mode. Never assume it is `light` before hydration.
@@ -251,8 +255,9 @@ with the package, and a package change that removes a variant becomes a type err
 than a silent visual regression. If the fork also needs different variant classes, copy the `cva`
 block out of `packages/ui/src/components/ui/button.tsx` into the app file and add
 `class-variance-authority` to the app's dependencies. At that point the app owns the recipe too, and
-the fork no longer depends on `buttonVariants`. Either way the import is safe: `buttonVariants` is a
-guaranteed export, named in the contract's `hearthkitUiMinimumExportNames`.
+the fork no longer depends on `buttonVariants`. Either way the import is safe: `buttonVariants` is on
+the entry allowlist in `packages/ui/CONTRACT.md` under "Package entry point", so removing it from the
+package entry takes a changeset.
 
 ### Using it next to the package component
 

@@ -1,16 +1,82 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { darkModeClassName, hearthkitThemeCssFileName } from '../src/ui-contract.ts'
 
 /**
- * Readers for the shipped theme stylesheet and the package manifest that publishes it. The CSS is
- * parsed with the same jsdom CSSOM the DOM gates use, so a token counts as declared only when a
- * browser would see it in the rule, not when the file merely mentions its name in a comment.
+ * Readers for the shipped theme stylesheet and the package manifest that publishes it, plus the
+ * machine-readable token vocabulary and subpath list they are compared against. Those constants live
+ * here and not in src/ui-contract.ts because no app ever constructs a token name or a subpath: their
+ * only reader is a gate. The CSS is parsed with the same jsdom CSSOM the DOM gates use, so a token
+ * counts as declared only when a browser would see it in the rule, not when the file merely mentions
+ * its name in a comment.
  *
  * Paths are built with node:path: Vite statically rewrites new URL('<literal>', import.meta.url)
  * into an http asset URL, which fileURLToPath then rejects.
  */
+
+/** Class name on the document root element that switches every theme token to its dark value. */
+export const darkModeClassName = 'dark'
+
+/** File name of the base theme stylesheet at src/hearthkit-theme.css, exported at the package subpath @hearthkit/ui/hearthkit-theme.css. */
+export const hearthkitThemeCssFileName = 'hearthkit-theme.css'
+
+/** Every subpath the package manifest must publish in its exports map; ./ui-contract is the JSX-free one Node-executed callers import. */
+export const hearthkitUiPackageExportSubpaths = [
+  '.',
+  './hearthkit-theme.css',
+  './ui-contract',
+] as const
+
+/** Exact specifier a Node-executed caller imports the contract values from; the manifest must map it to src/ui-contract-entry.ts. */
+export const hearthkitUiContractImportSpecifier = '@hearthkit/ui/ui-contract'
+
+/** Path, relative to the package root, the ./ui-contract subpath must publish; a JSX-free named re-export module. */
+export const uiContractEntryRelativePath = './src/ui-contract-entry.ts'
+
+/** Every theme token hearthkit-theme.css must define in :root; the canonical shadcn CSS variable vocabulary. */
+export const hearthkitThemeTokenNames = [
+  '--background',
+  '--foreground',
+  '--card',
+  '--card-foreground',
+  '--popover',
+  '--popover-foreground',
+  '--primary',
+  '--primary-foreground',
+  '--secondary',
+  '--secondary-foreground',
+  '--muted',
+  '--muted-foreground',
+  '--accent',
+  '--accent-foreground',
+  '--destructive',
+  '--border',
+  '--input',
+  '--ring',
+  '--chart-1',
+  '--chart-2',
+  '--chart-3',
+  '--chart-4',
+  '--chart-5',
+  '--sidebar',
+  '--sidebar-foreground',
+  '--sidebar-primary',
+  '--sidebar-primary-foreground',
+  '--sidebar-accent',
+  '--sidebar-accent-foreground',
+  '--sidebar-border',
+  '--sidebar-ring',
+  '--radius',
+] as const
+
+/** One of the canonical theme token names, for example '--primary'. */
+export type HearthkitThemeTokenName = (typeof hearthkitThemeTokenNames)[number]
+
+/** Every theme token the .dark block must redefine; all tokens except --radius, which is mode-independent. */
+export const darkModeOverriddenTokenNames = hearthkitThemeTokenNames.filter(
+  (tokenName): tokenName is Exclude<HearthkitThemeTokenName, '--radius'> =>
+    tokenName !== '--radius',
+)
 
 /** Directory holding these fixtures, read from import.meta.url, which Vite leaves alone. */
 const testFixturesDirectoryPath = dirname(fileURLToPath(import.meta.url))

@@ -17,8 +17,8 @@
     },
     "./hearthkit-theme.css": "./src/hearthkit-theme.css",
     "./ui-contract": {
-      "types": "./src/ui-contract.ts",
-      "default": "./src/ui-contract.ts"
+      "types": "./src/ui-contract-entry.ts",
+      "default": "./src/ui-contract-entry.ts"
     }
   },
   "files": [
