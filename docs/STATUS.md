@@ -12,7 +12,8 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 - Package loop: none in flight.
 - Last commit on `main`: 01a318d, PR #37 (Version Packages, 0.5.0).
 - Published: every `@hearthkit/*` package at 0.5.0 (release run 34546249551, 2026-09-11) on npm with provenance and an MIT license.
-- Next: step 6.2 (VPS bootstrap and backups), branch `infra/vps-bootstrap`. Step 6.1 results: cli 42 → 47
+- Next: step 6.2 (VPS bootstrap and backups), branch `infra/vps-bootstrap`; its brief is
+  `docs/next-session-vps.md`, which that PR deletes. Step 6.1 results: cli 42 → 47
   gates in 9 files (51 vitest cases), create 17, template 18 gates and 6 flows; module at
   `packages/cli/tofu/cloudflare` (4 resources, 6 outputs, OpenTofu 1.12.6, provider 5.24.0). Step 5 results.
   Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15 on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
