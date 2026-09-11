@@ -6,6 +6,7 @@ import {
   cliDbRestoreCompleteLinePrefix,
   cliDevInfraDownCompleteLinePrefix,
   cliDevInfraUpCompleteLinePrefix,
+  cliInfraApplyCompleteLinePrefix,
   cliPaymentsSyncCompleteLinePrefix,
   stripeSecretKeyEnvVariableName,
   type CliCommandInvocation,
@@ -99,6 +100,17 @@ export function reportCliOutcome(options: {
       writeStandardOutputLine(
         `${cliPaymentsSyncCompleteLinePrefix} ${String(result.createdPriceCount)} created, ${String(result.replacedPriceCount)} replaced, ${String(result.unchangedPriceCount)} unchanged from ${result.catalogPath}`,
       )
+      return successExitCode
+
+    // The five STORAGE_* lines follow the complete line so the whole block can be pasted into
+    // Dokploy in one go; the secret among them is shown this once and written to no file.
+    case 'infra-apply-command-succeeded':
+      writeStandardOutputLine(
+        `${cliInfraApplyCompleteLinePrefix} ${result.hostname} is live and ${result.envProductionExamplePath} is rewritten; the ${String(result.storageEnvLines.length)} lines below hold the production storage settings, the secret shown this once`,
+      )
+      for (const storageEnvLine of result.storageEnvLines) {
+        writeStandardOutputLine(storageEnvLine)
+      }
       return successExitCode
 
     case 'cli-usage-invalid':

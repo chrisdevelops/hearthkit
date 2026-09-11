@@ -25,8 +25,28 @@ const infraServicesByResolvedPackage = {
   payments: [],
 } as const satisfies Record<ResolvedHearthkitPackageName, readonly LocalInfraServiceName[]>
 
-/** Path of the OpenTofu variables file, relative to the project; Phase 7 fills in zone_name and host_ip. */
+/** Path of the OpenTofu variables file, relative to the project; the operator fills in the four placeholders before hearthkit infra apply. */
 export const generatedTofuVariablesPath = 'infra/tofu.tfvars'
+
+/** The four inputs create cannot know, each written blank with the one line saying where its value comes from; hearthkit infra apply refuses to run while any is blank. */
+const tofuVariablePlaceholderComments = [
+  [
+    'zone_name',
+    'apex name of the Cloudflare zone this project lives under, for example example.com',
+  ],
+  ['zone_id', 'zone id from the Cloudflare dashboard overview page'],
+  ['account_id', 'account id from the Cloudflare dashboard'],
+  ['host_ip', 'IPv4 address of the VPS this project is deployed to'],
+] as const
+
+/** The exact text of a project's infra/tofu.tfvars: the project name filled in, the four inputs create cannot know left blank under a comment each. */
+function buildTofuVariablesFileText(projectName: string): string {
+  const placeholderLines = tofuVariablePlaceholderComments.flatMap(([variableName, comment]) => [
+    `# ${comment}`,
+    `${variableName} = ""`,
+  ])
+  return `${['# Inputs of the hearthkit OpenTofu provider module, read by hearthkit infra apply.', `project_name = "${projectName}"`, ...placeholderLines].join('\n')}\n`
+}
 
 /** Path of the generated compose file, relative to the project; absent when no package needs a local service. */
 export const generatedComposeFilePath = 'docker-compose.yml'
@@ -65,7 +85,7 @@ export async function writeGeneratedProjectFiles(options: {
   await mkdir(join(options.projectDirectoryPath, 'infra'), { recursive: true })
   await writeFile(
     join(options.projectDirectoryPath, ...generatedTofuVariablesPath.split('/')),
-    `project_name = "${String(hearthkitProjectName)}"\n`,
+    buildTofuVariablesFileText(String(hearthkitProjectName)),
     'utf8',
   )
   writtenProjectPaths.push(generatedTofuVariablesPath)

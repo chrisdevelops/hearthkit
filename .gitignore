@@ -16,3 +16,9 @@ next-env.d.ts
 # packages/create bundles a copy of templates/app at prepack time so the published
 # tarball is self-contained; inside the workspace the live template is used instead.
 packages/create/app-template/
+
+# OpenTofu writes its provider cache and lock file into whatever TF_DATA_DIR points at;
+# a gate or a local run of packages/cli/tofu/cloudflare leaves them beside the module,
+# and neither is module source.
+.terraform/
+.terraform.lock.hcl

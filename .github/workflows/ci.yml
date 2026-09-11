@@ -43,6 +43,13 @@ jobs:
           # The image's v16 client shadows v17 through the pg_wrapper symlinks;
           # putting the versioned bin dir first makes pg_dump/pg_restore resolve to 17.
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      # The cli's infra gates run the real `tofu` binary against packages/cli/tofu/cloudflare.
+      # tofu_wrapper must stay false: the wrapper installs a shell script named `tofu`, which would
+      # answer for the shim the provider-check gates put on PATH.
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.12.6
+          tofu_wrapper: false
       - run: pnpm install --frozen-lockfile
       # Plan section 10: a PR that changes a package without a changeset does not merge. The one
       # exception is the "Version Packages" PR the release workflow opens from

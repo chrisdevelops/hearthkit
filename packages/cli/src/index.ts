@@ -21,6 +21,11 @@ export {
   cliDockerUnavailableErrorPrefix,
   cliDoctorFailedErrorPrefix,
   cliInfraComposeFailedErrorPrefix,
+  cliInfraEnvMissingErrorPrefix,
+  cliInfraEnvProductionExampleMissingErrorPrefix,
+  cliInfraProviderUnsupportedErrorPrefix,
+  cliInfraTfvarsIncompleteErrorPrefix,
+  cliInfraTofuFailedErrorPrefix,
   cliNextDevUnavailableErrorPrefix,
   cliPaymentsCatalogNotFoundErrorPrefix,
   cliPaymentsCatalogUnloadableErrorPrefix,
@@ -38,7 +43,31 @@ export {
   cliDbRestoreCompleteLinePrefix,
   cliDevInfraDownCompleteLinePrefix,
   cliDevInfraUpCompleteLinePrefix,
+  cliInfraApplyCompleteLinePrefix,
   cliPaymentsSyncCompleteLinePrefix,
+} from './cli-contract.ts'
+
+/** Contract values: the env variable names, paths and limits hearthkit infra apply reads before it starts tofu. */
+export {
+  cloudflareApiTokenEnvVariableName,
+  defaultInfraTfvarsPath,
+  envProductionExamplePath,
+  infraApplyPrintedEnvVariableNames,
+  infraApplyRewrittenEnvVariableNames,
+  infraProviderEnvVariableName,
+  tofuStateAccessKeyIdEnvVariableName,
+  tofuStateBucketName,
+  tofuStatePassphraseEnvVariableName,
+  tofuStatePassphraseMinimumLength,
+  tofuStateSecretAccessKeyEnvVariableName,
+} from './cli-contract.ts'
+
+/** Contract values: the schemas that say which provider, which secret variables, which module inputs and which tofu subcommands infra apply knows. */
+export {
+  infraApplyRequiredEnvVariableNameSchema,
+  infraProviderNameSchema,
+  tofuInputVariableNameSchema,
+  tofuSubcommandSchema,
 } from './cli-contract.ts'
 
 /** Contract values: this package's env fragment, the defaults its resolution rules fall back to, and the catalog vocabulary payments sync reads. */

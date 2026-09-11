@@ -55,6 +55,7 @@ export type AppTemplateRelativePath = z.infer<typeof appTemplateRelativePathSche
 export const appTemplateGuaranteedPaths = [
   '.dockerignore',
   '.env.example',
+  '.env.production.example',
   '.github/workflows/ci.yml',
   '.github/workflows/deploy.yml',
   '.nvmrc',
@@ -101,6 +102,7 @@ export const appTemplateRenamedPaths = [
 export const appGeneratedProjectGuaranteedPaths = [
   '.dockerignore',
   '.env.example',
+  '.env.production.example',
   '.github/workflows/ci.yml',
   '.github/workflows/deploy.yml',
   '.gitignore',
