@@ -7,14 +7,14 @@ under 150 lines. History and evidence live in `docs/HISTORY.md`, git, and `.chan
 
 - Phase: 6 done. 0.1.0 published 2026-09-09, trusted publishing confirmed at 0.1.1 (completion
   plan step 4, PRs #21, #24, #25).
-- Current work: step 5 (export-surface refactor) is complete. Storage (PR #28, published 0.2.0 via
-  #29), email (PR #30) and ui (PR #32), published as 0.3.0 via #31 on 2026-09-10, auth (PR #33) and
-  payments (PR #35). Published as 0.4.0 via #34 on 2026-09-10.
-- Package loop: step 6.1 in flight on `infra/tofu-cloudflare`, step `commit`, round 1.
-- Last commit on `main`: c0d25a2, PR #34 (Version Packages, 0.4.0).
+- Current work: step 6.1 (provider interface, Cloudflare module, `hearthkit infra apply`) merged as
+  PR #36 on 2026-09-11. Step 5 (export-surface refactor) complete, published as 0.4.0 via #34.
+- Package loop: none in flight.
+- Last commit on `main`: 4a0da18, PR #36 (step 6.1). A Version Packages PR for 0.5.0 follows; the user merges it.
 - Published: every `@hearthkit/*` package at 0.4.0 on npm with provenance and an MIT license.
-- Next: step 6.1 (Phase 7, infrastructure), branch `infra/tofu-cloudflare`; its brief is
-  `docs/next-session-infra.md`, which that PR deletes. Step 5 results.
+- Next: step 6.2 (VPS bootstrap and backups), branch `infra/vps-bootstrap`. Step 6.1 results: cli 42 → 47
+  gates in 9 files (51 vitest cases), create 17, template 18 gates and 6 flows; module at
+  `packages/cli/tofu/cloudflare` (4 resources, 6 outputs, OpenTofu 1.12.6, provider 5.24.0). Step 5 results.
   Storage: 44 → 15 value exports, CONTRACT.md 172 lines, 21 gates. Email: 60 → 15 on `.` and 55 → 10 on `./email-contract`, CONTRACT.md 199 lines, 25 gates, 6 flows.
   Ui: 59 → 47 on `.` and 17 → 5 on `./ui-contract`, CONTRACT.md 189 lines, 19 gates, 6 flows.
   Auth: 113 → 35 on `.` and 100 → 22 on `./auth-contract`, CONTRACT.md 193 lines, 40 gates, 6 flows.
@@ -36,7 +36,7 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 - [x] Phase 6: `create` (PR #20, step 3); 0.1.0 published, `pnpm create @hearthkit` verified from
       the registry, trusted publishing confirmed at 0.1.1 (PR #21, #24, #25, step 4)
 - [x] Export-surface refactor (completion plan step 5, PRs #28, #30, #32, #33, #35)
-- [ ] Phase 7: `infra/tofu/cloudflare`, `hearthkit vps bootstrap`, backups (step 6)
+- [ ] Phase 7: `packages/cli/tofu/cloudflare` (6.1 done, PR #36), `hearthkit vps bootstrap`, backups (step 6)
 - [ ] Phase 8: `AGENTS.md`, skills, MCP config, runbooks (step 7)
 - [ ] Phase 9: end-to-end verification, tag v1.0.0 (step 8)
 
@@ -45,15 +45,19 @@ Phases and their definitions of done are in `docs/PLAN.md` section 11. The path 
 Only the current package is tracked here. Steps: contract, contract-review, gates, gates-review,
 implement, verify, commit.
 
-| Package                                                        | Step      | Implementor rounds | Notes                                                                                                                                                                                                                                                                                        |
-| -------------------------------------------------------------- | --------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| infra 6.1 (`packages/cli/tofu/cloudflare` + cli `infra apply`) | implement | 1                  | branch `infra/tofu-cloudflare`; brief `docs/next-session-infra.md`. Rulings 2026-09-10: module ships inside the cli tarball; secret never written to `.env.production.example`, printed once; state creds on all three tofu runs; per-bucket group is `Workers R2 Storage Bucket Item Write` |
+| Package | Step | Implementor rounds | Notes |
+| ------- | ---- | ------------------ | ----- |
+| none    |      |                    |       |
 
 ## Open issues
 
 Items that blocked a loop and need a human decision. Remove when resolved.
 
-- None.
+- **Step 6.1 items unverified against a real zone until 6.3:** the R2 permission-group id
+  `2efd5506f9c8494dacb1fa10a3e7d5b6` and the per-bucket resource key were read from the user's real
+  account on 2026-09-10 but no `tofu apply` has run; the s3 backend flag set was schema-checked only;
+  the success path of `hearthkit infra apply` (rewrite and printed lines) is proven with a `tofu`
+  stand-in, not a real run. `packages/cli/CONTRACT.md` is 333 lines, over the 200 cap since step 5.
 
 ## Traps
 
@@ -97,3 +101,6 @@ action`. ("npm trusted publishers default to staged publishing")
 - **A `*-contract` subpath cannot be dropped while a bare-node caller imports it.** The template
   contract and the `create` bin load `@hearthkit/ui/ui-contract` from plain `node`, which refuses the
   `.tsx` behind the entry; trim the subpath, never remove it. ("PR #32")
+- **`tofu plan` has no `-backend=false`.** After `init -backend=false` a module with `backend "s3" {}`
+  fails plan with `Backend initialization required`; gate a plan on a copy with a `backend "local"`
+  override file. ("STEP 6.1")
