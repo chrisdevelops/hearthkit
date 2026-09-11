@@ -1,5 +1,11 @@
 # @hearthkit/email
 
+## 0.5.0
+
+### Patch Changes
+
+- @hearthkit/config@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes
